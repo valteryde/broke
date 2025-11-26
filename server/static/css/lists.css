@@ -10,11 +10,18 @@
 
 .list-filter-bar {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    gap: 10px;
     padding: 12px 0;
     margin-bottom: 10px;
     border-bottom: 1px dashed black;
+}
+
+/* Top row: filter options (search, add filter button) */
+.list-filter-options {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     flex-wrap: wrap;
 }
 
@@ -43,16 +50,39 @@
     outline: none;
 }
 
+
+.list-create-btn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--logo-blue);
+    color: white;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+
+.list-create-btn:hover {
+    background: lightgrey;
+    color: black;
+    cursor: pointer;
+}
+
 .list-search-input::placeholder {
     color: #999;
 }
 
-/* Active filters (chips) container */
+/* Bottom row: Active filters (chips) container */
 .list-active-filters {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.list-active-filters:empty {
+    display: none;
 }
 
 /* Individual filter chip */

@@ -155,6 +155,10 @@ class List {
         const filterBar = document.createElement('div');
         filterBar.className = 'list-filter-bar';
         
+        // Top row: search and add filter button
+        const filterOptionsRow = document.createElement('div');
+        filterOptionsRow.className = 'list-filter-options';
+        
         // Always-visible search bar (if configured)
         if (filtersConfig.search) {
             const searchWrapper = document.createElement('div');
@@ -175,12 +179,8 @@ class List {
             
             searchWrapper.appendChild(searchIcon);
             searchWrapper.appendChild(searchInput);
-            filterBar.appendChild(searchWrapper);
+            filterOptionsRow.appendChild(searchWrapper);
         }
-        
-        // Active filters container (chips)
-        this.activeFiltersContainer = document.createElement('div');
-        this.activeFiltersContainer.className = 'list-active-filters';
         
         // Add filter dropdown using reusable Dropdown class
         const addFilterWrapper = document.createElement('div');
@@ -191,6 +191,16 @@ class List {
         addFilterBtn.innerHTML = '<i class="ph ph-funnel"></i> <span>Add filter</span> <i class="ph ph-caret-down"></i>';
         
         addFilterWrapper.appendChild(addFilterBtn);
+        filterOptionsRow.appendChild(addFilterWrapper);
+
+        const createButton = document.createElement('button');
+        createButton.className = 'list-create-btn';
+        createButton.innerHTML = '<span> <i class="ph ph-plus"></i> Add </span>';
+        filterOptionsRow.appendChild(createButton);
+        
+        // Bottom row: Active filters container (chips)
+        this.activeFiltersContainer = document.createElement('div');
+        this.activeFiltersContainer.className = 'list-active-filters';
         
         // Build dropdown items with submenus for each filter type
         const dropdownItems = [];
@@ -219,8 +229,8 @@ class List {
             closeOnClick: true
         });
         
+        filterBar.appendChild(filterOptionsRow);
         filterBar.appendChild(this.activeFiltersContainer);
-        filterBar.appendChild(addFilterWrapper);
         
         return filterBar;
     }
