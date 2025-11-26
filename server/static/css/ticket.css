@@ -20,7 +20,7 @@
 
 /* Sidebar */
 .ticket-sidebar {
-    width: 280px;
+    width: 220px;
     flex-shrink: 0;
 }
 
@@ -214,15 +214,13 @@
    ================================ */
 
 .ticket-properties {
-    background: var(--bg-white);
-    border: 1px dashed black;
-    border-radius: 4px;
-    padding: 16px;
-    height:100%;
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 
 .ticket-property {
-    margin-bottom: 16px;
+    margin-bottom: 4px;
 }
 
 .ticket-property:last-child {
@@ -230,11 +228,7 @@
 }
 
 .ticket-property-label {
-    font-size: 0.75rem;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
+    display: none;
 }
 
 /* Property button (triggers dropdown) */
@@ -243,33 +237,35 @@
     align-items: center;
     gap: 8px;
     width: 100%;
-    padding: 8px 10px;
-    background: white;
-    border: 1px dashed transparent;
+    padding: 6px 8px;
+    background: transparent;
+    border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     text-align: left;
-    transition: border-color 0.2s, background 0.2s;
+    transition: background 0.15s;
+    color: #555;
 }
 
 .ticket-property-btn:hover {
-    border-color: var(--logo-blue);
     background: var(--bg-white);
 }
 
 .ticket-property-btn .ph {
-    font-size: 1rem;
-    color: #666;
+    font-size: 0.9rem;
+    width: 18px;
+    text-align: center;
+    color: #888;
 }
 
 .ticket-property-btn .property-value {
     flex: 1;
+    font-size: 0.85rem;
 }
 
 .ticket-property-btn .ph-caret-down {
-    font-size: 0.75rem;
-    color: #999;
+    display: none;
 }
 
 /* Status colors */
@@ -291,22 +287,22 @@
 .ticket-labels-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 3px;
 }
 
 .ticket-label-tag {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    background: var(--bg-white);
-    border-radius: 12px;
+    gap: 3px;
+    padding: 1px 6px;
+    background: transparent;
+    border-radius: 3px;
     font-size: 0.8rem;
 }
 
 .ticket-label-dot {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
 }
 
@@ -314,29 +310,28 @@
 .ticket-assignees-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 3px;
 }
 
 .ticket-assignee-tag {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    background: var(--bg-white);
-    border-radius: 12px;
+    gap: 3px;
+    padding: 1px 0;
+    background: transparent;
     font-size: 0.8rem;
 }
 
 .ticket-assignee-avatar {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: var(--logo-blue);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.65rem;
+    font-size: 0.55rem;
     font-weight: 600;
 }
 
