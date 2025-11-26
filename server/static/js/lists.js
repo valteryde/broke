@@ -1,6 +1,6 @@
 
 /*
- * List class with modular filtering support
+ * List class with modular filtering and grouping support
  * 
  * Usage:
  * const list = new List('container-id', {
@@ -10,6 +10,10 @@
  *         assignees: { label: 'Assignees' },
  *         urgency: { label: 'Urgency' },
  *         dateRange: { label: 'Date Range' }
+ *     },
+ *     groupBy: {
+ *         options: ['urgency', 'assignees', 'labels', 'none'],
+ *         default: 'none'
  *     }
  * });
  */
@@ -64,6 +68,38 @@ const FilterTypes = {
     }
 };
 
+// Group type definitions
+const GroupTypes = {
+    none: {
+        label: 'None',
+        icon: 'ph-list',
+        getGroupKey: () => null,
+        getGroupLabel: () => null
+    },
+    urgency: {
+        label: 'Urgency',
+        icon: 'ph-warning',
+        getGroupKey: (element) => element.urgency || 'none',
+        getGroupLabel: (key) => {
+            const labels = { urgent: 'Urgent', high: 'High', medium: 'Medium', low: 'Low', none: 'No urgency' };
+            return labels[key] || key;
+        },
+        order: ['urgent', 'high', 'medium', 'low', 'none']
+    },
+    assignees: {
+        label: 'Assignee',
+        icon: 'ph-users',
+        getGroupKey: (element) => element.assignees && element.assignees.length > 0 ? element.assignees[0] : 'unassigned',
+        getGroupLabel: (key) => key === 'unassigned' ? 'Unassigned' : key
+    },
+    labels: {
+        label: 'Label',
+        icon: 'ph-tag',
+        getGroupKey: (element) => element.labels && element.labels.length > 0 ? element.labels[0].text : 'unlabeled',
+        getGroupLabel: (key) => key === 'unlabeled' ? 'No labels' : key
+    }
+};
+
 class List {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
@@ -73,15 +109,16 @@ class List {
         this.options = options;
         this.activeFilters = {};
         this.activeFilterChips = {};
+        this.currentGroupBy = options.groupBy?.default || 'none';
         
         // Create wrapper structure
         this.wrapper = document.createElement('div');
         this.wrapper.className = 'list-wrapper';
         this.container.parentNode.insertBefore(this.wrapper, this.container);
         
-        // Create filter bar if filters are configured
-        if (options.filters) {
-            this.filterBar = this.createFilterBar(options.filters);
+        // Create filter bar if filters or groupBy are configured
+        if (options.filters || options.groupBy) {
+            this.filterBar = this.createFilterBar(options.filters || {});
             this.wrapper.appendChild(this.filterBar);
         }
         
@@ -192,6 +229,34 @@ class List {
         
         addFilterWrapper.appendChild(addFilterBtn);
         filterOptionsRow.appendChild(addFilterWrapper);
+        
+        // Group by dropdown
+        if (this.options.groupBy) {
+            const groupByWrapper = document.createElement('div');
+            groupByWrapper.className = 'list-group-by-wrapper';
+            
+            const groupByBtn = document.createElement('button');
+            groupByBtn.className = 'list-group-by-btn';
+            this.groupByBtn = groupByBtn;
+            this.updateGroupByButtonLabel();
+            
+            groupByWrapper.appendChild(groupByBtn);
+            filterOptionsRow.appendChild(groupByWrapper);
+            
+            // Build group by dropdown items
+            const groupByItems = (this.options.groupBy.options || ['none', 'urgency', 'assignees', 'labels']).map(groupType => ({
+                label: GroupTypes[groupType]?.label || groupType,
+                icon: GroupTypes[groupType]?.icon || 'ph-list',
+                onClick: () => {
+                    this.setGroupBy(groupType);
+                }
+            }));
+            
+            this.groupByDropdown = new Dropdown(groupByBtn, {
+                items: groupByItems,
+                closeOnClick: true
+            });
+        }
 
         const createButton = document.createElement('button');
         createButton.className = 'list-create-btn';
@@ -357,6 +422,59 @@ class List {
         return Array.from(assignees).sort();
     }
     
+    // Grouping methods
+    updateGroupByButtonLabel() {
+        if (this.groupByBtn) {
+            const groupType = GroupTypes[this.currentGroupBy];
+            const label = groupType?.label || 'Group';
+            this.groupByBtn.innerHTML = `<i class="ph ${groupType?.icon || 'ph-list'}"></i> <span>Group: ${label}</span> <i class="ph ph-caret-down"></i>`;
+        }
+    }
+    
+    setGroupBy(groupType) {
+        this.currentGroupBy = groupType;
+        this.updateGroupByButtonLabel();
+        this.render();
+    }
+    
+    groupElements(elements) {
+        if (this.currentGroupBy === 'none' || !GroupTypes[this.currentGroupBy]) {
+            return null;
+        }
+        
+        const groupType = GroupTypes[this.currentGroupBy];
+        const groups = new Map();
+        
+        elements.forEach(element => {
+            const key = groupType.getGroupKey(element);
+            if (!groups.has(key)) {
+                groups.set(key, []);
+            }
+            groups.get(key).push(element);
+        });
+        
+        // Sort groups if order is defined
+        let sortedKeys;
+        if (groupType.order) {
+            sortedKeys = [...groups.keys()].sort((a, b) => {
+                const indexA = groupType.order.indexOf(a);
+                const indexB = groupType.order.indexOf(b);
+                if (indexA === -1 && indexB === -1) return 0;
+                if (indexA === -1) return 1;
+                if (indexB === -1) return -1;
+                return indexA - indexB;
+            });
+        } else {
+            sortedKeys = [...groups.keys()].sort();
+        }
+        
+        return sortedKeys.map(key => ({
+            key,
+            label: groupType.getGroupLabel(key),
+            elements: groups.get(key)
+        }));
+    }
+    
     clearAllFilters() {
         this.activeFilters = {};
         
@@ -408,42 +526,77 @@ class List {
             this.container.appendChild(noResults);
             return;
         }
-
-        elementsToRender.forEach(element => {
-            const inner = document.createElement('div');
-            inner.className = 'list-element-inner';
         
-            if (element.createdAt) {
-                var date = new Date(element.createdAt);
-                var dateString = date.toLocaleDateString();
-            } else {
-                var dateString = '';
-            }
+        // Check if we should group the elements
+        const groups = this.groupElements(elementsToRender);
+        
+        if (groups) {
+            // Render grouped elements
+            groups.forEach(group => {
+                const groupContainer = document.createElement('div');
+                groupContainer.className = 'list-group';
+                
+                const groupHeader = document.createElement('div');
+                groupHeader.className = 'list-group-header';
+                groupHeader.innerHTML = `
+                    <span class="list-group-label">${group.label}</span>
+                    <span class="list-group-count">${group.elements.length}</span>
+                `;
+                
+                groupContainer.appendChild(groupHeader);
+                
+                const groupContent = document.createElement('div');
+                groupContent.className = 'list-group-content';
+                
+                group.elements.forEach(element => {
+                    groupContent.appendChild(this.renderElement(element));
+                });
+                
+                groupContainer.appendChild(groupContent);
+                this.container.appendChild(groupContainer);
+            });
+        } else {
+            // Render flat list
+            elementsToRender.forEach(element => {
+                this.container.appendChild(this.renderElement(element));
+            });
+        }
+    }
+    
+    renderElement(element) {
+        const inner = document.createElement('div');
+        inner.className = 'list-element-inner';
+    
+        if (element.createdAt) {
+            var date = new Date(element.createdAt);
+            var dateString = date.toLocaleDateString();
+        } else {
+            var dateString = '';
+        }
 
-            inner.innerHTML = `
-                <i class="ph ${element.icon} list-element-icon"></i>
-                <span class="list-element-id">${element.id}</span>
-                <span class="list-element-text">
-                    <h3>${element.title}</h3>
-                    <p style="position:absolute;top:2rem;">${element.description}</p>
-                </span>
-                <span class="list-labels">
-                    ${element.labels.map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}
-                </span>
-                <span class="list-assignees">
-                    ${element.assignees.map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${assignee}</span>`).join('')}
-                </span>
-                <span class="list-date">
-                    ${dateString}
-                </span>
-            `;
-            
-            const elDiv = document.createElement('div');
-            elDiv.className = 'list-element';
-            elDiv.appendChild(inner);
+        inner.innerHTML = `
+            <i class="ph ${element.icon} list-element-icon"></i>
+            <span class="list-element-id">${element.id}</span>
+            <span class="list-element-text">
+                <h3>${element.title}</h3>
+                <p style="position:absolute;top:2rem;">${element.description}</p>
+            </span>
+            <span class="list-labels">
+                ${element.labels.map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}
+            </span>
+            <span class="list-assignees">
+                ${element.assignees.map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${assignee}</span>`).join('')}
+            </span>
+            <span class="list-date">
+                ${dateString}
+            </span>
+        `;
+        
+        const elDiv = document.createElement('div');
+        elDiv.className = 'list-element';
+        elDiv.appendChild(inner);
 
-            this.container.appendChild(elDiv);
-        });
+        return elDiv;
     }
 }
 

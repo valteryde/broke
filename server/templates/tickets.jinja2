@@ -15,6 +15,9 @@
 
 {% endblock %}
 
+{% block path %}
+    <span><i class="ph ph-ticket"></i> Tickets</span> 
+{% endblock %}
 
 {% block scripts %}
 
@@ -31,6 +34,10 @@
                     assignees: { label: 'Assignees' },
                     urgency: { label: 'Urgency' },
                     dateRange: { label: 'Date' }
+                },
+                groupBy: {
+                    options: ['none', 'urgency', 'assignees', 'labels'],
+                    default: 'none'
                 }
             });
 
