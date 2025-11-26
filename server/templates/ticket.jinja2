@@ -1,0 +1,98 @@
+{% extends "dashboard.jinja2" %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dropdown.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ticket.css') }}">
+    <!-- Quill.js -->
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-ticket"></i> Tickets</span> <i class="ph ph-caret-right"></i> <span><i class="ph ph-pen"></i> {{ ticket.id }}</span> 
+{% endblock %}
+
+{% block content %}
+
+<div id="ticket-editor"></div>
+
+{% endblock %}
+
+{% block scripts %}
+    <!-- Quill.js -->
+    <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+    <!-- Dropdown component -->
+    <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
+    <!-- Ticket editor -->
+    <script src="{{ url_for('static', filename='js/ticket.js') }}"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Sample ticket data (would come from backend)
+            const ticketData = {
+                id: '{{ ticket.id }}',
+                title: '{{ ticket.title }}',
+                description: '{{ ticket.description | default("<p>No description yet.</p>", true) | safe }}',
+                status: '{{ ticket.status | default("todo", true) }}',
+                priority: '{{ ticket.priority | default("medium", true) }}',
+                labels: {{ ticket.labels | default([], true) | tojson | safe }},
+                assignees: {{ ticket.assignees | default([], true) | tojson | safe }},
+                dueDate: '{{ ticket.due_date | default("", true) }}'
+            };
+            
+            // Current user (would come from session)
+            const currentUser = {
+                id: '{{ user.username }}',
+                username: '{{ user.username }}',
+                avatar: null
+            };
+            
+            // Sample activity (would come from backend)
+            const activityData = {{ activity | default([], true) | tojson | safe }};
+            
+            // Available options for dropdowns
+            const availableUsers = {{ available_users | default([], true) | tojson | safe }};
+            const availableLabels = {{ available_labels | default([], true) | tojson | safe }};
+            
+            // Initialize ticket editor
+            const editor = new TicketEditor('ticket-editor', {
+                ticket: ticketData,
+                currentUser: currentUser,
+                activity: activityData,
+                availableUsers: availableUsers,
+                availableLabels: availableLabels,
+                
+                // Save callback - would POST to backend
+                onSave: (field, value, oldValue) => {
+                    console.log('Saving:', field, value);
+                    // Example: fetch('/api/tickets/{{ ticket.id }}', {
+                    //     method: 'PATCH',
+                    //     headers: { 'Content-Type': 'application/json' },
+                    //     body: JSON.stringify({ [field]: value })
+                    // });
+                },
+                
+                // Comment callback - would POST to backend
+                onComment: (content, comment) => {
+                    console.log('New comment:', content);
+                    // Example: fetch('/api/tickets/{{ ticket.id }}/comments', {
+                    //     method: 'POST',
+                    //     headers: { 'Content-Type': 'application/json' },
+                    //     body: JSON.stringify({ content })
+                    // });
+                },
+                
+                // Delete comment callback
+                onDeleteComment: (commentId) => {
+                    console.log('Delete comment:', commentId);
+                    // Example: fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+                },
+                
+                // Edit comment callback
+                onEditComment: (commentId, currentContent) => {
+                    console.log('Edit comment:', commentId);
+                    // Could open a modal or inline editor
+                }
+            });
+        });
+    </script>
+{% endblock %}

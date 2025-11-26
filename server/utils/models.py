@@ -9,14 +9,63 @@ class BaseModel(Model):
         database = database
 
 class User(BaseModel):
-    username = CharField(unique=True)
+    username = CharField(primary_key=True)
     password_hash = CharField()
     salt = CharField()
     email = CharField(unique=True)
 
 
+class Ticket(BaseModel):
+    id = CharField(primary_key=True)
+
+    title = CharField()
+    description = CharField()
+
+    body = CharField()
+
+    status = CharField()
+    priority = CharField()
+
+
+class UserTicketJoin(BaseModel):
+    user = CharField()
+    ticket = CharField()
+
+    class Meta: 
+        indexes = (
+            (('user', 'ticket'), True),
+        )
+
+
+class Comment(BaseModel):
+    ticket = CharField()
+    user = CharField()
+    body = CharField()
+
+    class Meta:
+        indexes = (
+            (('ticket', 'user'), False),
+        )
+
+
+class TicketUpdateMessage(BaseModel):
+    ticket = CharField()
+    
+    title = CharField()
+    icon = CharField()
+    message = CharField()
+
+    class Meta:
+        indexes = (
+            (('ticket', 'title'), False),
+        )
+
+
+
 MODELS = [
-    User
+    User,
+    Ticket,
+    UserTicketJoin,
 ]
 
 def initialize_db():
@@ -34,3 +83,16 @@ def setup_test_data():
     except:
         pass  # User already exists
 
+
+    try:
+        Ticket.create(
+            id='DK-42', 
+            title='Sample Ticket',
+            description='This is a sample ticket.', 
+            body='Detailed body of the ticket.', 
+            status='open', 
+            priority="high"
+        )
+    except Exception as e:
+        print(e)
+        pass  # Ticket already exists

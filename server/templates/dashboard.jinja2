@@ -24,7 +24,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/master.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 
-        {% block head %}
+    {% block head %}
 
     {% endblock %}
 
@@ -40,11 +40,16 @@
         </div>
 
         <div class="sb-body">
-
+            
             <div class="sb-element">
+                <i class="ph ph-bird"></i>
+                <span>News</span>
+            </div>
+
+            {# <div class="sb-element">
                 <i class="ph ph-house"></i>
                 <span>Home</span>
-            </div>
+            </div> #}
 
             <div class="sb-element active">
                 <i class="ph ph-ticket"></i>
@@ -78,10 +83,7 @@
             {% endblock %}
         </div>
 
-       
-
     </div>
-
     
     <div id="content-wrapper">
 

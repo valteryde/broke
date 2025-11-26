@@ -39,7 +39,7 @@ def secureroute(route):
                 return redirect(login_url)
             return func(user, *args, **kwargs)
         # Register the route with Flask
-        app.route(route)(wrapper)
+        app.route(route, endpoint=func.__name__)(wrapper)
         return wrapper
     return decorator
 
