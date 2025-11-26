@@ -403,7 +403,6 @@
 .ticket-activity-tab.active {
     background: var(--bg-white);
     color: var(--logo-blue);
-    font-weight: 500;
 }
 
 /* Activity List */
@@ -610,6 +609,7 @@
 /* Comment Quill editor */
 .ticket-comment-quill {
     min-height: 80px;
+    border: none !important;
 }
 
 .ticket-comment-quill .ql-toolbar {
@@ -679,6 +679,7 @@
     cursor: not-allowed;
 }
 
+
 /* ================================
    RESPONSIVE
    ================================ */
@@ -703,3 +704,4 @@
         margin-bottom: 0;
     }
 }
+

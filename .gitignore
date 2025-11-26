@@ -2,3 +2,17 @@
 /data
 /data/*
 .DS_Store
+*.pyc
+__pycache__/
+env/
+venv/
+ENV/
+.idea/
+.vscode/
+*.sqlite3
+instance/
+logs/
+logs/*
+*.log
+*.pot
+**/*.pyc
