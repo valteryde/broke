@@ -1,0 +1,123 @@
+
+:root {
+    --sb-width: 250px;
+    --sb-inner-padding: 10px;
+    --main-margin: 10px;
+    font-size: 16px;
+}
+
+
+
+/* Sidebar */
+.sb-wrapper {
+    display: flex;
+    flex-direction: column;
+    width: var(--sb-width);
+    background-color: var(--bg-gray);
+    position: absolute;
+    height:100%;
+    left:0;
+    top:0;
+    padding: 15px;
+    box-sizing: border-box;
+}
+
+.sb-header {
+    display: flex;
+    align-items: center;
+    padding: var(--sb-inner-padding);
+    flex-direction: row;
+    position: relative;
+}
+
+.sb-header img {
+    height: 40px;
+    margin-right: 10px;
+}
+
+.sb-header .brand-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: black;
+    flex-grow: 1;
+}
+
+/* shrink button */
+.sb-header .ph {
+    position: absolute;
+    right: 0px;
+    font-size: 2rem;
+}
+
+.sb-body {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-top: 20px;
+}
+
+
+.sb-element {
+    width: 100%;
+    padding: var(--sb-inner-padding);
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    display:flex;
+    flex-direction: row;
+    gap: 10px;
+}
+
+.sb-element .ph {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.sb-element.active {
+    background-color: var(--logo-blue);
+    color: white;
+}
+
+
+.sb-news {
+    margin-top: auto;
+    border: dashed 1px black;
+    padding: 10px;
+    box-sizing: border-box;
+    border-radius:10px;
+}
+
+.sb-bottom {
+    
+}
+
+/* Main content */
+#content-wrapper {
+    position: absolute;
+    left: var(--sb-width);
+    top: var(--main-margin);
+    width: calc(100% - var(--sb-width) - var(--main-margin));
+    height: calc(100% - 2 * var(--main-margin));
+    overflow: scroll;
+    background-color: var(--bg-white);
+    padding: 20px;
+    border-radius:10px;
+}
+
+.path-bar {
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+    color: black;
+    display:flex;
+    flex-direction: row;
+    gap: 5px;
+}
+
+.path-bar * {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    justify-content: center;
+    vertical-align: middle;
+}

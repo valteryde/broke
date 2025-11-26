@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+     <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+    />
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+    />
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/master.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+
+        {% block head %}
+
+    {% endblock %}
+
+</head>
+<body>
+    
+    <div class="sb-wrapper">
+
+        <div class="sb-header">
+            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" class="sb-logo">
+            <span class="brand-title">Broke</span>
+            <i class="ph ph-arrow-square-left"></i>
+        </div>
+
+        <div class="sb-body">
+
+            <div class="sb-element">
+                <i class="ph ph-house"></i>
+                <span>Home</span>
+            </div>
+
+            <div class="sb-element active">
+                <i class="ph ph-ticket"></i>
+                <span>Tickets</span>
+            </div>
+
+            <div class="sb-element">
+                <i class="ph ph-bug-beetle"></i>
+                <span>Errors</span>
+            </div>
+
+            <div class="sb-element">
+                <i class="ph ph-git-commit"></i>
+                <span>Timeline</span>
+            </div>
+
+        </div>
+
+        <div class="sb-news">
+            {% block news %}
+            <div class="sb-news-inner">
+                <h3>Try the new timeline</h3>
+                <p>Check out the new timeline feature to track changes over time.</p>
+            </div>
+            {% endblock %}
+        </div>
+
+        <div class="sb-bottom">
+
+        </div>
+
+    </div>
+
+    
+    <div id="content-wrapper">
+
+        {% block path %}
+            <div class="path-bar">
+                <span><i class="ph ph-house"></i> Home</span> <i class="ph ph-caret-right"></i> <span> <i class="ph ph-bird"></i> Dashboard</span>
+            </div>
+        {% endblock %}
+            
+
+
+        {% block content %}
+            
+        {% endblock %}
+    </div>
+
+    <script src="{{ url_for('static', filename='js/master.js') }}"></script>
+    
+    {% block scripts %}
+
+    {% endblock %}
+
+</body>
+</html>
