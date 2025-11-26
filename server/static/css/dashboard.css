@@ -74,14 +74,14 @@
     font-size: 1.1rem;
 }
 
-.sb-element.active {
+.sb-element.active, .sb-element:hover {
     background-color: var(--logo-blue);
     color: white;
+    cursor: pointer;
 }
 
 
 .sb-news {
-    margin-top: auto;
     border: dashed 1px black;
     padding: 10px;
     box-sizing: border-box;
@@ -89,7 +89,20 @@
 }
 
 .sb-bottom {
-    
+    display:flex;
+    flex-direction: row;
+    justify-content: left;
+    align-items: center;
+    gap: 6px;
+    margin-top:auto;margin-bottom:20px;
+}
+
+.sb-bottom svg {
+    height:40px;
+    width:40px;
+    background-color: transparent;
+    border-radius: 9999px;
+    padding:0px;
 }
 
 /* Main content */
