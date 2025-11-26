@@ -2,11 +2,117 @@
 
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/board.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lists.css') }}">
 {% endblock %}
 
 {% block content %}
 
 <h1>Tickets</h1>
 
+<div id="ticket-list">
+
+
+</div>
+
+
+
+
+{% endblock %}
+
+
+{% block scripts %}
+
+    <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const ticketList = new List('ticket-list');
+
+            const tickets = [
+                {
+                    id: 'DEN-612',
+                    title: 'Sample Ticket',
+                    description: 'This is a sample ticket description.',
+                    icon: 'ph-cell-signal-high',
+                    status: 'Open',
+                    labels: [{text: 'bug', color: 'blue'}, {text: 'high-priority', color: 'red'}],
+                    assignees: ['alice', 'bob'],
+                    createdAt: '2024-06-01'
+                },
+                {
+                    id: 'DEN-613',
+                    title: 'Login page error',
+                    description: '500 error when submitting login form for some users.',
+                    icon: 'ph-cell-signal-medium',
+                    status: 'In Progress',
+                    labels: [{text: 'backend', color: 'purple'}, {text: 'urgent', color: 'red'}],
+                    assignees: ['carol'],
+                    createdAt: '2024-06-02'
+                },
+                {
+                    id: 'DEN-614',
+                    title: 'Improve onboarding flow',
+                    description: 'Streamline steps and add tooltips for first-time users.',
+                    icon: 'ph-cell-signal-medium',
+                    status: 'Review',
+                    labels: [{text: 'enhancement', color: 'green'}],
+                    assignees: ['dave', 'erin'],
+                    createdAt: '2024-06-03'
+                },
+                {
+                    id: 'DEN-615',
+                    title: 'Mobile layout fixes',
+                    description: 'Header overlaps content on small screens; adjust CSS.',
+                    icon: 'ph-cell-signal-low',
+                    status: 'Open',
+                    labels: [{text: 'frontend', color: 'teal'}],
+                    assignees: ['frank'],
+                    createdAt: '2024-06-04'
+                },
+                {
+                    id: 'DEN-616',
+                    title: 'Database index optimization',
+                    description: 'Add index to speed up analytics queries.',
+                    icon: 'ph-cell-signal-medium',
+                    status: 'In Progress',
+                    labels: [{text: 'performance', color: 'orange'}],
+                    assignees: ['gina'],
+                    createdAt: '2024-06-05'
+                },
+                {
+                    id: 'DEN-617',
+                    title: 'Write unit tests for utils',
+                    description: 'Increase coverage for helper functions.',
+                    icon: 'ph-checks',
+                    status: 'Open',
+                    labels: [{text: 'tests', color: 'brown'}],
+                    assignees: ['harry', 'iris'],
+                    createdAt: '2024-06-06'
+                },
+                {
+                    id: 'DEN-618',
+                    title: 'Export CSV feature',
+                    description: 'Allow users to export reports as CSV files.',
+                    icon: 'ph-cell-signal-high',
+                    status: 'Review',
+                    labels: [{text: 'feature', color: 'blue'}],
+                    assignees: ['jane'],
+                    createdAt: '2024-06-07'
+                },
+                {
+                    id: 'DEN-619',
+                    title: 'Fix email delivery',
+                    description: 'Some transactional emails are not sent; investigate SMTP logs.',
+                    icon: 'ph-warning',
+                    status: 'Closed',
+                    labels: [{text: 'infra', color: 'gray'}],
+                    assignees: ['kevin'],
+                    createdAt: '2024-06-08'
+                }
+            ];
+
+            tickets.forEach(ticket => ticketList.add(ticket));
+        });
+    </script>
 
 {% endblock %}
