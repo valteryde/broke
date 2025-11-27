@@ -111,7 +111,9 @@ class Dropdown {
             const hasSubmenu = item.submenu || item.getSubmenuItems;
             
             let content = '';
-            if (item.icon) content += `<i class="ph ${item.icon}"></i> `;
+            if (item.selected) content += `<i class="ph ph-check"></i> `;
+            if (item.avatar) content += `<span class="dropdown-item-avatar">${item.avatar}</span> `;
+            if (item.icon) content += `<i class="ph ${item.icon}" style="color: ${item.iconColor}"></i> `;
             content += `<span>${item.label}</span>`;
             if (hasSubmenu) content += `<i class="ph ph-caret-right dropdown-submenu-arrow"></i>`;
             
@@ -135,6 +137,13 @@ class Dropdown {
                     item.onClick(item);
                     if (this.options.closeOnClick) {
                         this.close();
+                    } else {
+
+                        item.selected = !item.selected;
+    
+                        // Rerender items if needed (e.g. for selected state)
+                        this.renderItems();
+                        jdenticon();
                     }
                 });
             }

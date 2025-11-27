@@ -19,6 +19,7 @@
  */
 
 // Filter type definitions with icons and display names
+// TODO: Move filter functions to separate modules for better maintainability
 const FilterTypes = {
     search: { 
         icon: 'ph-magnifying-glass', 
@@ -69,6 +70,7 @@ const FilterTypes = {
 };
 
 // Group type definitions
+// TODO: Move group functions to separate modules for better maintainability
 const GroupTypes = {
     none: {
         label: 'None',
@@ -595,6 +597,12 @@ class List {
         const elDiv = document.createElement('div');
         elDiv.className = 'list-element';
         elDiv.appendChild(inner);
+
+        elDiv.addEventListener('click', () => {
+            if (element.onClick) {
+                element.onClick(element);
+            }
+        });
 
         return elDiv;
     }

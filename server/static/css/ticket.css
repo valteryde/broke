@@ -262,6 +262,7 @@
 .ticket-property-btn .property-value {
     flex: 1;
     font-size: 0.85rem;
+    min-width: 100px;
 }
 
 .ticket-property-btn .ph-caret-down {

@@ -11,12 +11,26 @@
 
 <h1>Tickets</h1>
 
+<div class="project-tabs" id="project-tabs">
+    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="window.location.href = '/tickets'">
+        <i class="ph ph-squares-four"></i> All
+    </button>
+    <!-- Project tabs will be populated dynamically -->
+
+    {% for proj in projects %}
+    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="window.location.href = '/tickets/{{ proj.id }}' ">
+        <i class="{{ proj.icon }}"></i> {{ proj.name }}
+    </button>
+    {% endfor %}
+
+</div>
+
 <div id="ticket-list"></div>
 
 {% endblock %}
 
 {% block path %}
-    <span><i class="ph ph-ticket"></i> Tickets</span> 
+    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -42,86 +56,28 @@
             });
 
             const tickets = [
+                {% for ticket in tickets %}
                 {
-                    id: 'DEN-612',
-                    title: 'Sample Ticket',
-                    description: 'This is a sample ticket description.',
-                    icon: 'ph-cell-signal-high',
-                    urgency: 'high',
-                    labels: [{text: 'bug', color: 'blue'}, {text: 'high-priority', color: 'red'}],
-                    assignees: ['alice', 'bob'],
-                    createdAt: '2024-06-01'
+                    id: '{{ ticket.id }}',
+                    title: '{{ ticket.title }}',
+                    description: '{{ ticket.description | default("No description provided.", true) | safe }}',
+                    icon: 'ph-cell-signal-{{ "high" if ticket.priority == "high" else "medium" if ticket.priority == "medium" else "low" }}',
+                    urgency: '{{ ticket.priority }}',
+                    labels: [
+                        {% for label in ticket.labels %}
+                        {text: '{{ label.name }}', color: '{{ label.color }}'},
+                        {% endfor %}
+                    ],
+                    assignees: [
+                        {% for assignee in ticket.assignees %}
+                        '{{ assignee }}',
+                        {% endfor %}
+                    ],
+                    createdAt: '{{ ticket.created_at }}',
+                    project: '{{ ticket.project }}',
+                    onClick: () => { window.location.href = '/tickets/{{ ticket.project }}/{{ ticket.id }}'; }
                 },
-                {
-                    id: 'DEN-613',
-                    title: 'Login page error',
-                    description: '500 error when submitting login form for some users.',
-                    icon: 'ph-cell-signal-medium',
-                    urgency: 'medium',
-                    labels: [{text: 'backend', color: 'purple'}, {text: 'urgent', color: 'red'}],
-                    assignees: ['carol'],
-                    createdAt: '2024-06-02'
-                },
-                {
-                    id: 'DEN-614',
-                    title: 'Improve onboarding flow',
-                    description: 'Streamline steps and add tooltips for first-time users.',
-                    icon: 'ph-cell-signal-medium',
-                    urgency: 'medium',
-                    labels: [{text: 'enhancement', color: 'green'}],
-                    assignees: ['dave', 'erin'],
-                    createdAt: '2024-06-03'
-                },
-                {
-                    id: 'DEN-615',
-                    title: 'Mobile layout fixes',
-                    description: 'Header overlaps content on small screens; adjust CSS.',
-                    icon: 'ph-cell-signal-low',
-                    urgency: 'low',
-                    labels: [{text: 'frontend', color: 'teal'}],
-                    assignees: ['frank'],
-                    createdAt: '2024-06-04'
-                },
-                {
-                    id: 'DEN-616',
-                    title: 'Database index optimization',
-                    description: 'Add index to speed up analytics queries.',
-                    icon: 'ph-cell-signal-medium',
-                    urgency: 'medium',
-                    labels: [{text: 'performance', color: 'orange'}],
-                    assignees: ['gina'],
-                    createdAt: '2024-06-05'
-                },
-                {
-                    id: 'DEN-617',
-                    title: 'Write unit tests for utils',
-                    description: 'Increase coverage for helper functions.',
-                    icon: 'ph-checks',
-                    urgency: 'medium', /* medium but done thereby ph-checks as icon */
-                    labels: [{text: 'tests', color: 'brown'}],
-                    assignees: ['harry', 'iris'],
-                    createdAt: '2024-06-06'
-                },
-                {
-                    id: 'DEN-618',
-                    title: 'Export CSV feature',
-                    description: 'Allow users to export reports as CSV files.',
-                    icon: 'ph-cell-signal-high',
-                    urgency: 'high',
-                    labels: [{text: 'feature', color: 'blue'}],
-                    assignees: ['jane'],
-                    createdAt: '2024-06-07'
-                },
-                {
-                    id: 'DEN-619',
-                    title: 'Fix email delivery',
-                    description: 'Some transactional emails are not sent; investigate SMTP logs.',
-                    icon: 'ph-warning',
-                    urgency: 'urgent',
-                    labels: [{text: 'infra', color: 'gray'}],
-                    assignees: ['kevin'],
-                    createdAt: '2024-06-08'
-                }
+                {% endfor %}
             ];
 
             tickets.forEach(ticket => ticketList.add(ticket));

@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block path %}
-    <span><i class="ph ph-ticket"></i> Tickets</span> <i class="ph ph-caret-right"></i> <span><i class="ph ph-pen"></i> {{ ticket.id }}</span> 
+    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>  <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a> 
 {% endblock %}
 
 {% block content %}
@@ -26,6 +26,8 @@
     <script src="{{ url_for('static', filename='js/ticket.js') }}"></script>
     
     <script>
+
+        var editor;
         document.addEventListener('DOMContentLoaded', () => {
             // Sample ticket data (would come from backend)
             const ticketData = {
@@ -34,8 +36,24 @@
                 description: '{{ ticket.description | default("<p>No description yet.</p>", true) | safe }}',
                 status: '{{ ticket.status | default("todo", true) }}',
                 priority: '{{ ticket.priority | default("medium", true) }}',
-                labels: {{ ticket.labels | default([], true) | tojson | safe }},
-                assignees: {{ ticket.assignees | default([], true) | tojson | safe }},
+                labels: [
+                    {% for label in ticket.labels %}
+                    {
+                        id: '{{ label.id }}',
+                        name: '{{ label.name }}',
+                        color: '{{ label.color }}'
+                    },
+                    {% endfor %}
+                ],
+                assignees: [
+                    {% for assignee in ticket.assignees %}
+                    {
+                        id: '{{ assignee.username }}',
+                        username: '{{ assignee.username }}',
+                        avatar: null
+                    },
+                    {% endfor %}
+                ],
                 dueDate: '{{ ticket.due_date | default("", true) }}'
             };
             
@@ -47,14 +65,58 @@
             };
             
             // Sample activity (would come from backend)
-            const activityData = {{ activity | default([], true) | tojson | safe }};
+            const activityData = [
+                {% for comment in comments %}
+                {
+                    id: '{{ comment.id }}',
+                    author: {
+                        id: '{{ comment.user.username }}',
+                        username: '{{ comment.user.username }}',
+                        avatar: "<svg width='40' height='40' data-jdenticon-value='{{ comment.user.username }}'></svg>"
+                    },
+                    type: 'comment',
+                    content: '{{ comment.body | default("", true) | safe }}',
+                    createdAt: {{ comment.created_at }} * 1000
+                },
+                {% endfor %}
+                {% for update in updates %}
+                {
+                    id: '{{ update.id }}',
+                    message : '{{ update.message | default("", true) | safe }}',
+                    icon : 'ph-ph-{{ update.icon }}',
+                    createdAt: {{ update.created_at }} * 1000,
+                    type: 'update'
+                    // ticket = CharField()
+                    // title = CharField()
+                    // icon = CharField()
+                    // message = CharField()
+    
+                },
+                {% endfor %}
+            ]
             
             // Available options for dropdowns
-            const availableUsers = {{ available_users | default([], true) | tojson | safe }};
-            const availableLabels = {{ available_labels | default([], true) | tojson | safe }};
+            const availableUsers = [
+                {% for available_user in available_users %} 
+                {
+                    id: '{{ available_user.username }}',
+                    username: '{{ available_user.username }}',
+                },
+                {% endfor %}
+            ]
             
+            const availableLabels = [
+                {% for available_label in available_labels %}
+                {
+                    id: '{{ available_label.name }}',
+                    name: '{{ available_label.name }}',
+                    color: '{{ available_label.color }}'
+                },
+                {% endfor %}
+            ]
+
             // Initialize ticket editor
-            const editor = new TicketEditor('ticket-editor', {
+            editor = new TicketEditor('ticket-editor', {
                 ticket: ticketData,
                 currentUser: currentUser,
                 activity: activityData,

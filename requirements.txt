@@ -1,2 +1,4 @@
 flask==2.2.5
 pyargon2==21.3.0
+faker
+peewee

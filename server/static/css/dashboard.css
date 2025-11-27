@@ -133,4 +133,6 @@
     gap: 5px;
     justify-content: center;
     vertical-align: middle;
+    text-decoration: none;
+    color:black;
 }

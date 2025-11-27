@@ -41,11 +41,11 @@ const TicketStatuses = [
 
 // Priority options
 const TicketPriorities = [
-    { value: 'urgent', label: 'Urgent', icon: 'ph-warning', colorClass: 'priority-urgent' },
-    { value: 'high', label: 'High', icon: 'ph-cell-signal-high', colorClass: 'priority-high' },
-    { value: 'medium', label: 'Medium', icon: 'ph-cell-signal-medium', colorClass: 'priority-medium' },
-    { value: 'low', label: 'Low', icon: 'ph-cell-signal-low', colorClass: 'priority-low' },
-    { value: 'none', label: 'No priority', icon: 'ph-cell-signal-none', colorClass: 'priority-none' }
+    { value: 'urgent', label: 'Urgent', icon: 'ph-warning'},
+    { value: 'high', label: 'High', icon: 'ph-cell-signal-high'},
+    { value: 'medium', label: 'Medium', icon: 'ph-cell-signal-medium'},
+    { value: 'low', label: 'Low', icon: 'ph-cell-signal-low'},
+    { value: 'none', label: 'No priority', icon: 'ph-cell-signal-none'}
 ];
 
 class TicketEditor {
@@ -82,6 +82,17 @@ class TicketEditor {
         
 
     }
+
+    renderAvatarIconJdenticon() {
+        try {
+            jdenticon();
+        } catch (e) {
+            setTimeout(() => {
+                jdenticon();
+            }, 500);
+        }
+    }
+
     
     render() {
         this.container.innerHTML = `
@@ -96,7 +107,7 @@ class TicketEditor {
                 </div>
             </div>
         `;
-        jdenticon();
+        this.renderAvatarIconJdenticon();
     }
     
     renderHeader() {
@@ -199,9 +210,9 @@ class TicketEditor {
         }
         return this.ticket.assignees.map(a => `
             <span class="ticket-assignee-tag">
-                <span class="ticket-assignee-avatar">${this.getInitials(a.name)}</span>
-                ${this.escapeHtml(a.name)}
-            </span>
+                <svg width="16" height="16" data-jdenticon-value="${this.escapeHtml(a.username)}"></svg>
+                ${this.escapeHtml(a.username)}
+            </span> <br>
         `).join('');
     }
     
@@ -212,8 +223,8 @@ class TicketEditor {
         return this.ticket.labels.map(l => `
             <span class="ticket-label-tag">
                 <span class="ticket-label-dot" style="background-color: ${l.color}"></span>
-                ${this.escapeHtml(l.text)}
-            </span>
+                ${this.escapeHtml(l.name)}
+            </span><br>
         `).join('');
     }
     
@@ -248,12 +259,17 @@ class TicketEditor {
             if (this.activityFilter === 'updates') return item.type === 'update';
             return true;
         });
+
+        // sort by createdAt ascending
+        filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
         
         if (filtered.length === 0) {
             return '<div style="color: #999; font-size: 0.9rem; padding: 20px 0;">No activity yet.</div>';
         }
-        
+
         const res = filtered.map(item => {
+            console.log(item)
             if (item.type === 'comment') {
                 return this.renderComment(item);
             } else if (item.type === 'update') {
@@ -302,20 +318,15 @@ class TicketEditor {
         return `
             <div class="ticket-activity-item">
                 <div class="ticket-activity-avatar">
-                    ${update.author.avatar 
-                        ? `<img src="${update.author.avatar}" alt="${this.escapeHtml(update.author.name)}">`
-                        : this.getInitials(update.author.name)
-                    }
+                    
                 </div>
                 <div class="ticket-activity-content">
                     <div class="ticket-activity-meta">
-                        <span class="ticket-activity-author">${this.escapeHtml(update.author.name)}</span>
+                        <span class="ticket-activity-author"> <i class="ph ${update.icon}"> </i> </span>
                         <span class="ticket-activity-time">${this.formatRelativeTime(update.createdAt)}</span>
                     </div>
                     <div class="ticket-update">
-                        changed <span class="ticket-update-field">${this.formatFieldName(update.field)}</span>
-                        from <span class="ticket-update-old">${this.formatFieldValue(update.field, update.oldValue)}</span>
-                        to <span class="ticket-update-new">${this.formatFieldValue(update.field, update.newValue)}</span>
+                        ${this.escapeHtml(update.message)}
                     </div>
                 </div>
             </div>
@@ -434,8 +445,8 @@ class TicketEditor {
         if (assigneesBtn && this.options.availableUsers) {
             new Dropdown(assigneesBtn, {
                 items: this.options.availableUsers.map(u => ({
-                    label: u.name,
-                    icon: 'ph-user',
+                    label: u.username,
+                    avatar: '<svg width="16" height="16" data-jdenticon-value="' + this.escapeHtml(u.username) + '"></svg>',
                     selected: this.ticket.assignees?.some(a => a.id === u.id),
                     onClick: () => this.toggleAssignee(u)
                 })),
@@ -448,10 +459,10 @@ class TicketEditor {
         if (labelsBtn && this.options.availableLabels) {
             new Dropdown(labelsBtn, {
                 items: this.options.availableLabels.map(l => ({
-                    label: l.text,
-                    icon: 'ph-circle-fill',
-                    colorClass: `label-${l.color}`,
-                    selected: this.ticket.labels?.some(label => label.text === l.text),
+                    label: l.name,
+                    icon: 'ph-fill ph-circle',
+                    iconColor: l.color,
+                    selected: this.ticket.labels?.some(label => label.name === l.name),
                     onClick: () => this.toggleLabel(l)
                 })),
                 closeOnClick: false // Multi-select
@@ -590,18 +601,20 @@ class TicketEditor {
         
         this.onSave('assignees', this.ticket.assignees);
         this.refreshProperty('assignees');
+        this.renderAvatarIconJdenticon();
     }
     
     toggleLabel(label) {
         if (!this.ticket.labels) this.ticket.labels = [];
         
-        const index = this.ticket.labels.findIndex(l => l.text === label.text);
+        const index = this.ticket.labels.findIndex(l => l.name === label.name);
         if (index > -1) {
             this.ticket.labels.splice(index, 1);
         } else {
             this.ticket.labels.push(label);
         }
         
+        console.log(this.ticket.labels);
         this.onSave('labels', this.ticket.labels);
         this.refreshProperty('labels');
     }
@@ -669,7 +682,7 @@ class TicketEditor {
             list.innerHTML = this.renderActivityItems();
         }
 
-        jdenticon();
+        this.renderAvatarIconJdenticon();
     }
     
     // Add activity (for external use)

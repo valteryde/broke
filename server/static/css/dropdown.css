@@ -238,3 +238,11 @@
 .dropdown-submenu-item.urgency-high { color: #ea580c; }
 .dropdown-submenu-item.urgency-medium { color: #ca8a04; }
 .dropdown-submenu-item.urgency-low { color: #16a34a; }
+
+.dropdown-item-avatar {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: inline-block;
+}
