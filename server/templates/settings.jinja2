@@ -1,0 +1,1003 @@
+{% extends "dashboard.jinja2" %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-gear-six"></i> Settings</span>
+    {% if section %}
+        <i class="ph ph-caret-right"></i>
+        <span>{{ section_title }}</span>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="settings-container">
+    <!-- Settings Sidebar Navigation -->
+    <div class="settings-sidebar">
+        <div class="settings-nav-section">
+            <h3 class="nav-section-title">Account</h3>
+            <a href="/settings/profile" class="settings-nav-item {% if section == 'profile' %}active{% endif %}">
+                <i class="ph ph-user"></i>
+                <span>Profile</span>
+            </a>
+            <a href="/settings/preferences" class="settings-nav-item {% if section == 'preferences' %}active{% endif %}">
+                <i class="ph ph-sliders-horizontal"></i>
+                <span>Preferences</span>
+            </a>
+            <a href="/settings/notifications" class="settings-nav-item {% if section == 'notifications' %}active{% endif %}">
+                <i class="ph ph-bell"></i>
+                <span>Notifications</span>
+            </a>
+            <a href="/settings/security" class="settings-nav-item {% if section == 'security' %}active{% endif %}">
+                <i class="ph ph-shield-check"></i>
+                <span>Security</span>
+            </a>
+        </div>
+
+        <div class="settings-nav-section">
+            <h3 class="nav-section-title">Workspace</h3>
+            <a href="/settings/general" class="settings-nav-item {% if section == 'general' %}active{% endif %}">
+                <i class="ph ph-gear"></i>
+                <span>General</span>
+            </a>
+            <a href="/settings/projects" class="settings-nav-item {% if section == 'projects' %}active{% endif %}">
+                <i class="ph ph-folder-simple"></i>
+                <span>Projects</span>
+            </a>
+            <a href="/settings/team" class="settings-nav-item {% if section == 'team' %}active{% endif %}">
+                <i class="ph ph-users-three"></i>
+                <span>Team Members</span>
+            </a>
+            <a href="/settings/labels" class="settings-nav-item {% if section == 'labels' %}active{% endif %}">
+                <i class="ph ph-tag"></i>
+                <span>Labels</span>
+            </a>
+        </div>
+
+        <div class="settings-nav-section">
+            <h3 class="nav-section-title">Integrations</h3>
+            <a href="/settings/api" class="settings-nav-item {% if section == 'api' %}active{% endif %}">
+                <i class="ph ph-code"></i>
+                <span>API & Tokens</span>
+            </a>
+            <a href="/settings/webhooks" class="settings-nav-item {% if section == 'webhooks' %}active{% endif %}">
+                <i class="ph ph-webhooks-logo"></i>
+                <span>Webhooks</span>
+            </a>
+            <a href="/settings/sentry" class="settings-nav-item {% if section == 'sentry' %}active{% endif %}">
+                <i class="ph ph-bug"></i>
+                <span>Sentry DSN</span>
+            </a>
+        </div>
+
+        {% if user.admin %}
+        <div class="settings-nav-section">
+            <h3 class="nav-section-title">Administration</h3>
+            <a href="/settings/billing" class="settings-nav-item {% if section == 'billing' %}active{% endif %}">
+                <i class="ph ph-credit-card"></i>
+                <span>Billing</span>
+            </a>
+            <a href="/settings/danger" class="settings-nav-item danger {% if section == 'danger' %}active{% endif %}">
+                <i class="ph ph-warning"></i>
+                <span>Danger Zone</span>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Settings Content Area -->
+    <div class="settings-content">
+        {% if section == 'profile' or not section %}
+        <!-- Profile Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Profile</h1>
+                <p class="section-description">Manage your personal account settings</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Avatar</h3>
+                    <p class="card-description">Your avatar is automatically generated based on your username</p>
+                    <div class="avatar-section">
+                        <svg width="80" height="80" data-jdenticon-value="{{ user.username }}" class="avatar-preview"></svg>
+                        <div class="avatar-info">
+                            <span class="avatar-username">{{ user.username }}</span>
+                            <span class="avatar-hint">Identicon generated from username</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Basic Information</h3>
+                    <p class="card-description">Update your account details</p>
+                    
+                    <form id="profile-form" class="settings-form">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" id="username" name="username" value="{{ user.username }}" disabled class="form-input disabled">
+                            <span class="form-hint">Username cannot be changed</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input type="email" id="email" name="email" value="{{ user.email }}" class="form-input">
+                            <span class="form-hint">Used for notifications and account recovery</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="display_name">Display Name</label>
+                            <input type="text" id="display_name" name="display_name" placeholder="How you want to be called" class="form-input">
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'preferences' %}
+        <!-- Preferences Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Preferences</h1>
+                <p class="section-description">Customize your workspace experience</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Appearance</h3>
+                    <p class="card-description">Choose how Broke looks to you</p>
+
+                    <div class="preference-group">
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Theme</span>
+                                <span class="preference-description">Select your preferred color scheme</span>
+                            </div>
+                            <div class="preference-control">
+                                <select class="form-select" id="theme-select">
+                                    <option value="light" selected>Light</option>
+                                    <option value="dark">Dark</option>
+                                    <option value="system">System</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Compact Mode</span>
+                                <span class="preference-description">Use smaller spacing and font sizes</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="compact-mode">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Animations</span>
+                                <span class="preference-description">Enable smooth transitions and animations</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="animations" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Default Views</h3>
+                    <p class="card-description">Set your preferred default pages and layouts</p>
+
+                    <div class="preference-group">
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Home Page</span>
+                                <span class="preference-description">Page to show when you open Broke</span>
+                            </div>
+                            <div class="preference-control">
+                                <select class="form-select" id="home-page">
+                                    <option value="news" selected>News</option>
+                                    <option value="tickets">Tickets</option>
+                                    <option value="errors">Errors</option>
+                                    <option value="timeline">Timeline</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Default Ticket View</span>
+                                <span class="preference-description">How tickets are displayed by default</span>
+                            </div>
+                            <div class="preference-control">
+                                <select class="form-select" id="ticket-view">
+                                    <option value="list" selected>List</option>
+                                    <option value="board">Board</option>
+                                    <option value="table">Table</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'notifications' %}
+        <!-- Notification Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Notifications</h1>
+                <p class="section-description">Control how and when you receive notifications</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Email Notifications</h3>
+                    <p class="card-description">Configure email notification preferences</p>
+
+                    <div class="preference-group">
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Ticket Assignments</span>
+                                <span class="preference-description">When you're assigned to a ticket</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Comments</span>
+                                <span class="preference-description">When someone comments on your tickets</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Status Changes</span>
+                                <span class="preference-description">When ticket status is updated</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Error Alerts</span>
+                                <span class="preference-description">When new errors are detected</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Weekly Digest</span>
+                                <span class="preference-description">Summary of activity every week</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'security' %}
+        <!-- Security Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Security</h1>
+                <p class="section-description">Manage your account security settings</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Change Password</h3>
+                    <p class="card-description">Update your password regularly for better security</p>
+                    
+                    <form id="password-form" class="settings-form">
+                        <div class="form-group">
+                            <label for="current_password">Current Password</label>
+                            <input type="password" id="current_password" name="current_password" class="form-input">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new_password">New Password</label>
+                            <input type="password" id="new_password" name="new_password" class="form-input">
+                            <span class="form-hint">Minimum 8 characters with at least one number</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirm_password">Confirm New Password</label>
+                            <input type="password" id="confirm_password" name="confirm_password" class="form-input">
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Update Password</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Sessions</h3>
+                    <p class="card-description">Manage your active sessions</p>
+                    
+                    <div class="session-list">
+                        <div class="session-item current">
+                            <div class="session-info">
+                                <i class="ph ph-desktop"></i>
+                                <div class="session-details">
+                                    <span class="session-device">Current Session</span>
+                                    <span class="session-meta">macOS • Chrome • Last active: Now</span>
+                                </div>
+                            </div>
+                            <span class="session-badge">Current</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-secondary" style="margin-top: 16px;">
+                        <i class="ph ph-sign-out"></i> Sign Out All Other Sessions
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'projects' %}
+        <!-- Projects Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <div class="header-with-action">
+                    <div>
+                        <h1>Projects</h1>
+                        <p class="section-description">Manage your workspace projects</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="showCreateProjectModal()">
+                        <i class="ph ph-plus"></i> New Project
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <div class="project-list">
+                        {% for project in projects %}
+                        <div class="project-item">
+                            <div class="project-info">
+                                <div class="project-icon" style="background: {{ project.color or 'var(--logo-blue)' }}">
+                                    <i class="{{ project.icon }}"></i>
+                                </div>
+                                <div class="project-details">
+                                    <span class="project-name">{{ project.name }}</span>
+                                    <span class="project-id">{{ project.id }}</span>
+                                </div>
+                            </div>
+                            <div class="project-actions">
+                                <button class="btn-icon" title="Edit">
+                                    <i class="ph ph-pencil-simple"></i>
+                                </button>
+                                <button class="btn-icon danger" title="Delete">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-folder-plus"></i>
+                            <p>No projects yet. Create your first project to get started.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'team' %}
+        <!-- Team Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <div class="header-with-action">
+                    <div>
+                        <h1>Team Members</h1>
+                        <p class="section-description">Manage who has access to your workspace</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="showInviteModal()">
+                        <i class="ph ph-user-plus"></i> Invite Member
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <div class="team-list">
+                        {% for member in team_members %}
+                        <div class="team-member">
+                            <div class="member-info">
+                                <svg width="40" height="40" data-jdenticon-value="{{ member.username }}"></svg>
+                                <div class="member-details">
+                                    <span class="member-name">{{ member.username }}</span>
+                                    <span class="member-email">{{ member.email }}</span>
+                                </div>
+                            </div>
+                            <div class="member-role">
+                                <select class="form-select-sm" {% if member.username == user.username %}disabled{% endif %}>
+                                    <option value="admin" {% if member.admin %}selected{% endif %}>Admin</option>
+                                    <option value="member" {% if not member.admin %}selected{% endif %}>Member</option>
+                                </select>
+                            </div>
+                            <div class="member-actions">
+                                {% if member.username != user.username %}
+                                <button class="btn-icon danger" title="Remove">
+                                    <i class="ph ph-user-minus"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'labels' %}
+        <!-- Labels Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <div class="header-with-action">
+                    <div>
+                        <h1>Labels</h1>
+                        <p class="section-description">Manage labels for organizing tickets</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="showCreateLabelModal()">
+                        <i class="ph ph-plus"></i> New Label
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <div class="label-list">
+                        {% for label in labels %}
+                        <div class="label-item">
+                            <div class="label-info">
+                                <span class="label-color" style="background: {{ label.color }}"></span>
+                                <span class="label-name">{{ label.name }}</span>
+                            </div>
+                            <div class="label-actions">
+                                <button class="btn-icon" title="Edit">
+                                    <i class="ph ph-pencil-simple"></i>
+                                </button>
+                                <button class="btn-icon danger" title="Delete">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-tag"></i>
+                            <p>No labels yet. Create labels to organize your tickets.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'api' %}
+        <!-- API Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>API & Tokens</h1>
+                <p class="section-description">Manage API access and personal access tokens</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Personal Access Tokens</h3>
+                    <p class="card-description">Create tokens to authenticate with the API</p>
+
+                    <div class="token-list">
+                        <div class="empty-state">
+                            <i class="ph ph-key"></i>
+                            <p>No tokens created yet</p>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-secondary" style="margin-top: 16px;">
+                        <i class="ph ph-plus"></i> Generate New Token
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>API Documentation</h3>
+                    <p class="card-description">Learn how to integrate with Broke</p>
+                    
+                    <div class="api-docs-link">
+                        <a href="/docs/api" class="doc-link">
+                            <i class="ph ph-book-open"></i>
+                            <span>View API Documentation</span>
+                            <i class="ph ph-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'webhooks' %}
+        <!-- Webhooks Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Webhooks</h1>
+                <p class="section-description">Connect external services to receive events from Broke</p>
+            </div>
+
+            <!-- GitHub Integration -->
+            <div class="settings-card">
+                <div class="card-section">
+                    <div class="integration-header">
+                        <div class="integration-logo github">
+                            <i class="ph ph-github-logo"></i>
+                        </div>
+                        <div class="integration-info">
+                            <h3>GitHub Integration</h3>
+                            <p class="card-description">Connect GitHub to automatically create tickets from issues and link commits</p>
+                        </div>
+                        {% if github_connected %}
+                        <span class="integration-badge connected">
+                            <i class="ph ph-check-circle"></i> Connected
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    {% if not github_connected %}
+                    <div class="github-setup">
+                        <div class="setup-steps">
+                            <div class="setup-step">
+                                <span class="step-number">1</span>
+                                <div class="step-content">
+                                    <span class="step-title">Add webhook to your repository</span>
+                                    <span class="step-description">Go to your GitHub repo → Settings → Webhooks → Add webhook</span>
+                                </div>
+                            </div>
+                            <div class="setup-step">
+                                <span class="step-number">2</span>
+                                <div class="step-content">
+                                    <span class="step-title">Configure the webhook URL</span>
+                                    <span class="step-description">Use the URL below as your Payload URL</span>
+                                </div>
+                            </div>
+                            <div class="setup-step">
+                                <span class="step-number">3</span>
+                                <div class="step-content">
+                                    <span class="step-title">Set content type and events</span>
+                                    <span class="step-description">Content type: application/json • Events: Issues, Push, Pull requests</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="webhook-url-section">
+                            <label>Webhook URL</label>
+                            <div class="dsn-url-wrapper">
+                                <code class="dsn-url">{{ base_url }}/api/webhooks/github/{{ webhook_secret }}</code>
+                                <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ base_url }}/api/webhooks/github/{{ webhook_secret }}">
+                                    <i class="ph ph-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="webhook-url-section">
+                            <label>Secret Token <span class="label-optional">(optional but recommended)</span></label>
+                            <div class="dsn-url-wrapper">
+                                <code class="dsn-url">{{ github_webhook_secret }}</code>
+                                <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ github_webhook_secret }}">
+                                    <i class="ph ph-copy"></i>
+                                </button>
+                                <button class="btn-icon" onclick="regenerateSecret('github')" title="Regenerate">
+                                    <i class="ph ph-arrows-clockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="github-connected">
+                        <div class="connected-repo">
+                            <i class="ph ph-git-branch"></i>
+                            <span>{{ github_repo }}</span>
+                        </div>
+                        <button class="btn btn-secondary" onclick="disconnectGithub()">
+                            <i class="ph ph-plug"></i> Disconnect
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- GitHub Event Settings -->
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>GitHub Event Mapping</h3>
+                    <p class="card-description">Configure how GitHub events are handled</p>
+
+                    <div class="preference-group">
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Create tickets from issues</span>
+                                <span class="preference-description">Automatically create Broke tickets when GitHub issues are opened</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="github-issues" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Link commits to tickets</span>
+                                <span class="preference-description">Link commits that mention ticket IDs (e.g., "fixes #123")</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="github-commits" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Sync issue comments</span>
+                                <span class="preference-description">Add GitHub comments to linked Broke tickets</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="github-comments">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Close tickets on merge</span>
+                                <span class="preference-description">Automatically close tickets when linked PRs are merged</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="github-close-on-merge" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Default Project Mapping -->
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Project Mapping</h3>
+                    <p class="card-description">Map GitHub repositories to Broke projects</p>
+
+                    <div class="mapping-list">
+                        {% for project in projects %}
+                        <div class="mapping-item">
+                            <div class="mapping-project">
+                                <div class="project-icon" style="background: {{ project.color or 'var(--logo-blue)' }}">
+                                    <i class="{{ project.icon or 'ph ph-folder' }}"></i>
+                                </div>
+                                <span>{{ project.name }}</span>
+                            </div>
+                            <div class="mapping-repo">
+                                <input type="text" 
+                                       class="form-input" 
+                                       placeholder="owner/repository" 
+                                       value="{{ project.github_repo or '' }}"
+                                       data-project-id="{{ project.id }}">
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-git-branch"></i>
+                            <p>No projects to map. Create a project first.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if projects %}
+                    <div class="form-actions" style="margin-top: 16px;">
+                        <button class="btn btn-primary" onclick="saveGithubMappings()">
+                            <i class="ph ph-floppy-disk"></i> Save Mappings
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Outgoing Webhooks -->
+            <div class="settings-card">
+                <div class="card-section">
+                    <div class="header-with-action">
+                        <div>
+                            <h3>Outgoing Webhooks</h3>
+                            <p class="card-description">Send events to external URLs when things happen in Broke</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="showAddWebhookModal()">
+                            <i class="ph ph-plus"></i> Add Webhook
+                        </button>
+                    </div>
+
+                    <div class="webhook-list">
+                        {% for webhook in outgoing_webhooks %}
+                        <div class="webhook-item">
+                            <div class="webhook-info">
+                                <span class="webhook-url">{{ webhook.url }}</span>
+                                <div class="webhook-events">
+                                    {% for event in webhook.events %}
+                                    <span class="webhook-event-tag">{{ event }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="webhook-status {% if webhook.active %}active{% else %}inactive{% endif %}">
+                                {{ 'Active' if webhook.active else 'Inactive' }}
+                            </div>
+                            <div class="webhook-actions">
+                                <button class="btn-icon" onclick="testWebhook('{{ webhook.id }}')" title="Test">
+                                    <i class="ph ph-play"></i>
+                                </button>
+                                <button class="btn-icon" onclick="editWebhook('{{ webhook.id }}')" title="Edit">
+                                    <i class="ph ph-pencil-simple"></i>
+                                </button>
+                                <button class="btn-icon danger" onclick="deleteWebhook('{{ webhook.id }}')" title="Delete">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-webhooks-logo"></i>
+                            <p>No outgoing webhooks configured yet</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Webhook Activity -->
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Recent Activity</h3>
+                    <p class="card-description">Latest webhook deliveries and their status</p>
+
+                    <div class="webhook-activity-list">
+                        {% for activity in webhook_activity %}
+                        <div class="activity-item">
+                            <div class="activity-status {{ activity.status }}">
+                                <i class="ph {% if activity.status == 'success' %}ph-check-circle{% else %}ph-x-circle{% endif %}"></i>
+                            </div>
+                            <div class="activity-info">
+                                <span class="activity-event">{{ activity.event }}</span>
+                                <span class="activity-time">{{ activity.time }}</span>
+                            </div>
+                            <div class="activity-response">
+                                {{ activity.response_code }}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-state small">
+                            <p>No recent webhook activity</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'sentry' %}
+        <!-- Sentry DSN Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Sentry Integration</h1>
+                <p class="section-description">Configure your error tracking DSN endpoints</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Project DSN Endpoints</h3>
+                    <p class="card-description">Use these DSN URLs in your applications to send errors to Broke</p>
+
+                    <div class="dsn-list">
+                        {% for part in project_parts %}
+                        <div class="dsn-item">
+                            <div class="dsn-info">
+                                <span class="dsn-project">{{ part.project.name }} / {{ part.name }}</span>
+                                <div class="dsn-url-wrapper">
+                                    <code class="dsn-url">{{ base_url }}/api/{{ part.project.id }}/{{ part.id }}/envelope/</code>
+                                    <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ base_url }}/api/{{ part.project.id }}/{{ part.id }}/envelope/">
+                                        <i class="ph ph-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-plug"></i>
+                            <p>No project parts configured. Create a project part to get a DSN.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Integration Guide</h3>
+                    <p class="card-description">Example configuration for common platforms</p>
+
+                    <div class="code-example">
+                        <div class="code-header">
+                            <span>Python (sentry-sdk)</span>
+                        </div>
+                        <pre><code>import sentry_sdk
+
+sentry_sdk.init(
+    dsn="YOUR_DSN_URL_HERE",
+    traces_sample_rate=1.0,
+)</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'danger' %}
+        <!-- Danger Zone -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Danger Zone</h1>
+                <p class="section-description">Irreversible actions - proceed with caution</p>
+            </div>
+
+            <div class="settings-card danger-card">
+                <div class="card-section">
+                    <h3>Delete Account</h3>
+                    <p class="card-description">Permanently delete your account and all associated data. This action cannot be undone.</p>
+                    
+                    <button class="btn btn-danger">
+                        <i class="ph ph-trash"></i> Delete Account
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-card danger-card">
+                <div class="card-section">
+                    <h3>Clear All Data</h3>
+                    <p class="card-description">Remove all tickets, errors, and project data while keeping your account.</p>
+                    
+                    <button class="btn btn-danger">
+                        <i class="ph ph-eraser"></i> Clear All Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- General/Default Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>General Settings</h1>
+                <p class="section-description">Configure your workspace settings</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Workspace Name</h3>
+                    <p class="card-description">The name of your workspace as it appears throughout Broke</p>
+                    
+                    <form class="settings-form">
+                        <div class="form-group">
+                            <input type="text" id="workspace_name" name="workspace_name" value="My Workspace" class="form-input">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Timezone</h3>
+                    <p class="card-description">Set the default timezone for your workspace</p>
+                    
+                    <div class="form-group">
+                        <select class="form-select" id="timezone">
+                            <option value="UTC">UTC</option>
+                            <option value="Europe/Copenhagen" selected>Europe/Copenhagen</option>
+                            <option value="America/New_York">America/New York</option>
+                            <option value="America/Los_Angeles">America/Los Angeles</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Date Format</h3>
+                    <p class="card-description">How dates are displayed throughout the workspace</p>
+                    
+                    <div class="preference-group">
+                        <div class="radio-group">
+                            <label class="radio-item">
+                                <input type="radio" name="date_format" value="mdy">
+                                <span class="radio-label">MM/DD/YYYY</span>
+                                <span class="radio-example">11/28/2025</span>
+                            </label>
+                            <label class="radio-item">
+                                <input type="radio" name="date_format" value="dmy" checked>
+                                <span class="radio-label">DD/MM/YYYY</span>
+                                <span class="radio-example">28/11/2025</span>
+                            </label>
+                            <label class="radio-item">
+                                <input type="radio" name="date_format" value="ymd">
+                                <span class="radio-label">YYYY-MM-DD</span>
+                                <span class="radio-example">2025-11-28</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}

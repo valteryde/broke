@@ -94,3 +94,19 @@ def callback():
 def logout():
     session.pop('user_id', None)
     return ''
+
+
+def get_current_user() -> User | None:
+    """
+    Get the currently authenticated user from the session.
+    Returns None if no user is logged in.
+    """
+    user_id = session.get('user_id')
+    if not user_id:
+        return None
+    
+    try:
+        user = User.select().where(User.username == user_id).first()
+        return user
+    except DoesNotExist:
+        return None

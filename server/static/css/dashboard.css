@@ -37,7 +37,7 @@
 
 .sb-header .brand-title {
     font-size: 1.5rem;
-    font-weight: bold;
+    font-weight: bolder;
     color: black;
     flex-grow: 1;
 }

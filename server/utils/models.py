@@ -199,6 +199,95 @@ class TicketLabelJoin(BaseModel):
         )
 
 
+# ============ Settings Models ============
+
+class UserSettings(BaseModel):
+    """User preferences and settings"""
+    user = CharField(primary_key=True)  # References User.username
+    
+    # Appearance
+    theme = CharField(default='light')  # light, dark, system
+    compact_mode = IntegerField(default=0)
+    animations = IntegerField(default=1)
+    
+    # Defaults
+    home_page = CharField(default='news')  # news, tickets, errors, timeline
+    default_ticket_view = CharField(default='list')  # list, board, table
+    
+    # Locale
+    timezone = CharField(default='UTC')
+    date_format = CharField(default='dmy')  # mdy, dmy, ymd
+    
+    # Profile
+    display_name = CharField(null=True)
+    
+    # Notification settings as JSON
+    notification_settings = TextField(default='{}')
+    
+    # GitHub integration settings as JSON
+    github_settings = TextField(default='{}')
+    
+    # Webhook secrets
+    webhook_secret = CharField(null=True)
+    github_webhook_secret = CharField(null=True)
+
+
+class Webhook(BaseModel):
+    """Outgoing webhooks configuration"""
+    id = AutoField(primary_key=True)
+    user = CharField()  # References User.username
+    
+    url = CharField()
+    events = TextField()  # JSON array of event types
+    secret = CharField(null=True)  # For signing payloads
+    
+    active = IntegerField(default=1)
+    created_at = IntegerField(default=lambda: int(time.time()))
+    last_triggered = IntegerField(null=True)
+
+
+class WebhookDelivery(BaseModel):
+    """Log of webhook delivery attempts"""
+    id = AutoField(primary_key=True)
+    webhook = ForeignKeyField(Webhook, backref='deliveries')
+    
+    event = CharField()
+    response_code = IntegerField()
+    status = CharField()  # success, error
+    timestamp = IntegerField(default=lambda: int(time.time()))
+
+
+class GitHubIntegration(BaseModel):
+    """GitHub integration per project"""
+    id = AutoField(primary_key=True)
+    user = CharField()  # References User.username
+    project = CharField()  # References Project.id
+    
+    repository = CharField(null=True)  # owner/repo format
+    connected = IntegerField(default=0)
+    
+    # Settings
+    create_tickets = IntegerField(default=1)
+    link_commits = IntegerField(default=1)
+    sync_comments = IntegerField(default=0)
+    close_on_merge = IntegerField(default=1)
+    
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
+class APIToken(BaseModel):
+    """API tokens for programmatic access"""
+    id = AutoField(primary_key=True)
+    user = CharField()  # References User.username
+    
+    name = CharField()
+    token_hash = CharField()  # SHA256 hash of the token
+    token_preview = CharField()  # First 8 chars for display
+    
+    last_used = IntegerField(null=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
 MODELS = [
     User,
     Ticket,
@@ -214,7 +303,13 @@ MODELS = [
     ErrorOccurrence,
     Session,
     Transaction,
-    Attachment
+    Attachment,
+    # Settings models
+    UserSettings,
+    Webhook,
+    WebhookDelivery,
+    GitHubIntegration,
+    APIToken
 ]
 
 def initialize_db():
