@@ -1,0 +1,330 @@
+{% extends "dashboard.jinja2" %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/error.css') }}">
+    <!-- Highlight.js for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+{% endblock %}
+
+{% block path %}
+    <a href="/errors"><i class="ph ph-bug-beetle"></i> Errors</a> 
+    <i class="ph ph-caret-right"></i> 
+    <a href="/errors/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+    <i class="ph ph-caret-right"></i> 
+    <a href="/errors/{{ project.id }}/{{ part.id }}"><i class="ph ph-puzzle-piece"></i> {{ part.name }}</a>
+    <i class="ph ph-caret-right"></i> 
+    <span><i class="ph ph-warning-circle"></i> {{ error.exception_type or 'Error' }}</span>
+{% endblock %}
+
+{% block content %}
+
+<div class="error-page">
+    
+    <!-- Main Content -->
+    <div class="error-main">
+        
+        <!-- Error Header -->
+        <div class="error-header">
+            <div class="error-status-badge status-{{ error.status }}">
+                <i class="ph ph-{% if error.status == 'resolved' %}check-circle{% elif error.status == 'ignored' %}eye-slash{% else %}warning-circle{% endif %}"></i>
+                {{ error.status | capitalize }}
+            </div>
+            <h1 class="error-title">{{ error.exception_type or 'Error' }}</h1>
+            <p class="error-message">{{ error.exception_value or 'No message available' }}</p>
+        </div>
+
+        <!-- Culprit/Location -->
+        {% if error.culprit %}
+        <div class="error-culprit">
+            <i class="ph ph-map-pin"></i>
+            <code>{{ error.culprit }}</code>
+        </div>
+        {% endif %}
+
+        <!-- Stacktrace Section -->
+        <div class="error-section">
+            <div class="error-section-header">
+                <h2><i class="ph ph-stack"></i> Stacktrace</h2>
+                <button class="btn-expand-all" onclick="toggleAllFrames()">
+                    <i class="ph ph-arrows-out-simple"></i> Expand All
+                </button>
+            </div>
+            
+            <div class="stacktrace-container">
+                {% if stacktrace_frames %}
+                    {% for frame in stacktrace_frames %}
+                    {% set lang = 'python' if error.platform == 'python' else ('javascript' if error.platform == 'javascript' else 'python') %}
+                    {% set pre_context_len = frame.pre_context|length if frame.pre_context else 0 %}
+                    {% set start_line = (frame.lineno - pre_context_len) if frame.lineno else 1 %}
+                    {% set highlight_line = (pre_context_len + 1) if frame.lineno else 1 %}
+                    <div class="stacktrace-frame {% if frame.in_app %}in-app{% endif %}" data-expanded="false" data-start-line="{{ start_line }}" data-error-line="{{ highlight_line }}">
+                        <div class="frame-header" onclick="toggleFrame(this)">
+                            <div class="frame-info">
+                                <span class="frame-function">{{ frame.function or '(anonymous)' }}</span>
+                                <span class="frame-location">
+                                    {{ frame.filename or frame.abs_path or 'unknown' }}
+                                    {% if frame.lineno %}<span class="frame-lineno">:{{ frame.lineno }}</span>{% endif %}
+                                </span>
+                            </div>
+                            <i class="ph ph-caret-down frame-toggle"></i>
+                        </div>
+                        <div class="frame-context">
+                            {% if frame.context_line %}
+                            <pre class="frame-code"><code class="language-{{ lang }}">{% if frame.pre_context %}{% for line in frame.pre_context %}{{ line }}
+{% endfor %}{% endif %}{{ frame.context_line }}{% if frame.post_context %}
+{% for line in frame.post_context %}{{ line }}{% if not loop.last %}
+{% endif %}{% endfor %}{% endif %}</code></pre>
+                            {% elif frame.lineno %}
+                            <pre class="frame-code"><code class="language-{{ lang }}">// Line {{ frame.lineno }}</code></pre>
+                            {% else %}
+                            <p class="no-context">No source context available</p>
+                            {% endif %}
+                            
+                            {% if frame.vars %}
+                            <div class="frame-vars">
+                                <h4>Local Variables</h4>
+                                <table>
+                                    {% for var_name, var_value in frame.vars.items() %}
+                                    <tr>
+                                        <td class="var-name">{{ var_name }}</td>
+                                        <td class="var-value"><code class="language-{{ lang }}">{{ var_value }}</code></td>
+                                    </tr>
+                                    {% endfor %}
+                                </table>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-stacktrace">
+                        <i class="ph ph-file-x"></i>
+                        <p>No stacktrace available for this error.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Occurrences Timeline -->
+        <div class="error-section">
+            <div class="error-section-header">
+                <h2><i class="ph ph-clock-countdown"></i> Occurrences ({{ occurrences|length }})</h2>
+            </div>
+            
+            <div class="occurrences-chart">
+                <div class="chart-bars">
+                    {% for day, count in occurrence_chart %}
+                    <div class="chart-bar" style="--bar-height: {{ (count / max_occurrences * 100) if max_occurrences > 0 else 0 }}%;" title="{{ day }}: {{ count }} events">
+                        <span class="bar-count">{{ count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="chart-labels">
+                    {% for day, count in occurrence_chart %}
+                    <span>{{ day }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="occurrences-list">
+                {% for occurrence in occurrences[:20] %}
+                <div class="occurrence-item">
+                    <i class="ph ph-clock"></i>
+                    <span class="occurrence-time" data-timestamp="{{ occurrence.timestamp }}">{{ occurrence.timestamp }}</span>
+                    {% if occurrence.event_id %}
+                    <code class="occurrence-event-id">{{ occurrence.event_id[:8] }}...</code>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% if occurrences|length > 20 %}
+                <div class="occurrences-more">
+                    <i class="ph ph-dots-three"></i> and {{ occurrences|length - 20 }} more occurrences
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Sidebar -->
+    <div class="error-sidebar">
+        
+        <!-- Status Actions -->
+        <div class="sidebar-section">
+            <h3>Actions</h3>
+            <div class="action-buttons">
+
+                {% if ticket %}
+                <button class="action-btn active" onclick="window.open('/tickets/{{ ticket.project }}/{{ ticket.id }}', '_blank')" title="Open a ticket for this error">
+                    <i class="ph ph-ticket"></i> See Ticket
+                </button>
+                {% else %}
+                <button class="action-btn" onclick="window.open('/api/errors/{{ error.id }}/create_ticket', '_blank')" title="Open a ticket for this error">
+                    <i class="ph ph-ticket"></i> Open Ticket
+                </button>
+                {% endif %}
+
+                <span class="sidebar-divider"></span>
+
+                <button class="action-btn {% if error.status == 'resolved' %}active{% endif %}" onclick="updateStatus('resolved')" title="Mark as resolved">
+                    <i class="ph ph-check-circle"></i> Resolve
+                </button>
+                <button class="action-btn {% if error.status == 'ignored' %}active{% endif %}" onclick="updateStatus('ignored')" title="Ignore this error">
+                    <i class="ph ph-eye-slash"></i> Ignore
+                </button>
+                <button class="action-btn {% if error.status == 'unresolved' %}active{% endif %}" onclick="updateStatus('unresolved')" title="Mark as unresolved">
+                    <i class="ph ph-arrow-counter-clockwise"></i> Reopen
+                </button>
+
+                <span class="sidebar-divider"></span>
+
+                <button class="action-btn btn-delete" onclick="deleteError()" title="Delete this error">
+                    <i class="ph ph-trash"></i> Delete
+                </button>
+
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="sidebar-section">
+            <h3>Statistics</h3>
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <span class="stat-value">{{ error.event_count }}</span>
+                    <span class="stat-label">Events</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" data-timestamp="{{ error.first_seen }}">{{ error.first_seen }}</span>
+                    <span class="stat-label">First Seen</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" data-timestamp="{{ error.last_seen }}">{{ error.last_seen }}</span>
+                    <span class="stat-label">Last Seen</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Environment Info -->
+        <div class="sidebar-section">
+            <h3>Environment</h3>
+            <div class="info-list">
+                {% if error.platform %}
+                <div class="info-item">
+                    <i class="ph ph-code"></i>
+                    <span class="info-label">Platform</span>
+                    <span class="info-value">{{ error.platform }}</span>
+                </div>
+                {% endif %}
+                {% if error.environment %}
+                <div class="info-item">
+                    <i class="ph ph-tree-structure"></i>
+                    <span class="info-label">Environment</span>
+                    <span class="info-value">{{ error.environment }}</span>
+                </div>
+                {% endif %}
+                {% if error.release %}
+                <div class="info-item">
+                    <i class="ph ph-tag"></i>
+                    <span class="info-label">Release</span>
+                    <span class="info-value">{{ error.release }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Tags -->
+        {% if tags %}
+        <div class="sidebar-section">
+            <h3>Tags</h3>
+            <div class="tags-list">
+                {% for key, value in tags.items() %}
+                <div class="tag-item">
+                    <span class="tag-key">{{ key }}</span>
+                    <span class="tag-value">{{ value }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Contexts (OS, Browser, etc.) -->
+        {% if contexts %}
+        <div class="sidebar-section">
+            <h3>Context</h3>
+            <div class="context-cards">
+                {% if contexts.os %}
+                <div class="context-card">
+                    <i class="ph ph-desktop"></i>
+                    <div class="context-info">
+                        <span class="context-title">{{ contexts.os.name or 'Unknown OS' }}</span>
+                        <span class="context-detail">{{ contexts.os.version or '' }}</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if contexts.browser %}
+                <div class="context-card">
+                    <i class="ph ph-globe"></i>
+                    <div class="context-info">
+                        <span class="context-title">{{ contexts.browser.name or 'Unknown Browser' }}</span>
+                        <span class="context-detail">{{ contexts.browser.version or '' }}</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if contexts.runtime %}
+                <div class="context-card">
+                    <i class="ph ph-terminal"></i>
+                    <div class="context-info">
+                        <span class="context-title">{{ contexts.runtime.name or 'Runtime' }}</span>
+                        <span class="context-detail">{{ contexts.runtime.version or '' }}</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if contexts.device %}
+                <div class="context-card">
+                    <i class="ph ph-device-mobile"></i>
+                    <div class="context-info">
+                        <span class="context-title">{{ contexts.device.family or 'Unknown Device' }}</span>
+                        <span class="context-detail">{{ contexts.device.model or '' }}</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Fingerprint -->
+        <div class="sidebar-section">
+            <h3>Fingerprint</h3>
+            <code class="fingerprint">{{ error.fingerprint }}</code>
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Highlight.js for syntax highlighting -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/ruby.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/php.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+
+<script src="{{ url_for('static', filename='js/error.js') }}"></script>
+<script>
+    // Pass error data to JS
+    const errorData = {
+        id: {{ error.id }},
+        projectId: '{{ project.id }}',
+        partId: {{ part.id }},
+        status: '{{ error.status }}'
+    };
+</script>
+{% endblock %}

@@ -1,8 +1,9 @@
 
 from datetime import datetime
-from peewee import Model, CharField, IntegerField, SqliteDatabase, DateTimeField, ForeignKeyField
+from peewee import Model, CharField, IntegerField, SqliteDatabase, DateTimeField, ForeignKeyField, AutoField
 from .path import path
 import time
+import sentry_sdk
 
 
 database = SqliteDatabase(path('..', 'data', 'app.db'))
@@ -26,6 +27,111 @@ class Project(BaseModel):
     color = CharField() # i do not know if i will use this
 
 
+
+class ProjectPart(BaseModel):
+    id = AutoField(primary_key=True)
+    project = ForeignKeyField(Project, backref='parts')
+    name = CharField()
+    description = CharField()
+    
+    class Meta: # type: ignore
+        indexes = (
+            (('project', 'name'), True),
+        )
+
+
+class ErrorGroup(BaseModel):
+    """Groups similar errors together by fingerprint"""
+    id = AutoField(primary_key=True)
+    part = ForeignKeyField(ProjectPart, backref='error_groups')
+    fingerprint = CharField(index=True)  # Hash of message + stacktrace for grouping
+    
+    # Extracted fields for display/querying
+    exception_type = CharField(null=True)  # e.g., "ValueError", "TypeError"
+    exception_value = CharField(null=True)  # The error message
+    culprit = CharField(null=True)  # File/function where error occurred
+    
+    # Platform/environment info (from first occurrence)
+    platform = CharField(null=True)  # e.g., "python", "javascript"
+    environment = CharField(null=True)  # e.g., "production", "development"
+    release = CharField(null=True)  # Version/release tag
+    
+    # Full data storage
+    stacktrace = CharField(null=True)  # Full stacktrace as JSON string
+    contexts = CharField(null=True)  # OS, browser, device info as JSON
+    tags = CharField(null=True)  # Tags as JSON
+    extra = CharField(null=True)  # Extra data as JSON
+    
+    # Aggregation
+    event_count = IntegerField(default=1)
+    first_seen = IntegerField(default=lambda: int(time.time()))
+    last_seen = IntegerField(default=lambda: int(time.time()))
+    
+    # Status for issue tracking
+    status = CharField(default='unresolved')  # unresolved, resolved, ignored
+    
+    class Meta:  # type: ignore
+        indexes = (
+            (('part', 'fingerprint'), True),  # Unique per part
+        )
+
+
+class ErrorOccurrence(BaseModel):
+    """Individual occurrence timestamps for an error group"""
+    id = AutoField(primary_key=True)
+    error_group = ForeignKeyField(ErrorGroup, backref='occurrences')
+    timestamp = IntegerField(default=lambda: int(time.time()))
+    event_id = CharField(null=True)  # Sentry event_id if provided
+
+
+class Session(BaseModel):
+    """Session data for crash-free rate tracking"""
+    id = AutoField(primary_key=True)
+    part = ForeignKeyField(ProjectPart, backref='sessions')
+    session_id = CharField(index=True)
+    status = CharField()  # ok, crashed, errored, abnormal
+    started = IntegerField()
+    duration = IntegerField(null=True)
+    errors = IntegerField(default=0)
+    release = CharField(null=True)
+    environment = CharField(null=True)
+    
+    class Meta:  # type: ignore
+        indexes = (
+            (('part', 'session_id'), True),
+        )
+
+
+class Transaction(BaseModel):
+    """Performance transaction data"""
+    id = AutoField(primary_key=True)
+    part = ForeignKeyField(ProjectPart, backref='transactions')
+    transaction_id = CharField(index=True)
+    name = CharField()  # Transaction name (e.g., route or function)
+    op = CharField(null=True)  # Operation type (http, db, etc.)
+    duration = IntegerField(null=True)  # Duration in milliseconds
+    status = CharField(null=True)
+    timestamp = IntegerField(default=lambda: int(time.time()))
+    data = CharField(null=True)  # Additional data as JSON
+
+
+class Attachment(BaseModel):
+    """Attachments sent with events"""
+    id = AutoField(primary_key=True)
+    error_group = ForeignKeyField(ErrorGroup, backref='attachments', null=True)
+    filename = CharField()
+    content_type = CharField(null=True)
+    data = CharField()  # Base64 encoded or path to file
+    timestamp = IntegerField(default=lambda: int(time.time()))
+
+
+# Legacy model - kept for backwards compatibility
+class Error(BaseModel):
+    part = ForeignKeyField(ProjectPart, backref='errors')
+    data = CharField()  # Json
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
 class Ticket(BaseModel):
     id = CharField(primary_key=True)
 
@@ -38,6 +144,8 @@ class Ticket(BaseModel):
     priority = CharField()
 
     project = CharField()
+
+    error = ForeignKeyField(ErrorGroup, null=True)
 
     created_at = IntegerField(default=lambda: int(time.time()))
 
@@ -102,6 +210,13 @@ MODELS = [
     TicketUpdateMessage,
     Label,
     TicketLabelJoin,
+    ProjectPart,
+    Error,
+    ErrorGroup,
+    ErrorOccurrence,
+    Session,
+    Transaction,
+    Attachment
 ]
 
 def initialize_db():
@@ -259,3 +374,31 @@ def setup_test_data():
                 )
             except:
                 pass
+
+    # Create project parts
+    for project_id in project_ids:
+        for _ in range(random.randint(0, 4)):
+            part_name = fake.word().capitalize() + " Service"
+            try:
+                ProjectPart.create(
+                    project=project_id,
+                    name=part_name,
+                    description=fake.sentence(nb_words=10),
+                )
+            except Exception as e:
+                print(e)
+                continue
+
+            # Create errors for the part
+            # sentry_sdk.init(
+            #     dsn=f"",
+            #     # Add request headers and IP for users,
+            #     # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+            #     send_default_pii=True,
+            # )
+
+            # for _ in range(random.randint(5, 20)):
+            #     try:
+            #         1 / 0  # Intentional error to generate a Sentry event
+            #     except:
+            #         sentry_sdk.capture_exception()

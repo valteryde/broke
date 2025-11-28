@@ -1,0 +1,67 @@
+{% extends "dashboard.jinja2" %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dropdown.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lists.css') }}">
+{% endblock %}
+
+{% block path %}
+    <a href="/errors"><i class="ph ph-bug-beetle"></i> Errors</a> 
+    <i class="ph ph-caret-right"></i> 
+    <a href="/errors/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+    <i class="ph ph-caret-right"></i> 
+    <span><i class="ph ph-puzzle-piece"></i> {{ part.name }}</span>
+{% endblock %}
+
+{% block content %}
+
+<h1>{{ part.name }}</h1>
+<p style="color: #666; margin-bottom: 20px;">{{ part.description or 'No description provided.' }}</p>
+
+<div id="error-list"></div>
+
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const errorList = new List('error-list', {
+                filters: {
+                    search: { placeholder: 'Search errors...' },
+                    urgency: { label: 'Status' }
+                },
+                groupBy: {
+                    options: ['none', 'urgency'],
+                    default: 'none'
+                }
+            });
+
+            const errorListItems = [
+                {% for error in error_groups %}
+                {
+                    id: '{{ error.id }}',
+                    title: '{{ error.exception_type or "Error" }}',
+                    description: '{{ error.exception_value | default("No message", true) | replace("'", "\\'") | replace("\n", " ") | truncate(200) }}',
+                    icon: 'ph-warning-circle',
+                    labels: [
+                        { text: '{{ error.status }}', color: '{% if error.status == "resolved" %}green{% elif error.status == "ignored" %}gray{% else %}red{% endif %}' },
+                        {% if error.platform %}
+                        { text: '{{ error.platform }}', color: 'blue' },
+                        {% endif %}
+                    ],
+                    urgency: '{% if error.status == "unresolved" %}high{% elif error.status == "resolved" %}low{% else %}medium{% endif %}',
+                    createdAt: {{ error.last_seen }} * 1000,
+                    meta: '{{ error.event_count }} events',
+                    onClick: () => { window.location.href = '/errors/{{ project.id }}/{{ part.id }}/{{ error.id }}'; }
+                },
+                {% endfor %}
+            ];
+
+            errorListItems.forEach(error => errorList.add(error));
+        });
+    </script>
+
+{% endblock %}

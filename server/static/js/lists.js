@@ -584,10 +584,10 @@ class List {
                 <p style="position:absolute;top:2rem;">${element.description}</p>
             </span>
             <span class="list-labels">
-                ${element.labels.map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}
+                ${(element.labels || []).map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}
             </span>
             <span class="list-assignees">
-                ${element.assignees.map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${assignee}</span>`).join('')}
+                ${(element.assignees || []).map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${assignee}</span>`).join('')}
             </span>
             <span class="list-date">
                 ${dateString}

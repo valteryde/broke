@@ -6,18 +6,22 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
 {% endblock %}
 
+{% block path %}
+    <a href="/errors"><i class="ph ph-bug-beetle"></i> Errors</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="/errors/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
+{% endblock %}
+
 {% block content %}
 
-<h1>Tickets</h1>
+<h1>Project parts error management</h1>
 
 <div class="project-tabs" id="project-tabs">
-    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="window.location.href = '/tickets'">
+    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="window.location.href = '/errors'">
         <i class="ph ph-squares-four"></i> All
     </button>
     <!-- Project tabs will be populated dynamically -->
 
     {% for proj in projects %}
-    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="window.location.href = '/tickets/{{ proj.id }}' ">
+    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="window.location.href = '/errors/{{ proj.id }}' ">
         <i class="{{ proj.icon }}"></i> {{ proj.name }}
     </button>
     {% endfor %}
@@ -28,10 +32,6 @@
 
 {% endblock %}
 
-{% block path %}
-    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
-{% endblock %}
-
 {% block scripts %}
 
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
@@ -40,9 +40,9 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const ticketList = new List('ticket-list', {
+            const partList = new List('ticket-list', {
                 filters: {
-                    search: { placeholder: 'Search tickets...' },
+                    search: { placeholder: 'Search errors...' },
                     labels: { label: 'Labels' },
                     assignees: { label: 'Assignees' },
                     urgency: { label: 'Urgency' },
@@ -54,32 +54,31 @@
                 }
             });
 
-            const tickets = [
-                {% for ticket in tickets %}
+            const partListItems = [
+                {% for part in project_parts %}
                 {
-                    id: '{{ ticket.id }}',
-                    title: '{{ ticket.title }}',
-                    description: '{{ ticket.description | default("No description provided.", true) | safe }}',
-                    icon: 'ph-cell-signal-{{ "high" if ticket.priority == "high" else "medium" if ticket.priority == "medium" else "low" }}',
-                    urgency: '{{ ticket.priority }}',
-                    labels: [
+                    id: '{{ part.project.id }}',
+                    title: '{{ part.name }}',
+                    description: '{{ part.description | default("No description provided.", true) | safe }}',
+                    icon: '{{ part.project.icon }}',
+                    {# labels: [
                         {% for label in ticket.labels %}
                         {text: '{{ label.name }}', color: '{{ label.color }}'},
                         {% endfor %}
-                    ],
-                    assignees: [
+                    ], #}
+                    {# assignees: [
                         {% for assignee in ticket.assignees %}
                         '{{ assignee }}',
                         {% endfor %}
-                    ],
-                    createdAt: '{{ ticket.created_at }}',
-                    project: '{{ ticket.project }}',
-                    onClick: () => { window.location.href = '/tickets/{{ ticket.project }}/{{ ticket.id }}'; }
+                    ], #}
+                    {# createdAt: '{{ part.created_at }}', #}
+                    project: '{{ part.project.id }}',
+                    onClick: () => { window.location.href = '/errors/{{ part.project.id }}/{{ part.id }}'; }
                 },
                 {% endfor %}
             ];
 
-            tickets.forEach(ticket => ticketList.add(ticket));
+            partListItems.forEach(part => partList.add(part));
         });
     </script>
 

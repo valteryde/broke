@@ -1,6 +1,6 @@
 
 import flask 
-from utils.path import path
+from .path import path
 
 app = flask.Flask('Broke')
 app.secret_key = 'supersecretkey-i-swear-it-not-hardcoded-at-all-pls-dont-hack-me'

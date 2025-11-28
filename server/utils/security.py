@@ -10,7 +10,7 @@ Flow is simple
 
 
 from flask import request, session, url_for, redirect
-from app import app
+from utils.app import app
 from .models import User
 import pyargon2
 from peewee import DoesNotExist
