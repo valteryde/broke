@@ -431,6 +431,7 @@
 .list-element-text {
     display:flex;
     flex-direction: column;
+    text-wrap: nowrap;
 }
 
 .list-element-icon {
@@ -515,3 +516,12 @@
 .filter-color-black .ph { color: #000000; }
 .filter-color-white .ph { color: #d1d5db; }
 .filter-color-teal .ph { color: #14b8a6; }
+
+.list-element-description {
+    position:absolute;
+    top:2rem;
+    max-width: 40%;
+    overflow:hidden;
+    text-overflow: ellipsis;
+    height: 1.2rem;
+}

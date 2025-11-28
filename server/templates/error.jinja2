@@ -155,11 +155,11 @@
             <div class="action-buttons">
 
                 {% if ticket %}
-                <button class="action-btn active" onclick="window.open('/tickets/{{ ticket.project }}/{{ ticket.id }}', '_blank')" title="Open a ticket for this error">
+                <button class="action-btn btn-primary" onclick="window.location.href = '/tickets/{{ ticket.project }}/{{ ticket.id }}'" title="Open a ticket for this error">
                     <i class="ph ph-ticket"></i> See Ticket
                 </button>
                 {% else %}
-                <button class="action-btn" onclick="window.open('/api/errors/{{ error.id }}/create_ticket', '_blank')" title="Open a ticket for this error">
+                <button class="action-btn btn-primary" onclick="window.location.href = '/api/errors/{{ error.id }}/create_ticket'" title="Open a ticket for this error">
                     <i class="ph ph-ticket"></i> Open Ticket
                 </button>
                 {% endif %}

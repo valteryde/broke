@@ -33,7 +33,7 @@
             const ticketData = {
                 id: '{{ ticket.id }}',
                 title: '{{ ticket.title }}',
-                description: '{{ ticket.description | default("<p>No description yet.</p>", true) | safe }}',
+                description: `{{ ticket.description.replace("`", "\\`").replace("\n", "\\n") | default("<p>No description yet.</p>", true) | safe }}`,
                 status: '{{ ticket.status | default("todo", true) }}',
                 priority: '{{ ticket.priority | default("medium", true) }}',
                 error: { {% if ticket.error %}
@@ -84,14 +84,14 @@
                         avatar: "<svg width='40' height='40' data-jdenticon-value='{{ comment.user.username }}'></svg>"
                     },
                     type: 'comment',
-                    content: '{{ comment.body | default("", true) | safe }}',
+                    content: ```{{ comment.body | default("", true) | safe }}```,
                     createdAt: {{ comment.created_at }} * 1000
                 },
                 {% endfor %}
                 {% for update in updates %}
                 {
                     id: '{{ update.id }}',
-                    message : '{{ update.message | default("", true) | safe }}',
+                    message : ```{{ update.message | default("", true) | safe }}`,
                     icon : 'ph-ph-{{ update.icon }}',
                     createdAt: {{ update.created_at }} * 1000,
                     type: 'update'

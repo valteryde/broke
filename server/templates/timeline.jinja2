@@ -1,0 +1,346 @@
+{% extends "dashboard.jinja2" %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/timeline.css') }}">
+{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-git-commit"></i> Timeline</span>
+    {% if project %}
+        <i class="ph ph-caret-right"></i>
+        <a href="/timeline/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<div class="timeline-container">
+    <!-- Header with Summary Stats -->
+    <div class="timeline-header">
+        <div class="header-left">
+            <h1><i class="ph ph-git-commit"></i> Project Timeline</h1>
+            <p class="header-subtitle">Track progress, milestones, and activity across your projects</p>
+        </div>
+        <div class="header-stats">
+            <div class="header-stat">
+                <span class="stat-value">{{ total_events }}</span>
+                <span class="stat-label">Total Events</span>
+            </div>
+            <div class="header-stat">
+                <span class="stat-value">{{ date_range }}</span>
+                <span class="stat-label">Time Span</span>
+            </div>
+            <div class="header-stat">
+                <span class="stat-value">{{ tickets_closed }}</span>
+                <span class="stat-label">Tickets Closed</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Tabs -->
+    <div class="project-tabs" id="project-tabs">
+        <button class="project-tab {% if not project %}active{% endif %}" onclick="window.location.href = '/timeline'">
+            <i class="ph ph-squares-four"></i> All Projects
+        </button>
+        {% for proj in projects %}
+        <button class="project-tab {% if project and proj.id == project.id %}active{% endif %}" onclick="window.location.href = '/timeline/{{ proj.id }}'">
+            <i class="{{ proj.icon }}"></i> {{ proj.name }}
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Filters & Controls -->
+    <div class="timeline-controls">
+        <div class="control-group">
+            <label>Filter by:</label>
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">
+                    <i class="ph ph-funnel"></i> All
+                </button>
+                <button class="filter-btn" data-filter="ticket">
+                    <i class="ph ph-ticket"></i> Tickets
+                </button>
+                <button class="filter-btn" data-filter="comment">
+                    <i class="ph ph-chat-circle"></i> Comments
+                </button>
+                <button class="filter-btn" data-filter="error">
+                    <i class="ph ph-bug-beetle"></i> Errors
+                </button>
+                <button class="filter-btn" data-filter="milestone">
+                    <i class="ph ph-flag"></i> Milestones
+                </button>
+            </div>
+        </div>
+        <div class="control-group">
+            <label>View:</label>
+            <div class="view-buttons">
+                <button class="view-btn active" data-view="timeline">
+                    <i class="ph ph-list"></i> Timeline
+                </button>
+                <button class="view-btn" data-view="calendar">
+                    <i class="ph ph-calendar"></i> Calendar
+                </button>
+                <button class="view-btn" data-view="summary">
+                    <i class="ph ph-chart-bar"></i> Summary
+                </button>
+            </div>
+        </div>
+        <div class="control-group date-range-control">
+            <label>Date Range:</label>
+            <select id="date-range-select" class="date-range-select">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="365">Last year</option>
+                <option value="all">All time</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Summary Cards (visible in summary view) -->
+    <div class="summary-view" id="summary-view" style="display: none;">
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-icon tickets">
+                    <i class="ph ph-ticket"></i>
+                </div>
+                <div class="summary-content">
+                    <h3>Ticket Activity</h3>
+                    <div class="summary-stats">
+                        <div class="summary-stat">
+                            <span class="value">{{ tickets_created }}</span>
+                            <span class="label">Created</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="value">{{ tickets_closed }}</span>
+                            <span class="label">Closed</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="value">{{ tickets_in_progress }}</span>
+                            <span class="label">In Progress</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-icon comments">
+                    <i class="ph ph-chat-circle"></i>
+                </div>
+                <div class="summary-content">
+                    <h3>Communication</h3>
+                    <div class="summary-stats">
+                        <div class="summary-stat">
+                            <span class="value">{{ total_comments }}</span>
+                            <span class="label">Comments</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="value">{{ active_users }}</span>
+                            <span class="label">Active Users</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-icon errors">
+                    <i class="ph ph-bug-beetle"></i>
+                </div>
+                <div class="summary-content">
+                    <h3>Error Tracking</h3>
+                    <div class="summary-stats">
+                        <div class="summary-stat">
+                            <span class="value">{{ total_errors }}</span>
+                            <span class="label">Errors</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="value">{{ errors_resolved }}</span>
+                            <span class="label">Resolved</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="summary-card effort">
+                <div class="summary-icon effort">
+                    <i class="ph ph-clock"></i>
+                </div>
+                <div class="summary-content">
+                    <h3>Effort Overview</h3>
+                    <div class="effort-breakdown">
+                        <div class="effort-bar">
+                            <div class="effort-segment tickets" style="width: {{ effort_tickets }}%"></div>
+                            <div class="effort-segment bugs" style="width: {{ effort_bugs }}%"></div>
+                            <div class="effort-segment features" style="width: {{ effort_features }}%"></div>
+                        </div>
+                        <div class="effort-legend">
+                            <span><i class="ph ph-circle-fill tickets"></i> Tickets</span>
+                            <span><i class="ph ph-circle-fill bugs"></i> Bugs</span>
+                            <span><i class="ph ph-circle-fill features"></i> Features</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Heatmap -->
+        <div class="activity-heatmap">
+            <h3><i class="ph ph-fire"></i> Activity Heatmap</h3>
+            <div class="heatmap-container" id="activity-heatmap">
+                <!-- Populated by JavaScript -->
+            </div>
+            <div class="heatmap-legend">
+                <span class="legend-label">Less</span>
+                <div class="legend-colors">
+                    <span class="heatmap-level level-0"></span>
+                    <span class="heatmap-level level-1"></span>
+                    <span class="heatmap-level level-2"></span>
+                    <span class="heatmap-level level-3"></span>
+                    <span class="heatmap-level level-4"></span>
+                </div>
+                <span class="legend-label">More</span>
+            </div>
+        </div>
+
+        <!-- Top Contributors -->
+        <div class="contributors-section">
+            <h3><i class="ph ph-users"></i> Top Contributors</h3>
+            <div class="contributors-list">
+                {% for contributor in top_contributors %}
+                <div class="contributor-item">
+                    <div class="contributor-avatar">
+                        <svg width="40" height="40" data-jdenticon-value="{{ contributor.username }}"></svg>
+                    </div>
+                    <div class="contributor-info">
+                        <span class="contributor-name">{{ contributor.username }}</span>
+                        <span class="contributor-stats">{{ contributor.activity_count }} activities</span>
+                    </div>
+                    <div class="contributor-bar">
+                        <div class="bar-fill" style="width: {{ contributor.percentage }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar View -->
+    <div class="calendar-view" id="calendar-view" style="display: none;">
+        <div class="calendar-header">
+            <button class="calendar-nav" id="prev-month"><i class="ph ph-caret-left"></i></button>
+            <h2 id="calendar-month-year">November 2025</h2>
+            <button class="calendar-nav" id="next-month"><i class="ph ph-caret-right"></i></button>
+        </div>
+        <div class="calendar-grid">
+            <div class="calendar-weekdays">
+                <span>Mon</span>
+                <span>Tue</span>
+                <span>Wed</span>
+                <span>Thu</span>
+                <span>Fri</span>
+                <span>Sat</span>
+                <span>Sun</span>
+            </div>
+            <div class="calendar-days" id="calendar-days">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline View -->
+    <div class="timeline-view" id="timeline-view">
+        {% if events %}
+            {% set current_date = '' %}
+            {% for event in events %}
+                {% if event.date_str != current_date %}
+                    {% set current_date = event.date_str %}
+                    <div class="timeline-date-header">
+                        <div class="date-marker">
+                            <span class="date-day">{{ event.date_day }}</span>
+                            <span class="date-month">{{ event.date_month }}</span>
+                        </div>
+                        <div class="date-line"></div>
+                        <span class="date-full">{{ event.date_full }}</span>
+                    </div>
+                {% endif %}
+                
+                <div class="timeline-event {{ event.type }}" data-type="{{ event.type }}" data-timestamp="{{ event.timestamp }}">
+                    <div class="event-connector">
+                        <div class="connector-line"></div>
+                        <div class="connector-dot {{ event.type }}">
+                            <i class="ph {{ event.icon }}"></i>
+                        </div>
+                    </div>
+                    <div class="event-card">
+                        <div class="event-header">
+                            <span class="event-type-badge {{ event.type }}">{{ event.type_label }}</span>
+                            <span class="event-time">{{ event.time_str }}</span>
+                        </div>
+                        <div class="event-content">
+                            <h4 class="event-title">{{ event.title }}</h4>
+                            {% if event.description %}
+                            <p class="event-description">{{ event.description[:200] }}{% if event.description|length > 200 %}...{% endif %}</p>
+                            {% endif %}
+                            {% if event.meta %}
+                            <div class="event-meta">
+                                {% if event.meta.user %}
+                                <span class="meta-item">
+                                    <svg width="18" height="18" data-jdenticon-value="{{ event.meta.user }}"></svg>
+                                    {{ event.meta.user }}
+                                </span>
+                                {% endif %}
+                                {% if event.meta.project %}
+                                <span class="meta-item">
+                                    <i class="ph ph-folder"></i> {{ event.meta.project }}
+                                </span>
+                                {% endif %}
+                                {% if event.meta.ticket_id %}
+                                <span class="meta-item">
+                                    <i class="ph ph-ticket"></i> {{ event.meta.ticket_id }}
+                                </span>
+                                {% endif %}
+                                {% if event.meta.status %}
+                                <span class="meta-item status-{{ event.meta.status }}">
+                                    <i class="ph ph-circle-fill"></i> {{ event.meta.status }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% if event.link %}
+                        <a href="{{ event.link }}" class="event-link">
+                            View details <i class="ph ph-arrow-right"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-timeline">
+                <i class="ph ph-clock-countdown"></i>
+                <h3>No events yet</h3>
+                <p>Timeline events will appear here as your project progresses.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Load More Button -->
+    {% if has_more_events %}
+    <div class="load-more-container">
+        <button class="load-more-btn" id="load-more">
+            <i class="ph ph-arrow-down"></i> Load More Events
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        // Pass data to JavaScript
+        const timelineData = {
+            events: {{ events_json | safe }},
+            activityByDay: {{ activity_by_day | safe }},
+            currentProject: {{ ("'" + project.id + "'") | safe if project else 'null' }}
+        };
+    </script>
+    <script src="{{ url_for('static', filename='js/timeline.js') }}"></script>
+{% endblock %}

@@ -581,7 +581,7 @@ class List {
             <span class="list-element-id">${element.id}</span>
             <span class="list-element-text">
                 <h3>${element.title}</h3>
-                <p style="position:absolute;top:2rem;">${element.description}</p>
+                <p class="list-element-description">${element.description}</p>
             </span>
             <span class="list-labels">
                 ${(element.labels || []).map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}

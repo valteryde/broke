@@ -1,6 +1,6 @@
 
 from datetime import datetime
-from peewee import Model, CharField, IntegerField, SqliteDatabase, DateTimeField, ForeignKeyField, AutoField
+from peewee import Model, CharField, IntegerField, SqliteDatabase, DateTimeField, ForeignKeyField, AutoField, TextField
 from .path import path
 import time
 import sentry_sdk
@@ -136,9 +136,7 @@ class Ticket(BaseModel):
     id = CharField(primary_key=True)
 
     title = CharField()
-    description = CharField()
-
-    body = CharField()
+    description = TextField()
 
     status = CharField()
     priority = CharField()
@@ -292,8 +290,7 @@ def setup_test_data():
             Ticket.create(
                 id=ticket_id,
                 title=fake.sentence(nb_words=5)[:-1],  # Remove trailing period
-                description=fake.sentence(nb_words=12),
-                body=fake.paragraph(nb_sentences=5),
+                description=fake.paragraph(nb_sentences=10),
                 status=random.choice(statuses),
                 priority=random.choice(priorities),
                 project=project_id,

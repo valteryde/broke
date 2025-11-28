@@ -1,7 +1,7 @@
 {% extends "dashboard.jinja2" %}
 
 {% block head %}
-    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/news.css') }}">
 {% endblock %}
 
 {% block path %}
@@ -10,10 +10,210 @@
 
 {% block content %}
 
-<h1>News for {{ user.username }}</h1>
+<div class="news-container">
+    <!-- Header Section with Welcome & Stats -->
+    <div class="news-header">
+        <div class="welcome-section">
+            <div class="welcome-avatar">
+                <svg width="80" height="80" data-jdenticon-value="{{ user.username }}"></svg>
+            </div>
+            <div class="welcome-text">
+                <h1>Welcome back, {{ user.username }}!</h1>
+                <p class="welcome-subtitle">Here's what's happening with your projects today.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <i class="ph ph-ticket"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-number">{{ my_tickets | length }}</span>
+                <span class="stat-label">Assigned Tickets</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange">
+                <i class="ph ph-warning-circle"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-number">{{ open_tickets }}</span>
+                <span class="stat-label">Open Issues</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon red">
+                <i class="ph ph-bug-beetle"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-number">{{ unresolved_errors }}</span>
+                <span class="stat-label">Unresolved Errors</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <i class="ph ph-check-circle"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-number">{{ resolved_today }}</span>
+                <span class="stat-label">Resolved Today</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="news-grid">
+        <!-- Left Column: Tickets & Errors -->
+        <div class="news-column">
+            <!-- My Tickets Section -->
+            <div class="news-card">
+                <div class="card-header">
+                    <h2><i class="ph ph-ticket"></i> My Tickets</h2>
+                    <a href="/tickets" class="view-all-link">View all <i class="ph ph-arrow-right"></i></a>
+                </div>
+                <div class="card-body">
+                    {% if my_tickets %}
+                        {% for ticket in my_tickets[:5] %}
+                        <a href="/tickets/{{ ticket.project }}/{{ ticket.id }}" class="ticket-item">
+                            <div class="ticket-priority priority-{{ ticket.priority }}">
+                                <i class="ph ph-circle-fill"></i>
+                            </div>
+                            <div class="ticket-info">
+                                <span class="ticket-id">{{ ticket.id }}</span>
+                                <span class="ticket-title">{{ ticket.title }}</span>
+                            </div>
+                            <div class="ticket-status status-{{ ticket.status }}">{{ ticket.status }}</div>
+                        </a>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-confetti"></i>
+                            <p>No tickets assigned to you!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Recent Errors Section -->
+            <div class="news-card">
+                <div class="card-header">
+                    <h2><i class="ph ph-bug-beetle"></i> Recent Errors</h2>
+                    <a href="/errors" class="view-all-link">View all <i class="ph ph-arrow-right"></i></a>
+                </div>
+                <div class="card-body">
+                    {% if recent_errors %}
+                        {% for error in recent_errors[:5] %}
+                        <a href="/errors/{{ error.part.project.id }}/{{ error.part.id }}/{{ error.id }}" class="error-item">
+                            <div class="error-icon">
+                                <i class="ph ph-warning"></i>
+                            </div>
+                            <div class="error-info">
+                                <span class="error-type">{{ error.exception_type or 'Error' }}</span>
+                                <span class="error-message">{{ error.exception_value[:60] }}{% if error.exception_value|length > 60 %}...{% endif %}</span>
+                            </div>
+                            <div class="error-count">
+                                <span class="count-badge">{{ error.event_count }}</span>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-check-circle"></i>
+                            <p>No recent errors. Everything looks good!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Activity Feed -->
+        <div class="news-column">
+            <!-- Activity Feed -->
+            <div class="news-card activity-card">
+                <div class="card-header">
+                    <h2><i class="ph ph-lightning"></i> Recent Activity</h2>
+                </div>
+                <div class="card-body activity-feed">
+                    {% if activities %}
+                        {% for activity in activities[:10] %}
+                        <div class="activity-item">
+                            <div class="activity-icon {{ activity.type }}">
+                                <i class="ph {{ activity.icon }}"></i>
+                            </div>
+                            <div class="activity-content">
+                                <div class="activity-header">
+                                    <span class="activity-user">{{ activity.user }}</span>
+                                    <span class="activity-action">{{ activity.action }}</span>
+                                </div>
+                                <p class="activity-text">{{ activity.text[:100] }}{% if activity.text|length > 100 %}...{% endif %}</p>
+                                <span class="activity-time">{{ activity.time_ago }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-clock"></i>
+                            <p>No recent activity</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Projects Overview -->
+            <div class="news-card">
+                <div class="card-header">
+                    <h2><i class="ph ph-folder-simple"></i> Your Projects</h2>
+                </div>
+                <div class="card-body projects-list">
+                    {% if projects %}
+                        {% for project in projects %}
+                        <a href="/tickets/{{ project.id }}" class="project-item">
+                            <div class="project-icon" style="background: {{ project.color or 'var(--logo-blue)' }}">
+                                <i class="{{ project.icon }}"></i>
+                            </div>
+                            <div class="project-info">
+                                <span class="project-name">{{ project.name }}</span>
+                                <span class="project-id">{{ project.id }}</span>
+                            </div>
+                            <i class="ph ph-caret-right"></i>
+                        </a>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-folder-plus"></i>
+                            <p>No projects yet</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Bar -->
+    <div class="quick-actions">
+        <h3>Quick Actions</h3>
+        <div class="actions-grid">
+            <a href="/tickets" class="action-btn">
+                <i class="ph ph-plus"></i>
+                <span>New Ticket</span>
+            </a>
+            <a href="/errors" class="action-btn">
+                <i class="ph ph-bug-beetle"></i>
+                <span>View Errors</span>
+            </a>
+            <a href="/settings" class="action-btn">
+                <i class="ph ph-gear-six"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
 
 {% block scripts %}
-    
+    <script src="{{ url_for('static', filename='js/news.js') }}"></script>
 {% endblock %}
