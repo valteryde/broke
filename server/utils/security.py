@@ -21,7 +21,7 @@ from peewee import DoesNotExist
 # def protected_route(user: User):
 #    return "This is a protected route."
 # The decorator handles authentication and redirection.
-def secureroute(route):
+def secureroute(route, methods=['GET']):
     def decorator(func):
         def wrapper(*args, **kwargs):
             user_id = session.get('user_id')
@@ -39,7 +39,7 @@ def secureroute(route):
                 return redirect(login_url)
             return func(user, *args, **kwargs)
         # Register the route with Flask
-        app.route(route, endpoint=func.__name__)(wrapper)
+        app.route(route, methods=methods, endpoint=func.__name__)(wrapper)
         return wrapper
     return decorator
 

@@ -113,6 +113,9 @@ class List {
         this.activeFilterChips = {};
         this.currentGroupBy = options.groupBy?.default || 'none';
         
+        // Callbacks
+        this.onCreate = options.onCreate || null;
+        
         // Create wrapper structure
         this.wrapper = document.createElement('div');
         this.wrapper.className = 'list-wrapper';
@@ -260,10 +263,20 @@ class List {
             });
         }
 
+        if (this.onCreate) {
         const createButton = document.createElement('button');
         createButton.className = 'list-create-btn';
-        createButton.innerHTML = '<span> <i class="ph ph-plus"></i> Add </span>';
-        filterOptionsRow.appendChild(createButton);
+            createButton.innerHTML = `<span> <i class="ph ph-plus"></i> ${this.onCreateLabel || 'Add'} </span>`;
+            
+            // Wire up onCreate callback
+            if (this.onCreate) {
+                createButton.addEventListener('click', () => {
+                    this.onCreate();
+                });
+            }
+            
+            filterOptionsRow.appendChild(createButton);
+        }
         
         // Bottom row: Active filters container (chips)
         this.activeFiltersContainer = document.createElement('div');
@@ -570,18 +583,23 @@ class List {
         inner.className = 'list-element-inner';
     
         if (element.createdAt) {
-            var date = new Date(element.createdAt);
+            var date = new Date(element.createdAt * 1000);
             var dateString = date.toLocaleDateString();
         } else {
             var dateString = '';
         }
+
+        // Extract text content safely from HTML description
+        const parser = new DOMParser();
+        const htmlDoc = parser.parseFromString(element.description || '', 'text/html');
+
 
         inner.innerHTML = `
             <i class="ph ${element.icon} list-element-icon"></i>
             <span class="list-element-id">${element.id}</span>
             <span class="list-element-text">
                 <h3>${element.title}</h3>
-                <p class="list-element-description">${element.description}</p>
+                <p class="list-element-description">${(htmlDoc.body.textContent || "")}</p>
             </span>
             <span class="list-labels">
                 ${(element.labels || []).map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}

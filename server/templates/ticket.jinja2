@@ -84,14 +84,14 @@
                         avatar: "<svg width='40' height='40' data-jdenticon-value='{{ comment.user.username }}'></svg>"
                     },
                     type: 'comment',
-                    content: ```{{ comment.body | default("", true) | safe }}```,
+                    content: `{{ comment.body | default("", true) | safe }}`,
                     createdAt: {{ comment.created_at }} * 1000
                 },
                 {% endfor %}
                 {% for update in updates %}
                 {
                     id: '{{ update.id }}',
-                    message : ```{{ update.message | default("", true) | safe }}`,
+                    message : `{{ update.message | default("", true) | safe }}`,
                     icon : 'ph-ph-{{ update.icon }}',
                     createdAt: {{ update.created_at }} * 1000,
                     type: 'update'
@@ -132,30 +132,60 @@
                 availableUsers: availableUsers,
                 availableLabels: availableLabels,
                 
-                // Save callback - would POST to backend
-                onSave: (field, value, oldValue) => {
+                // Save callback - POST to backend
+                onSave: async (field, value, oldValue) => {
                     console.log('Saving:', field, value);
-                    // Example: fetch('/api/tickets/{{ ticket.id }}', {
-                    //     method: 'PATCH',
-                    //     headers: { 'Content-Type': 'application/json' },
-                    //     body: JSON.stringify({ [field]: value })
-                    // });
+                    try {
+                        const response = await fetch('/api/tickets/{{ ticket.id }}', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ field, value, oldValue })
+                        });
+                        
+                        if (!response.ok) {
+                            console.error('Failed to save:', await response.json());
+                        }
+                    } catch (error) {
+                        console.error('Save error:', error);
+                    }
                 },
                 
-                // Comment callback - would POST to backend
-                onComment: (content, comment) => {
+                // Comment callback - POST to backend
+                onComment: async (content, comment) => {
                     console.log('New comment:', content);
-                    // Example: fetch('/api/tickets/{{ ticket.id }}/comments', {
-                    //     method: 'POST',
-                    //     headers: { 'Content-Type': 'application/json' },
-                    //     body: JSON.stringify({ content })
-                    // });
+                    try {
+                        const response = await fetch('/api/tickets/{{ ticket.id }}/comments', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content })
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Update comment with real ID from server
+                            comment.id = data.comment.id;
+                        } else {
+                            console.error('Failed to add comment:', await response.json());
+                        }
+                    } catch (error) {
+                        console.error('Comment error:', error);
+                    }
                 },
                 
                 // Delete comment callback
-                onDeleteComment: (commentId) => {
+                onDeleteComment: async (commentId) => {
                     console.log('Delete comment:', commentId);
-                    // Example: fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+                    try {
+                        const response = await fetch(`/api/comments/${commentId}`, { 
+                            method: 'DELETE' 
+                        });
+                        
+                        if (!response.ok) {
+                            console.error('Failed to delete comment:', await response.json());
+                        }
+                    } catch (error) {
+                        console.error('Delete comment error:', error);
+                    }
                 },
                 
                 // Edit comment callback

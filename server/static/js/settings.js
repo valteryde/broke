@@ -279,9 +279,10 @@ function showToast(message, type = 'info') {
 
 /**
  * Modal functions for creating projects, labels, etc.
+ * Uses the Modal component from modal.js
  */
 window.showCreateProjectModal = () => {
-    showModal('Create Project', `
+    Modal.show('Create Project', `
         <form id="create-project-form">
             <div class="form-group">
                 <label for="project-id">Project ID</label>
@@ -301,7 +302,7 @@ window.showCreateProjectModal = () => {
                 <input type="color" id="project-color" name="color" value="#106ecc">
             </div>
             <div class="form-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Create Project</button>
             </div>
         </form>
@@ -309,7 +310,7 @@ window.showCreateProjectModal = () => {
 };
 
 window.showInviteModal = () => {
-    showModal('Invite Team Member', `
+    Modal.show('Invite Team Member', `
         <form id="invite-form">
             <div class="form-group">
                 <label for="invite-email">Email Address</label>
@@ -323,7 +324,7 @@ window.showInviteModal = () => {
                 </select>
             </div>
             <div class="form-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Send Invite</button>
             </div>
         </form>
@@ -331,7 +332,7 @@ window.showInviteModal = () => {
 };
 
 window.showCreateLabelModal = () => {
-    showModal('Create Label', `
+    Modal.show('Create Label', `
         <form id="create-label-form">
             <div class="form-group">
                 <label for="label-name">Label Name</label>
@@ -342,115 +343,11 @@ window.showCreateLabelModal = () => {
                 <input type="color" id="label-color" name="color" value="#106ecc">
             </div>
             <div class="form-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Create Label</button>
             </div>
         </form>
     `);
-};
-
-function showModal(title, content) {
-    // Remove existing modal
-    closeModal();
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-        <div class="modal">
-            <div class="modal-header">
-                <h2>${title}</h2>
-                <button class="btn-icon" onclick="closeModal()">
-                    <i class="ph ph-x"></i>
-                </button>
-            </div>
-            <div class="modal-content">
-                ${content}
-            </div>
-        </div>
-    `;
-    
-    // Add modal styles if not present
-    if (!document.getElementById('modal-styles')) {
-        const style = document.createElement('style');
-        style.id = 'modal-styles';
-        style.textContent = `
-            .modal-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0, 0, 0, 0.5);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 10000;
-                animation: fadeIn 0.2s ease;
-            }
-            .modal {
-                background: white;
-                border-radius: 12px;
-                width: 90%;
-                max-width: 440px;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-                animation: scaleIn 0.2s ease;
-            }
-            .modal-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 20px 24px;
-                border-bottom: 1px solid #eee;
-            }
-            .modal-header h2 {
-                font-size: 1.1rem;
-                font-weight: 600;
-            }
-            .modal-content {
-                padding: 24px;
-            }
-            .modal-content .form-group {
-                margin-bottom: 16px;
-            }
-            .modal-content .form-actions {
-                margin-top: 24px;
-                justify-content: flex-end;
-            }
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-            @keyframes scaleIn {
-                from { transform: scale(0.95); opacity: 0; }
-                to { transform: scale(1); opacity: 1; }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    document.body.appendChild(modal);
-    
-    // Close on overlay click
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeModal();
-        }
-    });
-    
-    // Close on escape key
-    document.addEventListener('keydown', function escHandler(e) {
-        if (e.key === 'Escape') {
-            closeModal();
-            document.removeEventListener('keydown', escHandler);
-        }
-    });
-}
-
-window.closeModal = () => {
-    const modal = document.querySelector('.modal-overlay');
-    if (modal) {
-        modal.remove();
-    }
 };
 
 // ============ Webhook Functions ============

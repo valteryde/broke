@@ -25,6 +25,8 @@
     --bg-white: rgb(245, 245, 245);
     --logo-blue: #106ecc;
     --bg-light-gray: #eaeaea;
+    --secondary-color: #666666;
+    --danger-red: #ef4444;
 }
 
 * {
@@ -44,4 +46,38 @@ body {
 
 .ph {
     font-weight: bold;
+}
+
+.btn {
+
+
+
+color: white;
+border: none;
+border-radius: 6px;
+padding: 10px 16px;
+font-size: 1rem;
+cursor: pointer;
+transition: background-color 0.3s ease;
+}
+.btn-primary {
+    background-color: var(--logo-blue);
+}
+
+.btn-secondary {
+    background-color: transparent;
+    border: dashed 1px #444;
+    color:black;
+}
+
+.btn-danger {
+    background-color: var(--danger-red);
+}
+
+.btn-icon {
+    background-color: transparent;
+    border: none;
+    padding: 6px;
+    font-size: 1.2rem;
+    cursor: pointer;
 }

@@ -2,6 +2,7 @@
 
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
 {% endblock %}
 
 {% block path %}
@@ -999,5 +1000,6 @@ sentry_sdk.init(
 {% endblock %}
 
 {% block scripts %}
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
 {% endblock %}

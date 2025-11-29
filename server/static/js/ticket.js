@@ -78,9 +78,6 @@ class TicketEditor {
         this.initQuillEditors();
         this.initPropertyDropdowns();
         this.initEventListeners();
-        
-        
-
     }
 
     renderAvatarIconJdenticon() {

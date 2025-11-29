@@ -1,0 +1,12 @@
+name: broke
+services:
+  broke-server:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data/uploads:/app/data/uploads
+    environment:
+      - FLASK_ENV=development
+      - FLASK_APP=server/app.py
+    command: python server/server.py --data-path /data

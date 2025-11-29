@@ -186,7 +186,7 @@
 /* Saving indicator */
 .ticket-save-indicator {
     position: absolute;
-    top: 0;
+    top: -60px;
     right: 0;
     font-size: 0.75rem;
     color: #666;

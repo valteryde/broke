@@ -159,6 +159,7 @@ class UserTicketJoin(BaseModel):
 
 
 class Comment(BaseModel):
+    id = AutoField(primary_key=True)
     ticket = CharField()
     user = ForeignKeyField(User, backref='comments')
     body = CharField()
@@ -177,6 +178,7 @@ class TicketUpdateMessage(BaseModel):
     icon = CharField()
     message = CharField()
     created_at = IntegerField(default=lambda: int(time.time()))
+    author = ForeignKeyField(User, null=True)
 
     class Meta: # type: ignore
         indexes = (

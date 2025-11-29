@@ -3,6 +3,7 @@
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dropdown.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lists.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
 {% endblock %}
 
@@ -36,9 +37,121 @@
 
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
     
     <script>
+        // Available projects for ticket creation modal
+        const availableProjects = [
+            {% for proj in projects %}
+            {
+                id: '{{ proj.id }}',
+                name: '{{ proj.name }}',
+                icon: '{{ proj.icon }}',
+                color: '{{ proj.color }}'
+            },
+            {% endfor %}
+        ];
+
+        // Show create ticket modal
+        function showCreateTicketModal() {
+            let selectedProject = {% if project %}'{{ project.id }}'{% else %}null{% endif %};
+            
+            const projectItems = availableProjects.map(proj => `
+                <div class="modal-project-item ${selectedProject === proj.id ? 'selected' : ''}" 
+                     data-project-id="${proj.id}"
+                     onclick="selectProject('${proj.id}')">
+                    <i class="${proj.icon}"></i>
+                    <span class="modal-project-item-name">${proj.name}</span>
+                    <span class="modal-project-item-id">${proj.id}</span>
+                </div>
+            `).join('');
+            
+            Modal.show('Create New Ticket', `
+                <div class="form-group">
+                    <label>Select Project</label>
+                    <div class="modal-project-list" id="project-list">
+                        ${projectItems}
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="create-ticket-btn" onclick="createTicket()">
+                        Create Ticket
+                    </button>
+                </div>
+            `);
+            
+            // Store selected project in window for access by createTicket
+            window.selectedProjectId = selectedProject;
+            updateCreateButton();
+        }
+        
+        // Select project in modal
+        function selectProject(projectId) {
+            window.selectedProjectId = projectId;
+            
+            // Update UI
+            document.querySelectorAll('.modal-project-item').forEach(item => {
+                item.classList.toggle('selected', item.dataset.projectId === projectId);
+            });
+            
+            updateCreateButton();
+        }
+        
+        // Update create button state
+        function updateCreateButton() {
+            const btn = document.getElementById('create-ticket-btn');
+            if (btn) {
+                btn.disabled = !window.selectedProjectId;
+            }
+        }
+        
+        // Create ticket and redirect
+        async function createTicket() {
+            if (!window.selectedProjectId) return;
+            
+            const btn = document.getElementById('create-ticket-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="ph ph-circle-notch" style="animation: spin 1s linear infinite;"></i> Creating...';
+            }
+            
+            try {
+                const response = await fetch('/api/tickets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        project: window.selectedProjectId,
+                        title: '',
+                        status: 'backlog',
+                        priority: 'medium'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    Modal.close();
+                    // Redirect to new ticket
+                    window.location.href = `/tickets/${data.ticket.project}/${data.ticket.id}`;
+                } else {
+                    const error = await response.json();
+                    alert('Failed to create ticket: ' + (error.error || 'Unknown error'));
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = 'Create Ticket';
+                    }
+                }
+            } catch (error) {
+                console.error('Create ticket error:', error);
+                alert('Failed to create ticket');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Create Ticket';
+                }
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const ticketList = new List('ticket-list', {
                 filters: {
@@ -51,6 +164,9 @@
                 groupBy: {
                     options: ['none', 'urgency', 'assignees', 'labels'],
                     default: 'none'
+                },
+                onCreate: () => {
+                    showCreateTicketModal();
                 }
             });
 
@@ -60,7 +176,7 @@
                     id: '{{ ticket.id }}',
                     title: '{{ ticket.title }}',
                     description: '{{ ticket.description | default("No description provided.", true) | safe }}',
-                    icon: 'ph-cell-signal-{{ "high" if ticket.priority == "high" else "medium" if ticket.priority == "medium" else "low" }}',
+                    icon: {% if ticket.priority == "urgent" %}'ph ph-warning'{% else %} 'ph ph-cell-signal-{{ "high" if ticket.priority == "high" else "medium" if ticket.priority == "medium" else "low" if ticket.priority == "low" else "none" }}'{% endif %},
                     urgency: '{{ ticket.priority }}',
                     labels: [
                         {% for label in ticket.labels %}
