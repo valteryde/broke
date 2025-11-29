@@ -90,7 +90,7 @@ def news_view(user: User):
     for update in recent_updates:
         activities.append({
             'type': 'update',
-            'icon': update.icon.replace('ph ', 'ph-') if update.icon else 'ph-pencil',
+            'icon': update.icon.replace('ph ', '') if update.icon else 'ph-pencil',
             'user': 'System',
             'action': f'{update.title} on {update.ticket}',
             'text': update.message,
@@ -243,10 +243,13 @@ def build_timeline_events(project_id: str | None = None, days: int = 30) -> dict
         date_parts = format_date_parts(update.created_at)
         activity_by_day[date_parts['date_key']] += 1
         
+        # Extract icon class - stored as "ph ph-icon-name", we need just "ph-icon-name"
+        icon = update.icon.replace('ph ', '') if update.icon else 'ph-pencil'
+        
         events.append({
             'type': 'update',
             'type_label': update.title,
-            'icon': update.icon.replace('ph ', 'ph-') if update.icon else 'ph-pencil',
+            'icon': icon,
             'title': f'{update.title}',
             'description': update.message,
             'timestamp': update.created_at,

@@ -24,10 +24,12 @@
                 <i class="ph ph-user"></i>
                 <span>Profile</span>
             </a>
+            {# 
             <a href="/settings/preferences" class="settings-nav-item {% if section == 'preferences' %}active{% endif %}">
                 <i class="ph ph-sliders-horizontal"></i>
                 <span>Preferences</span>
-            </a>
+            </a> 
+            #}
             <a href="/settings/notifications" class="settings-nav-item {% if section == 'notifications' %}active{% endif %}">
                 <i class="ph ph-bell"></i>
                 <span>Notifications</span>
@@ -40,10 +42,10 @@
 
         <div class="settings-nav-section">
             <h3 class="nav-section-title">Workspace</h3>
-            <a href="/settings/general" class="settings-nav-item {% if section == 'general' %}active{% endif %}">
+            {# <a href="/settings/general" class="settings-nav-item {% if section == 'general' %}active{% endif %}">
                 <i class="ph ph-gear"></i>
                 <span>General</span>
-            </a>
+            </a> #}
             <a href="/settings/projects" class="settings-nav-item {% if section == 'projects' %}active{% endif %}">
                 <i class="ph ph-folder-simple"></i>
                 <span>Projects</span>
@@ -73,20 +75,6 @@
                 <span>Sentry DSN</span>
             </a>
         </div>
-
-        {% if user.admin %}
-        <div class="settings-nav-section">
-            <h3 class="nav-section-title">Administration</h3>
-            <a href="/settings/billing" class="settings-nav-item {% if section == 'billing' %}active{% endif %}">
-                <i class="ph ph-credit-card"></i>
-                <span>Billing</span>
-            </a>
-            <a href="/settings/danger" class="settings-nav-item danger {% if section == 'danger' %}active{% endif %}">
-                <i class="ph ph-warning"></i>
-                <span>Danger Zone</span>
-            </a>
-        </div>
-        {% endif %}
     </div>
 
     <!-- Settings Content Area -->
@@ -129,11 +117,6 @@
                             <label for="email">Email Address</label>
                             <input type="email" id="email" name="email" value="{{ user.email }}" class="form-input">
                             <span class="form-hint">Used for notifications and account recovery</span>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="display_name">Display Name</label>
-                            <input type="text" id="display_name" name="display_name" placeholder="How you want to be called" class="form-input">
                         </div>
 
                         <div class="form-actions">
@@ -360,7 +343,8 @@
                 </div>
             </div>
 
-            <div class="settings-card">
+            {# TODO: Write some session remember functionality #}
+            {# <div class="settings-card">
                 <div class="card-section">
                     <h3>Sessions</h3>
                     <p class="card-description">Manage your active sessions</p>
@@ -382,7 +366,7 @@
                         <i class="ph ph-sign-out"></i> Sign Out All Other Sessions
                     </button>
                 </div>
-            </div>
+            </div> #}
         </div>
 
         {% elif section == 'projects' %}
@@ -461,19 +445,19 @@
                                     <span class="member-email">{{ member.email }}</span>
                                 </div>
                             </div>
-                            <div class="member-role">
+                            {# <div class="member-role">
                                 <select class="form-select-sm" {% if member.username == user.username %}disabled{% endif %}>
                                     <option value="admin" {% if member.admin %}selected{% endif %}>Admin</option>
                                     <option value="member" {% if not member.admin %}selected{% endif %}>Member</option>
                                 </select>
-                            </div>
-                            <div class="member-actions">
+                            </div> #}
+                            {# <div class="member-actions">
                                 {% if member.username != user.username %}
                                 <button class="btn-icon danger" title="Remove">
                                     <i class="ph ph-user-minus"></i>
                                 </button>
                                 {% endif %}
-                            </div>
+                            </div> #}
                         </div>
                         {% endfor %}
                     </div>
@@ -976,86 +960,6 @@ sentry_sdk.init(
                     <button class="btn btn-danger">
                         <i class="ph ph-trash"></i> Delete Account
                     </button>
-                </div>
-            </div>
-
-            <div class="settings-card danger-card">
-                <div class="card-section">
-                    <h3>Clear All Data</h3>
-                    <p class="card-description">Remove all tickets, errors, and project data while keeping your account.</p>
-                    
-                    <button class="btn btn-danger">
-                        <i class="ph ph-eraser"></i> Clear All Data
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        {% else %}
-        <!-- General/Default Settings -->
-        <div class="settings-section">
-            <div class="section-header">
-                <h1>General Settings</h1>
-                <p class="section-description">Configure your workspace settings</p>
-            </div>
-
-            <div class="settings-card">
-                <div class="card-section">
-                    <h3>Workspace Name</h3>
-                    <p class="card-description">The name of your workspace as it appears throughout Broke</p>
-                    
-                    <form class="settings-form">
-                        <div class="form-group">
-                            <input type="text" id="workspace_name" name="workspace_name" value="My Workspace" class="form-input">
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-primary">Save</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="settings-card">
-                <div class="card-section">
-                    <h3>Timezone</h3>
-                    <p class="card-description">Set the default timezone for your workspace</p>
-                    
-                    <div class="form-group">
-                        <select class="form-select" id="timezone">
-                            <option value="UTC">UTC</option>
-                            <option value="Europe/Copenhagen" selected>Europe/Copenhagen</option>
-                            <option value="America/New_York">America/New York</option>
-                            <option value="America/Los_Angeles">America/Los Angeles</option>
-                            <option value="Asia/Tokyo">Asia/Tokyo</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="settings-card">
-                <div class="card-section">
-                    <h3>Date Format</h3>
-                    <p class="card-description">How dates are displayed throughout the workspace</p>
-                    
-                    <div class="preference-group">
-                        <div class="radio-group">
-                            <label class="radio-item">
-                                <input type="radio" name="date_format" value="mdy">
-                                <span class="radio-label">MM/DD/YYYY</span>
-                                <span class="radio-example">11/28/2025</span>
-                            </label>
-                            <label class="radio-item">
-                                <input type="radio" name="date_format" value="dmy" checked>
-                                <span class="radio-label">DD/MM/YYYY</span>
-                                <span class="radio-example">28/11/2025</span>
-                            </label>
-                            <label class="radio-item">
-                                <input type="radio" name="date_format" value="ymd">
-                                <span class="radio-label">YYYY-MM-DD</span>
-                                <span class="radio-example">2025-11-28</span>
-                            </label>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

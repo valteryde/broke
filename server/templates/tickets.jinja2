@@ -36,6 +36,7 @@
 {% block scripts %}
 
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
@@ -156,13 +157,14 @@
             const ticketList = new List('ticket-list', {
                 filters: {
                     search: { placeholder: 'Search tickets...' },
+                    status: { label: 'Status' },
                     labels: { label: 'Labels' },
                     assignees: { label: 'Assignees' },
                     urgency: { label: 'Urgency' },
                     dateRange: { label: 'Date' }
                 },
                 groupBy: {
-                    options: ['none', 'urgency', 'assignees', 'labels'],
+                    options: ['none', 'status', 'urgency', 'assignees', 'labels'],
                     default: 'none'
                 },
                 onCreate: () => {
@@ -177,6 +179,7 @@
                     title: '{{ ticket.title }}',
                     description: '{{ ticket.description | default("No description provided.", true) | safe }}',
                     icon: {% if ticket.priority == "urgent" %}'ph ph-warning'{% else %} 'ph ph-cell-signal-{{ "high" if ticket.priority == "high" else "medium" if ticket.priority == "medium" else "low" if ticket.priority == "low" else "none" }}'{% endif %},
+                    status: '{{ ticket.status | default("backlog") }}',
                     urgency: '{{ ticket.priority }}',
                     labels: [
                         {% for label in ticket.labels %}

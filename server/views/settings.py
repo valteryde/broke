@@ -40,7 +40,6 @@ def settings_section_view(user: User, section: str):
         'api': 'API & Tokens',
         'webhooks': 'Webhooks',
         'sentry': 'Sentry Integration',
-        'billing': 'Billing',
         'danger': 'Danger Zone'
     }
     

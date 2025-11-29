@@ -442,12 +442,32 @@
 
 .list-element-id {
     /* font-weight: bold; */
+    min-width: 5rem;
 }
 
 .list-element-icons {
     margin-left: auto;
     display: flex;
     gap: 10px;
+}
+
+/* Status badge */
+.list-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--status-color, #6b7280);
+    /* background: color-mix(in srgb, var(--status-color, #6b7280) 12%, transparent); */
+    white-space: nowrap;
+}
+
+.list-status i {
+    font-size: 1.2rem;
+    font-weight: bold;
 }
 
 .list-labels {

@@ -29,24 +29,7 @@
  * });
  */
 
-// Status options
-const TicketStatuses = [
-    { value: 'backlog', label: 'Backlog', icon: 'ph-circle-dashed', colorClass: 'status-backlog' },
-    { value: 'todo', label: 'Todo', icon: 'ph-circle', colorClass: 'status-todo' },
-    { value: 'in-progress', label: 'In Progress', icon: 'ph-circle-half', colorClass: 'status-in-progress' },
-    { value: 'in-review', label: 'In Review', icon: 'ph-circle-notch', colorClass: 'status-in-review' },
-    { value: 'done', label: 'Done', icon: 'ph-check-circle', colorClass: 'status-done' },
-    { value: 'cancelled', label: 'Cancelled', icon: 'ph-x-circle', colorClass: 'status-cancelled' }
-];
-
-// Priority options
-const TicketPriorities = [
-    { value: 'urgent', label: 'Urgent', icon: 'ph-warning'},
-    { value: 'high', label: 'High', icon: 'ph-cell-signal-high'},
-    { value: 'medium', label: 'Medium', icon: 'ph-cell-signal-medium'},
-    { value: 'low', label: 'Low', icon: 'ph-cell-signal-low'},
-    { value: 'none', label: 'No priority', icon: 'ph-cell-signal-none'}
-];
+// StatusConfig, StatusList, PriorityConfig, PriorityList are now loaded from config.js
 
 class TicketEditor {
     constructor(containerId, options = {}) {
@@ -153,8 +136,8 @@ class TicketEditor {
     }
     
     renderProperties() {
-        const status = TicketStatuses.find(s => s.value === this.ticket.status) || TicketStatuses[0];
-        const priority = TicketPriorities.find(p => p.value === this.ticket.priority) || TicketPriorities[4];
+        const status = StatusList.find(s => s.value === this.ticket.status) || StatusList[0];
+        const priority = PriorityList.find(p => p.value === this.ticket.priority) || PriorityList[4];
         
         return `
             <div class="ticket-properties">
@@ -427,7 +410,7 @@ class TicketEditor {
         const statusBtn = this.container.querySelector('[data-property="status"]');
         if (statusBtn) {
             new Dropdown(statusBtn, {
-                items: TicketStatuses.map(s => ({
+                items: StatusList.map(s => ({
                     label: s.label,
                     icon: s.icon,
                     colorClass: s.colorClass,
@@ -442,7 +425,7 @@ class TicketEditor {
         const priorityBtn = this.container.querySelector('[data-property="priority"]');
         if (priorityBtn) {
             new Dropdown(priorityBtn, {
-                items: TicketPriorities.map(p => ({
+                items: PriorityList.map(p => ({
                     label: p.label,
                     icon: p.icon,
                     colorClass: p.colorClass,
@@ -568,14 +551,14 @@ class TicketEditor {
         if (!btn) return;
         
         if (field === 'status') {
-            const status = TicketStatuses.find(s => s.value === this.ticket.status) || TicketStatuses[0];
+            const status = StatusList.find(s => s.value === this.ticket.status) || StatusList[0];
             btn.innerHTML = `
                 <i class="ph ${status.icon} ${status.colorClass}"></i>
                 <span class="property-value ${status.colorClass}">${status.label}</span>
                 <i class="ph ph-caret-down"></i>
             `;
         } else if (field === 'priority') {
-            const priority = TicketPriorities.find(p => p.value === this.ticket.priority) || TicketPriorities[4];
+            const priority = PriorityList.find(p => p.value === this.ticket.priority) || PriorityList[4];
             btn.innerHTML = `
                 <i class="ph ${priority.icon} ${priority.colorClass}"></i>
                 <span class="property-value ${priority.colorClass}">${priority.label}</span>
@@ -807,11 +790,11 @@ class TicketEditor {
     
     formatFieldValue(field, value) {
         if (field === 'status') {
-            const status = TicketStatuses.find(s => s.value === value);
+            const status = StatusList.find(s => s.value === value);
             return status ? status.label : value;
         }
         if (field === 'priority') {
-            const priority = TicketPriorities.find(p => p.value === value);
+            const priority = PriorityList.find(p => p.value === value);
             return priority ? priority.label : value;
         }
         if (field === 'dueDate') {

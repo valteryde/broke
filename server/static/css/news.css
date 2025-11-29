@@ -225,27 +225,21 @@
     border-radius: 12px;
     text-transform: capitalize;
     white-space: nowrap;
+    gap: 4px;
 }
 
-.ticket-status.status-open {
-    background: rgba(16, 110, 204, 0.1);
-    color: var(--logo-blue);
+.ticket-status i {
+    font-size: 14px;
 }
 
-.ticket-status.status-in-progress {
-    background: rgba(245, 158, 11, 0.1);
-    color: #d97706;
-}
-
-.ticket-status.status-review {
-    background: rgba(139, 92, 246, 0.1);
-    color: #7c3aed;
-}
-
-.ticket-status.status-closed {
-    background: rgba(34, 197, 94, 0.1);
-    color: #16a34a;
-}
+/* Status colors - must match config.js */
+.ticket-status.status-backlog { color: #6b7280; }
+.ticket-status.status-todo { color: #8b5cf6; }
+.ticket-status.status-in-progress { color: #3b82f6; }
+.ticket-status.status-in-review { color: #f59e0b; }
+.ticket-status.status-done { color: #22c55e; }
+.ticket-status.status-closed { color: #9ca3af; }
+.ticket-status.status-duplicate { color: #ef4444; }
 
 /* Error Items */
 .error-item {

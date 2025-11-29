@@ -30,6 +30,14 @@ const FilterTypes = {
             return searchText.includes(value.toLowerCase());
         }
     },
+    status: {
+        icon: 'ph-circle-half',
+        label: 'Status',
+        filter: (element, values) => {
+            if (!values || values.length === 0) return true;
+            return values.includes(element.status);
+        }
+    },
     labels: { 
         icon: 'ph-tag', 
         label: 'Labels',
@@ -70,7 +78,7 @@ const FilterTypes = {
 };
 
 // Group type definitions
-// TODO: Move group functions to separate modules for better maintainability
+// StatusConfig, StatusOrder, PriorityConfig, PriorityOrder are loaded from config.js
 const GroupTypes = {
     none: {
         label: 'None',
@@ -78,15 +86,19 @@ const GroupTypes = {
         getGroupKey: () => null,
         getGroupLabel: () => null
     },
+    status: {
+        label: 'Status',
+        icon: 'ph-circle-half',
+        getGroupKey: (element) => element.status || 'backlog',
+        getGroupLabel: (key) => StatusConfig[key]?.label || key,
+        order: StatusOrder
+    },
     urgency: {
         label: 'Urgency',
         icon: 'ph-warning',
         getGroupKey: (element) => element.urgency || 'none',
-        getGroupLabel: (key) => {
-            const labels = { urgent: 'Urgent', high: 'High', medium: 'Medium', low: 'Low', none: 'No urgency' };
-            return labels[key] || key;
-        },
-        order: ['urgent', 'high', 'medium', 'low', 'none']
+        getGroupLabel: (key) => PriorityConfig[key]?.label || key,
+        order: PriorityOrder
     },
     assignees: {
         label: 'Assignee',
@@ -134,6 +146,12 @@ class List {
     // Get submenu options for each filter type
     getFilterOptions(filterType) {
         switch (filterType) {
+            case 'status':
+                return Object.entries(StatusConfig).map(([value, config]) => ({
+                    value,
+                    label: config.label,
+                    icon: config.icon
+                }));
             case 'labels':
                 return this.extractLabels().map(l => ({ value: l.text, label: l.text, icon: 'ph-fill ph-circle', colorClass: `filter-color-${l.color}` }));
             case 'assignees':
@@ -594,10 +612,18 @@ class List {
         const parser = new DOMParser();
         const htmlDoc = parser.parseFromString(element.description || '', 'text/html');
 
+        // Get status config if available
+        const statusConfig = element.status ? StatusConfig[element.status] : null;
+        const statusHtml = statusConfig 
+            ? `<span class="list-status" style="--status-color: ${statusConfig.color}" title="${statusConfig.label}">
+                <i class="ph ${statusConfig.icon}"></i>
+               </span>`
+            : '';
 
         inner.innerHTML = `
             <i class="ph ${element.icon} list-element-icon"></i>
             <span class="list-element-id">${element.id}</span>
+            ${statusHtml}
             <span class="list-element-text">
                 <h3>${element.title}</h3>
                 <p class="list-element-description">${(htmlDoc.body.textContent || "")}</p>

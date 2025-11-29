@@ -410,7 +410,7 @@ def setup_test_data():
             pass
 
     # Create tickets
-    statuses = ['open', 'in-progress', 'review', 'closed']
+    statuses = ['backlog', 'todo', 'in-progress', 'in-review', 'done', 'closed', 'duplicate']
     priorities = ['low', 'medium', 'high', 'urgent']
     ticket_ids = []
 

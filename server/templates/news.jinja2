@@ -85,7 +85,26 @@
                                 <span class="ticket-id">{{ ticket.id }}</span>
                                 <span class="ticket-title">{{ ticket.title }}</span>
                             </div>
-                            <div class="ticket-status status-{{ ticket.status }}">{{ ticket.status }}</div>
+                            <div class="ticket-status status-{{ ticket.status }}">
+                                {% if ticket.status == 'backlog' %}
+                                <i class="ph ph-circle-dashed"></i>
+                                {% elif ticket.status == 'todo' %}
+                                <i class="ph ph-circle"></i>
+                                {% elif ticket.status == 'in-progress' %}
+                                <i class="ph ph-circle-half"></i>
+                                {% elif ticket.status == 'in-review' %}
+                                <i class="ph ph-circle-notch"></i>
+                                {% elif ticket.status == 'done' %}
+                                <i class="ph ph-check-circle"></i>
+                                {% elif ticket.status == 'closed' %}
+                                <i class="ph ph-x-circle"></i>
+                                {% elif ticket.status == 'duplicate' %}
+                                <i class="ph ph-copy"></i>
+                                {% else %}
+                                <i class="ph ph-circle"></i>
+                                {% endif %}
+                                <span>{{ ticket.status | replace('-', ' ') }}</span>
+                            </div>
                         </a>
                         {% endfor %}
                     {% else %}
