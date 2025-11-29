@@ -303,14 +303,23 @@ class GitHubIntegration(BaseModel):
 class APIToken(BaseModel):
     """API tokens for programmatic access"""
     id = AutoField(primary_key=True)
-    user = CharField()  # References User.username
+    user = ForeignKeyField(User, backref='api_tokens')
     
-    name = CharField()
     token_hash = CharField()  # SHA256 hash of the token
     token_preview = CharField()  # First 8 chars for display
     
     last_used = IntegerField(null=True)
     created_at = IntegerField(default=lambda: int(time.time()))
+
+
+class DSNToken(BaseModel):
+    """Single DSN token for Sentry SDK authentication - only one can exist at a time"""
+    id = AutoField(primary_key=True)
+    
+    token = CharField()  # Full token (visible)
+    
+    created_at = IntegerField(default=lambda: int(time.time()))
+    last_used = IntegerField(null=True)
 
 
 MODELS = [
@@ -335,7 +344,8 @@ MODELS = [
     Webhook,
     WebhookDelivery,
     GitHubIntegration,
-    APIToken
+    APIToken,
+    DSNToken
 ]
 
 def initialize_db():

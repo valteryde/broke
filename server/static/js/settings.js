@@ -510,3 +510,94 @@ window.deleteWebhook = async (webhookId) => {
 
 // Load preferences on page load
 loadPreferences();
+
+
+function generateNewToken() {
+    fetch('/api/settings/tokens', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.token) {
+            
+            Modal.show('New API Token', `
+                <p>Your new API token is shown below. Please copy it now, as you won't be able to see it again!</p>
+                <br>
+                <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; word-break: break-all; margin-bottom: 16px;">${data.token}</div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" onclick="Modal.close()">Close</button>
+                </div>
+            `);
+
+        } else {
+            showToast('Failed to generate token', 'error');
+        }
+    })
+    .catch(() => {
+        showToast('Failed to generate token', 'error');
+    });
+}
+
+function deleteToken(tokenId) {
+    if (!confirm('Are you sure you want to delete this token?')) {
+        return;
+    }
+    
+    fetch(`/api/settings/tokens/${tokenId}`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (response.ok) {
+            showToast('Token deleted', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Failed to delete token', 'error');
+        }
+    })
+    .catch(() => {
+        showToast('Token deleted', 'success');
+        setTimeout(() => location.reload(), 1000);
+    });
+}
+
+
+// ============ DSN Token Functions ============
+
+function generateDSNToken() {
+    fetch('/api/settings/dsn-token', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('DSN token generated', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Failed to generate DSN token', 'error');
+        }
+    })
+    .catch(() => {
+        showToast('Failed to generate DSN token', 'error');
+    });
+}
+
+function revokeDSNToken() {
+    if (!confirm('Are you sure you want to revoke the DSN token? All applications using this token will stop working.')) {
+        return;
+    }
+    
+    fetch('/api/settings/dsn-token', {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (response.ok) {
+            showToast('DSN token revoked', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Failed to revoke DSN token', 'error');
+        }
+    })
+    .catch(() => {
+        showToast('Failed to revoke DSN token', 'error');
+    });
+}

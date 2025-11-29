@@ -46,15 +46,9 @@ def secureroute(route, methods=['GET']):
 
 @app.route('/login', methods=['GET'])
 def login():
-    
-    # Show login form
-    return '''
-        <form method="post" action="/callback?next={}">
-            Username: <input type="text" name="username"><br>
-            Password: <input type="password" name="password"><br>
-            <input type="submit" value="Login">
-        </form>
-    '''.format(request.args.get('next', ''))
+    from flask import render_template
+    next_url = request.args.get('next', '/news')
+    return render_template('login.jinja2', next_url=next_url)
 
 def authenticate(username, password) -> User | None:
     # Pseudo authentication function
@@ -74,6 +68,7 @@ def authenticate(username, password) -> User | None:
 
 @app.route('/callback', methods=['POST'])
 def callback():
+    from flask import flash
     
     # This route processes the login form submission
     username = request.form['username']
@@ -82,10 +77,11 @@ def callback():
     user = authenticate(username, password)
     if user:
         session['user_id'] = user.username
-        next_url = request.args.get('next') or url_for('index')
+        next_url = request.args.get('next') or '/news'
         return redirect(next_url)
     else:
-        return "Invalid credentials", 401
+        flash('Invalid username or password', 'error')
+        return redirect('/login')
     
 
 
@@ -93,7 +89,7 @@ def callback():
 @app.route('/logout')
 def logout():
     session.pop('user_id', None)
-    return ''
+    return redirect('/login')
 
 
 def get_current_user() -> User | None:

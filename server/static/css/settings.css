@@ -795,7 +795,59 @@
 
 /* Token List */
 .token-list {
-    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.token-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    border-bottom: 1px dashed #e0e0e0;
+}
+
+.token-item:last-child {
+    border-bottom: none;
+}
+
+.token-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.token-name {
+    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #222;
+    letter-spacing: 0.02em;
+}
+
+.token-meta {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.token-user {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.token-last-used {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.token-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 /* Webhook Styles */

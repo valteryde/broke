@@ -105,6 +105,13 @@ def settings_section_view(user: User, section: str):
     elif section == 'sentry':
         context['project_parts'] = list(ProjectPart.select())
         context['base_url'] = request.host_url.rstrip('/')
+        
+        # Get DSN token if it exists
+        try:
+            dsn_token = DSNToken.get()
+            context['dsn_token'] = dsn_token
+        except DoesNotExist:
+            context['dsn_token'] = None
     
     return render_template('settings.jinja2', **context)
 
@@ -498,26 +505,18 @@ def welcome_new_member(token:str):
 
 # ============ API Token Endpoints ============
 
-@app.route('/api/settings/tokens', methods=['POST'])
-def api_create_token():
+@secureroute('/api/settings/tokens', methods=['POST'])
+def api_create_token(user:User):
     """Create a new API token"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user:
-        return json.dumps({'error': 'Unauthorized'}), 401
-    
-    data = request.get_json()
-    name = data.get('name', 'API Token').strip()
-    
+        
     # Generate secure token
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     
     api_token = APIToken.create(
         user=user.username,
-        name=name,
         token_hash=token_hash,
-        token_preview=token[:8] + '...',
+        token_preview=token[:8],
         created_at=int(time.time())
     )
     
@@ -526,17 +525,12 @@ def api_create_token():
         'success': True,
         'token': token,
         'token_id': api_token.id,
-        'message': 'Save this token now - you won\'t be able to see it again!'
     }), 200
 
 
-@app.route('/api/settings/tokens/<int:token_id>', methods=['DELETE'])
-def api_delete_token(token_id: int):
+@secureroute('/api/settings/tokens/<int:token_id>', methods=['DELETE'])
+def api_delete_token(user:User, token_id: int):
     """Delete an API token"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user:
-        return json.dumps({'error': 'Unauthorized'}), 401
     
     try:
         token = APIToken.get(
@@ -547,6 +541,43 @@ def api_delete_token(token_id: int):
         return json.dumps({'success': True}), 200
     except DoesNotExist:
         return json.dumps({'error': 'Token not found'}), 404
+
+
+# ============ DSN Token Endpoints ============
+
+@secureroute('/api/settings/dsn-token', methods=['POST'])
+def api_create_dsn_token(user:User):
+    """Create or replace the DSN token - only one can exist"""
+    
+    # Delete any existing DSN token
+    DSNToken.delete().execute()
+    
+    # Generate secure token
+    token = secrets.token_urlsafe(32)
+    
+    dsn_token = DSNToken.create(
+        token=token,
+        created_at=int(time.time())
+    )
+    
+    return json.dumps({
+        'success': True,
+        'token': token,
+        'token_id': dsn_token.id,
+    }), 200
+
+
+@secureroute('/api/settings/dsn-token', methods=['DELETE'])
+def api_revoke_dsn_token(user:User):
+    """Revoke the DSN token"""
+    
+    count = DSNToken.delete().execute()
+    
+    if count > 0:
+        return json.dumps({'success': True}), 200
+    else:
+        return json.dumps({'error': 'No DSN token exists'}), 404
+
 
 @secureroute('/api/settings/projects', methods=['POST'])
 def api_create_project(user:User):

@@ -535,17 +535,34 @@
 
             <div class="settings-card">
                 <div class="card-section">
-                    <h3>Personal Access Tokens</h3>
+                    <h3>Tokens</h3>
                     <p class="card-description">Create tokens to authenticate with the API</p>
 
                     <div class="token-list">
+                        {% if not api_tokens %}
                         <div class="empty-state">
                             <i class="ph ph-key"></i>
                             <p>No tokens created yet</p>
                         </div>
+                        {% else %}
+                        {% for token in api_tokens %}
+                        <div class="token-item">
+                            <div class="token-info">
+                                <span class="token-name">{{ token.token_preview }}{% for i in token.token_hash[8:] %}*{% endfor %}</span>
+                                <span class="token-meta">Created {{ token.created_at | timestamp_to_date }}</span>
+                                <span class="token-last-used">Last used: {% if token.last_used %}{{ token.last_used | timestamp_to_date }}{% else %}Never{% endif %}</span>
+                            </div>
+                            <div class="token-actions">
+                                <button class="btn-icon danger" title="Revoke" onclick="deleteToken('{{ token.id }}')">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
                     </div>
 
-                    <button class="btn btn-secondary" style="margin-top: 16px;">
+                    <button class="btn btn-secondary" style="margin-top: 16px;" onclick="generateNewToken()">
                         <i class="ph ph-plus"></i> Generate New Token
                     </button>
                 </div>
@@ -848,29 +865,78 @@
 
             <div class="settings-card">
                 <div class="card-section">
+                    <h3>DSN Token</h3>
+                    <p class="card-description">Authentication token used in your Sentry SDK DSN URLs</p>
+
+                    <div class="token-list">
+                        {% if dsn_token %}
+                        <div class="token-item">
+                            <div class="token-info">
+                                <span class="token-name">{{ dsn_token.token }}</span>
+                                <span class="token-meta">Created {{ dsn_token.created_at | timestamp_to_date }}</span>
+                                <span class="token-last-used">Last used: {% if dsn_token.last_used %}{{ dsn_token.last_used | timestamp_to_date }}{% else %}Never{% endif %}</span>
+                            </div>
+                            <div class="token-actions">
+                                <button class="btn-icon" title="Copy" onclick="copyToClipboard(this)" data-url="{{ dsn_token.token }}">
+                                    <i class="ph ph-copy"></i>
+                                </button>
+                                <button class="btn-icon danger" title="Revoke" onclick="revokeDSNToken()">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-key"></i>
+                            <p>No DSN token created yet</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if dsn_token %}
+                    <button class="btn btn-secondary" style="margin-top: 16px;" onclick="generateDSNToken()">
+                        <i class="ph ph-arrows-clockwise"></i> Regenerate Token
+                    </button>
+                    {% else %}
+                    <button class="btn btn-secondary" style="margin-top: 16px;" onclick="generateDSNToken()">
+                        <i class="ph ph-plus"></i> Generate Token
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
                     <h3>Project DSN Endpoints</h3>
                     <p class="card-description">Use these DSN URLs in your applications to send errors to Broke</p>
 
+                    {% if not dsn_token %}
+                    <div class="empty-state">
+                        <i class="ph ph-key"></i>
+                        <p>Generate a DSN token first to get your DSN URLs</p>
+                    </div>
+                    {% elif not project_parts %}
+                    <div class="empty-state">
+                        <i class="ph ph-plug"></i>
+                        <p>No project parts configured. Create a project part to get a DSN.</p>
+                    </div>
+                    {% else %}
                     <div class="dsn-list">
                         {% for part in project_parts %}
                         <div class="dsn-item">
                             <div class="dsn-info">
                                 <span class="dsn-project">{{ part.project.name }} / {{ part.name }}</span>
                                 <div class="dsn-url-wrapper">
-                                    <code class="dsn-url">{{ base_url }}/api/{{ part.project.id }}/{{ part.id }}/</code>
-                                    <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ base_url }}/api/{{ part.project.id }}/{{ part.id }}/">
+                                    <code class="dsn-url">http://{{ dsn_token.token }}@{{ base_url | replace('http://', '') | replace('https://', '') }}/ingest/{{ part.id }}</code>
+                                    <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="http://{{ dsn_token.token }}@{{ base_url | replace('http://', '') | replace('https://', '') }}/ingest/{{ part.id }}">
                                         <i class="ph ph-copy"></i>
                                     </button>
                                 </div>
                             </div>
                         </div>
-                        {% else %}
-                        <div class="empty-state">
-                            <i class="ph ph-plug"></i>
-                            <p>No project parts configured. Create a project part to get a DSN.</p>
-                        </div>
                         {% endfor %}
                     </div>
+                    {% endif %}
                 </div>
             </div>
 

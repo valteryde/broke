@@ -105,6 +105,26 @@
     padding:0px;
 }
 
+.sb-logout {
+    margin-left: auto;
+    color: black;
+    padding: 8px;
+    border-radius: 6px;
+    transition: color 0.15s, background-color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sb-logout:hover {
+    color: var(--danger-red);
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.sb-logout i {
+    font-size: 1.25rem;
+}
+
 /* Main content */
 #content-wrapper {
     position: absolute;
