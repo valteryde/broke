@@ -8,7 +8,7 @@ import os
 import base64
 import uuid
 import re
-from utils.path import path
+from utils.path import data_path, path
 
 def populateTickets(tickets: list[Ticket]) -> None:
     """
@@ -130,7 +130,7 @@ def extract_and_save_images(html_content: str) -> str:
         filename = f"{uuid.uuid4().hex}.{image_type}"
         
         # Ensure upload directory exists
-        upload_dir = path("..", "data", "uploads")
+        upload_dir = data_path("uploads")
         os.makedirs(upload_dir, exist_ok=True)
         
         # Save image to disk
@@ -419,4 +419,4 @@ def get_projects(user: User):
 def get_uploads(user: User, filename: str):
     """Get all uploads for the user (placeholder)"""
     
-    return send_file(path('..' ,"data", "uploads", filename))
+    return send_file(data_path("uploads", filename))

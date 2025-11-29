@@ -1,4 +1,7 @@
-flask==2.2.5
-pyargon2==21.3.0
+flask
+pyargon2
 faker
 peewee
+sentry_sdk
+gunicorn
+python-dotenv

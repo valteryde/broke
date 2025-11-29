@@ -1,6 +1,6 @@
 
 import pathlib
-from .args import args
+from .env import args
 
 BASE_DIR = pathlib.Path(__file__).parent.parent.resolve()
 

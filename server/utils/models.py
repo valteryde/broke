@@ -1,12 +1,12 @@
 
 from datetime import datetime
 from peewee import Model, CharField, IntegerField, SqliteDatabase, DateTimeField, ForeignKeyField, AutoField, TextField
-from .path import path
+from .path import path, data_path
 import time
 import sentry_sdk
 
 
-database = SqliteDatabase(path('..', 'data', 'app.db'))
+database = SqliteDatabase(data_path('app.db'))
 
 class BaseModel(Model):
     class Meta:
