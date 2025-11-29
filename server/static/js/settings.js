@@ -214,108 +214,72 @@ function applyTheme(theme) {
     }
 }
 
-/**
- * Show a toast notification
- */
-function showToast(message, type = 'info') {
-    // Remove existing toast
-    const existing = document.querySelector('.toast');
-    if (existing) {
-        existing.remove();
-    }
-    
-    // Create toast element
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        <i class="ph ${type === 'success' ? 'ph-check-circle' : type === 'error' ? 'ph-x-circle' : 'ph-info'}"></i>
-        <span>${message}</span>
-    `;
-    
-    // Add styles if not already present
-    if (!document.getElementById('toast-styles')) {
-        const style = document.createElement('style');
-        style.id = 'toast-styles';
-        style.textContent = `
-            .toast {
-                position: fixed;
-                bottom: 24px;
-                right: 24px;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                padding: 14px 20px;
-                background: #333;
-                color: white;
-                border-radius: 8px;
-                font-size: 0.9rem;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-                z-index: 10000;
-                animation: slideIn 0.3s ease;
-            }
-            .toast-success { background: #22c55e; }
-            .toast-error { background: #dc2626; }
-            .toast .ph { font-size: 1.2rem; }
-            @keyframes slideIn {
-                from { transform: translateX(100%); opacity: 0; }
-                to { transform: translateX(0); opacity: 1; }
-            }
-            @keyframes slideOut {
-                from { transform: translateX(0); opacity: 1; }
-                to { transform: translateX(100%); opacity: 0; }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    document.body.appendChild(toast);
-    
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-        toast.style.animation = 'slideOut 0.3s ease forwards';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+/*
+List of random phosphor icons
+*/
+PhosphorIcons = [
+    'ph-browser',
+    'ph-folder',
+    'ph-code',
+    'ph-bug',
+    'ph-rocket',
+    'ph-cpu',
+    'ph-database',
+    'ph-shield-check',
+    'ph-cloud',
+    'ph-git-branch',
+    'ph-terminal',
+    'ph-wrench',
+    'ph-magnifying-glass',
+    'ph-laptop',
+    'ph-network',
+    'ph-key',
+    'ph-lock-keyhole',
+    'ph-lightning',
+    'ph-flame'
+];
+
+function randomColor() {
+    return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
 }
+
 
 /**
  * Modal functions for creating projects, labels, etc.
  * Uses the Modal component from modal.js
  */
-window.showCreateProjectModal = () => {
+window.showCreateProjectModal = (data = {}) => {
     Modal.show('Create Project', `
-        <form id="create-project-form">
-            <div class="form-group">
-                <label for="project-id">Project ID</label>
-                <input type="text" id="project-id" name="id" class="form-input" placeholder="e.g., FRO" maxlength="5" required>
-                <span class="form-hint">Short identifier (max 5 characters)</span>
-            </div>
+        <form id="create-project-form" action="${data.id ? '/api/settings/projects/update/' + data.id : '/api/settings/projects'}" method="POST" autocomplete="off">
             <div class="form-group">
                 <label for="project-name">Project Name</label>
-                <input type="text" id="project-name" name="name" class="form-input" placeholder="e.g., Frontend" required>
+                <input type="text" id="project-name" name="name" class="form-input" placeholder="e.g., Frontend" value="${data.name || ''}" required>
             </div>
             <div class="form-group">
                 <label for="project-icon">Icon</label>
-                <input type="text" id="project-icon" name="icon" class="form-input" placeholder="e.g., ph ph-browser" value="ph ph-folder">
+                <input type="text" id="project-icon" name="icon" class="form-input" placeholder="e.g., ph ph-browser" value="ph ${data.icon || PhosphorIcons[Math.floor(Math.random() * PhosphorIcons.length)]}">
             </div>
             <div class="form-group">
                 <label for="project-color">Color</label>
-                <input type="color" id="project-color" name="color" value="#106ecc">
+                <input type="color" id="project-color" name="color"  value="${data.color || randomColor()}">
             </div>
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Project</button>
+                <button type="submit" class="btn btn-primary">${data.id ? 'Update Project' : 'Create Project'}</button>
             </div>
         </form>
     `);
 };
 
+
 window.showInviteModal = () => {
     Modal.show('Invite Team Member', `
-        <form id="invite-form">
+        <form id="invite-form" action="/api/settings/team/invite" method="POST" autocomplete="off">
             <div class="form-group">
-                <label for="invite-email">Email Address</label>
-                <input type="email" id="invite-email" name="email" class="form-input" placeholder="colleague@example.com" required>
+                <label for="invite-name">Name</label>
+                <input type="text" id="invite-name" name="name" class="form-input" placeholder="Colleague Name" required>
             </div>
+            <!--
             <div class="form-group">
                 <label for="invite-role">Role</label>
                 <select id="invite-role" name="role" class="form-select">
@@ -323,9 +287,10 @@ window.showInviteModal = () => {
                     <option value="admin">Admin</option>
                 </select>
             </div>
+            -->
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Send Invite</button>
+                <button type="submit" class="btn btn-primary">Get invite</button>
             </div>
         </form>
     `);
@@ -333,14 +298,14 @@ window.showInviteModal = () => {
 
 window.showCreateLabelModal = () => {
     Modal.show('Create Label', `
-        <form id="create-label-form">
+        <form id="create-label-form" action="/api/settings/labels" method="POST" autocomplete="off">
             <div class="form-group">
                 <label for="label-name">Label Name</label>
                 <input type="text" id="label-name" name="name" class="form-input" placeholder="e.g., bug, feature" required>
             </div>
             <div class="form-group">
                 <label for="label-color">Color</label>
-                <input type="color" id="label-color" name="color" value="#106ecc">
+                <input type="color" id="label-color" name="color" value="${randomColor()}">
             </div>
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>

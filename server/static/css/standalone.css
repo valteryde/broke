@@ -1,0 +1,280 @@
+/**
+ * Standalone Page Styles
+ * Used for pages that don't need the dashboard sidebar (login, signup, welcome, etc.)
+ */
+
+.standalone-body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+}
+
+/* Header */
+.standalone-header {
+    padding: 1.5rem 2rem;
+    background: transparent;
+}
+
+.standalone-header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.standalone-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.standalone-logo img {
+    height: 36px;
+    width: auto;
+}
+
+.standalone-logo span {
+    font-family: 'Space Grotesk Variable', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #222;
+}
+
+/* Main Content */
+.standalone-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
+
+.standalone-container {
+    width: 100%;
+    max-width: 440px;
+}
+
+/* Card Style */
+.standalone-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+.standalone-card-header {
+    padding: 2rem 2rem 0;
+    text-align: center;
+}
+
+.standalone-card-header h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: #111;
+    margin-bottom: 0.5rem;
+}
+
+.standalone-card-header p {
+    color: #666;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.standalone-card-body {
+    padding: 2rem;
+}
+
+/* Welcome specific */
+.welcome-icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, var(--logo-blue) 0%, #0a4d8c 100%);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    color: white;
+    font-size: 1.75rem;
+}
+
+/* Form Styles */
+.standalone-form .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.standalone-form .form-group:last-of-type {
+    margin-bottom: 0;
+}
+
+.standalone-form label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.5rem;
+}
+
+.standalone-form .form-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+}
+
+.standalone-form .form-input:focus {
+    outline: none;
+    border-color: var(--logo-blue);
+    box-shadow: 0 0 0 3px rgba(16, 110, 204, 0.1);
+}
+
+.standalone-form .form-input::placeholder {
+    color: #9ca3af;
+}
+
+.standalone-form .form-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 0.375rem;
+}
+
+.standalone-form .form-optional {
+    color: #9ca3af;
+    font-weight: 400;
+    font-size: 0.8em;
+}
+
+.standalone-form .form-actions {
+    margin-top: 1.75rem;
+}
+
+.standalone-form .btn-submit {
+    width: 100%;
+    padding: 0.875rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* Divider */
+.standalone-divider {
+    display: flex;
+    align-items: center;
+    margin: 1.5rem 0;
+    color: #9ca3af;
+    font-size: 0.875rem;
+}
+
+.standalone-divider::before,
+.standalone-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e5e7eb;
+}
+
+.standalone-divider span {
+    padding: 0 1rem;
+}
+
+/* Footer */
+.standalone-footer {
+    padding: 1.5rem 2rem;
+    background: transparent;
+}
+
+.standalone-footer-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.footer-links {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.footer-links a {
+    color: #666;
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.footer-links a:hover {
+    color: var(--logo-blue);
+}
+
+.footer-copyright {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #999;
+    font-size: 0.8rem;
+}
+
+.footer-separator {
+    color: #ccc;
+}
+
+/* Decorative Elements */
+.standalone-decoration {
+    position: fixed;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.standalone-decoration-1 {
+    top: 10%;
+    right: 5%;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(16, 110, 204, 0.08) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.standalone-decoration-2 {
+    bottom: 15%;
+    left: 8%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(16, 110, 204, 0.05) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .standalone-header,
+    .standalone-footer {
+        padding: 1rem;
+    }
+    
+    .standalone-main {
+        padding: 1rem;
+    }
+    
+    .standalone-card-header,
+    .standalone-card-body {
+        padding: 1.5rem;
+    }
+    
+    .standalone-card-header {
+        padding-bottom: 0;
+    }
+    
+    .standalone-footer-inner {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+

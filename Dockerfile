@@ -1,16 +1,19 @@
 FROM python:3.13
 WORKDIR /usr/local/app
 
-# Install the application dependencies
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy in the source code
 COPY server .
-EXPOSE 8080
 
-# Setup an app user so the container doesn't run as the root user
-RUN useradd app
+# Create directory for data and give ownership to app user
+RUN useradd --create-home app && \
+    mkdir -p /data && \
+    chown -R app:app /data
+
 USER app
+
+EXPOSE 8080
+ENV DATA_PATH=/data
 
 CMD ["gunicorn", "server:app", "--bind", "0.0.0.0:8080"]

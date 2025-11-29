@@ -9,6 +9,7 @@
         crossorigin="anonymous">
     </script>
 
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
 
      <link
       rel="stylesheet"
@@ -34,8 +35,13 @@
     <div class="sb-wrapper">
 
         <div class="sb-header">
+            {# 
             <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" class="sb-logo">
-            <span class="brand-title">Broke</span>
+            <span class="brand-title">Broke</span> 
+            #}
+
+            <img src="{{ url_for('static', filename='images/logov2_wo_bg.png') }}" alt="Logo" class="sb-logo-icon">
+
             <!-- <i class="ph ph-arrow-square-left"></i> -->
         </div>
 
@@ -109,6 +115,19 @@
     {% block scripts %}
 
     {% endblock %}
+
+    {# Render toasts from flask flashes #}
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        showToast(`{{ message | replace("`", "\\`") | safe }}`, "{{ category }}");
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        });
+    </script>
 
 </body>
 </html>

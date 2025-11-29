@@ -415,10 +415,10 @@
                                 </div>
                             </div>
                             <div class="project-actions">
-                                <button class="btn-icon" title="Edit">
+                                <button class="btn-icon" title="Edit" onclick="showCreateProjectModal({ id: '{{ project.id }}', name: '{{ project.name }}', icon: '{{ project.icon }}', color: '{{ project.color }}' })">
                                     <i class="ph ph-pencil-simple"></i>
                                 </button>
-                                <button class="btn-icon danger" title="Delete">
+                                <button class="btn-icon danger" title="Delete" onclick="window.location.href = '/api/settings/projects/delete/{{ project.id }}' ">
                                     <i class="ph ph-trash"></i>
                                 </button>
                             </div>
@@ -506,10 +506,10 @@
                                 <span class="label-name">{{ label.name }}</span>
                             </div>
                             <div class="label-actions">
-                                <button class="btn-icon" title="Edit">
+                                {# <button class="btn-icon" title="Edit">
                                     <i class="ph ph-pencil-simple"></i>
-                                </button>
-                                <button class="btn-icon danger" title="Delete">
+                                </button> #}
+                                <button class="btn-icon danger" title="Delete" onclick="window.location.href = '/api/settings/labels/delete/{{ label.name }}'">
                                     <i class="ph ph-trash"></i>
                                 </button>
                             </div>
@@ -857,8 +857,8 @@
                             <div class="dsn-info">
                                 <span class="dsn-project">{{ part.project.name }} / {{ part.name }}</span>
                                 <div class="dsn-url-wrapper">
-                                    <code class="dsn-url">{{ base_url }}/api/{{ part.project.id }}/{{ part.id }}/envelope/</code>
-                                    <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ base_url }}/api/{{ part.project.id }}/{{ part.id }}/envelope/">
+                                    <code class="dsn-url">{{ base_url }}/api/{{ part.project.id }}/{{ part.id }}/</code>
+                                    <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ base_url }}/api/{{ part.project.id }}/{{ part.id }}/">
                                         <i class="ph ph-copy"></i>
                                     </button>
                                 </div>

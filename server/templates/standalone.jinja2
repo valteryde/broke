@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Broke{% endblock %}</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js" async
+        integrity="sha384-LfouGM03m83ArVtne1JPk926e3SGD0Tz8XHtW2OKGsgeBU/UfR0Fa8eX+UlwSSAZ"
+        crossorigin="anonymous">
+    </script>
+
+    <link rel="stylesheet" type="text/css"
+        href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" type="text/css"
+        href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/master.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/standalone.css') }}">
+
+    {% block head %}{% endblock %}
+</head>
+<body class="standalone-body">
+    
+    <header class="standalone-header">
+        <div class="standalone-header-inner">
+            <a href="/" class="standalone-logo">
+                <img src="{{ url_for('static', filename='images/logov2_wo_bg.png') }}" alt="Broke Logo">
+            </a>
+        </div>
+    </header>
+
+    <main class="standalone-main">
+        <div class="standalone-container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <footer class="standalone-footer">
+        <div class="standalone-footer-inner">
+            <div class="footer-links">
+                <a href="/news">Dashboard</a>
+                <a href="/settings">Settings</a>
+            </div>
+            <div class="footer-copyright">
+                <span>&copy; {{ now().year if now is defined else 2025 }} Broke</span>
+                <span class="footer-separator">•</span>
+                <span>Pre-alpha version</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+    
+    {% block scripts %}{% endblock %}
+
+    {# Render toasts from flask flashes #}
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        showToast(`{{ message | replace("`", "\\`") | safe }}`, "{{ category }}");
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        });
+    </script>
+
+</body>
+</html>

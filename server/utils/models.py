@@ -4,7 +4,12 @@ from peewee import Model, CharField, IntegerField, SqliteDatabase, DateTimeField
 from .path import path, data_path
 import time
 import sentry_sdk
+import logging
+import uuid
+import pyargon2
 
+logger = logging.getLogger(__name__)
+logger.info(f"Database path: {data_path('app.db')}")
 
 database = SqliteDatabase(data_path('app.db'))
 
@@ -19,6 +24,24 @@ class User(BaseModel):
     email = CharField(unique=True)
     admin = IntegerField(default=0)
 
+def create_user(username: str, password, email: str, admin: int = 0):
+    salt = uuid.uuid4().hex
+    password_hash = pyargon2.hash(password, salt)
+    user = User.create(
+        username=username,
+        password_hash=password_hash,
+        salt=salt,
+        email=email,
+        admin=admin
+    )
+    return user
+
+class UserCreateToken(BaseModel): # should be deleted after use
+    token = CharField(primary_key=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+    role = IntegerField(default=0) # For future use
+    name = CharField(null=True) # For friendly identification of the invite
+    
 
 class Project(BaseModel):
     id = CharField(primary_key=True)
@@ -306,6 +329,7 @@ MODELS = [
     Session,
     Transaction,
     Attachment,
+    UserCreateToken,
     # Settings models
     UserSettings,
     Webhook,

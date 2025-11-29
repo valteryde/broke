@@ -7,7 +7,7 @@ BASE_DIR = pathlib.Path(__file__).parent.parent.resolve()
 if hasattr(args, 'data_path') and args.data_path:
     DATA_BASE_DIR = pathlib.Path(args.data_path).resolve()
 else:
-    DATA_BASE_DIR = BASE_DIR.joinpath('data')
+    DATA_BASE_DIR = BASE_DIR.joinpath('..', 'data')
 
 def path(*subpaths: str) -> pathlib.Path:
     """

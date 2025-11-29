@@ -1,3 +1,4 @@
+# docker-compose.yml
 name: broke
 services:
   broke-server:
@@ -5,6 +6,9 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/data
+      - data:/data
     environment:
       - DATA_PATH=/data
+
+volumes:
+  data:

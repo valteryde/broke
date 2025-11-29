@@ -4,12 +4,8 @@ Handles user preferences, webhooks, and workspace configuration
 """
 
 from utils.security import secureroute
-from utils.models import (
-    User, Project, ProjectPart, Label, UserSettings, 
-    Webhook, WebhookDelivery, GitHubIntegration, APIToken,
-    database
-)
-from flask import redirect, render_template, request
+from utils.models import *
+from flask import redirect, render_template, request, flash
 from utils.app import app
 from peewee import DoesNotExist
 import json
@@ -433,6 +429,73 @@ def api_test_webhook(webhook_id: int):
         return json.dumps({'error': str(e)}), 500
 
 
+# ============ MEMBERS ============
+@secureroute('/api/settings/team/invite', methods=['POST'])
+def api_invite_team_member(user:User):
+    """Invite a new team member by creating a create token"""
+
+    data = request.form
+    name = data.get('name', '').strip()
+    is_admin = data.get('admin', 'off') == 'on'
+
+    if not name:
+        flash('Name is required to invite a team member.', 'error')
+        return redirect('/settings/team')
+    
+    # Generate a temporary invite token
+    invite_token = secrets.token_urlsafe(32)
+    invite_token_hash = hashlib.sha256(invite_token.encode()).hexdigest()
+
+    UserCreateToken.create(
+        token=invite_token_hash,
+        created_at=int(time.time()),
+        name=name,
+    )
+
+    base_url = request.host_url.rstrip('/')
+
+    return render_template('invite_sent.jinja2', name=name, token=invite_token, base_url=base_url, user=user, page='settings', section='team')
+
+
+@app.route('/welcome/<token>', methods=['GET', 'POST'])
+def welcome_new_member(token:str):
+    """Welcome a new team member and allow them to set up their account"""
+    from utils.security import get_current_user
+    import pyargon2
+
+    # Verify the token
+    try:
+        
+        invite = UserCreateToken.get(UserCreateToken.token == hashlib.sha256(token.encode()).hexdigest())
+
+    except DoesNotExist:
+        flash('Invalid or expired invite token.', 'error')
+        return redirect('/login')
+
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password'].strip()
+        email = request.form.get('email', '').strip()
+
+        # Validate and create user account
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'error')
+            return redirect(request.url)
+
+        create_user(username, password, email, )
+
+        
+
+        # Delete the invite token after use
+        invite.delete_instance()
+
+        flash('Account created successfully! Please log in.', 'success')
+        return redirect('/news')
+
+    return render_template('welcome_new_member.jinja2', token=token, name=invite.name)
+
+
+
 # ============ API Token Endpoints ============
 
 @app.route('/api/settings/tokens', methods=['POST'])
@@ -485,30 +548,27 @@ def api_delete_token(token_id: int):
     except DoesNotExist:
         return json.dumps({'error': 'Token not found'}), 404
 
-
-# ============ Project & Label Management ============
-
-@app.route('/api/settings/projects', methods=['POST'])
-def api_create_project():
+@secureroute('/api/settings/projects', methods=['POST'])
+def api_create_project(user:User):
     """Create a new project"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user:
-        return json.dumps({'error': 'Unauthorized'}), 401
     
-    data = request.get_json()
+    data = request.form
     name = data.get('name', '').strip()
     
     if not name:
         return json.dumps({'error': 'Project name is required'}), 400
     
     # Generate project ID from name
-    project_id = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+    project_id = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')[:3].upper()
     
     # Check if project exists
     try:
         Project.get(Project.id == project_id)
-        return json.dumps({'error': 'Project already exists'}), 400
+        
+        # TODO: Handle ID conflicts better (e.g., append numbers)
+        flash('Project ID already exists. Please choose a different name.', 'error')
+    
+        return redirect('/settings/projects')
     except DoesNotExist:
         pass
     
@@ -519,75 +579,87 @@ def api_create_project():
         color=data.get('color', '#106ecc')
     )
     
-    return json.dumps({
-        'success': True,
-        'project_id': project.id,
-        'name': project.name
-    }), 200
+    flash(f'Project "{name}" created successfully.', 'success')
+
+    return redirect('/settings/projects')
 
 
-@app.route('/api/settings/projects/<project_id>', methods=['DELETE'])
-def api_delete_project(project_id: str):
+@secureroute('/api/settings/projects/delete/<project_id>', methods=['GET'])
+def api_delete_project(user:User, project_id: str):
     """Delete a project"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user or not user.admin:
-        return json.dumps({'error': 'Unauthorized'}), 401
     
     try:
         project = Project.get(Project.id == project_id)
         # Delete associated parts first
         ProjectPart.delete().where(ProjectPart.project == project_id).execute()
         project.delete_instance()
-        return json.dumps({'success': True}), 200
+        
+        flash(f'Project "{project.name}" deleted successfully.', 'success')
+
+        return redirect('/settings/projects')
     except DoesNotExist:
-        return json.dumps({'error': 'Project not found'}), 404
+
+        flash('Project not found.', 'error')
+
+        return redirect('/settings/projects')
 
 
-@app.route('/api/settings/labels', methods=['POST'])
-def api_create_label():
-    """Create a new label"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user:
-        return json.dumps({'error': 'Unauthorized'}), 401
+@secureroute('/api/settings/projects/update/<project_id>', methods=['GET', 'POST'])
+def api_update_project(user:User, project_id: str):
+    """Update project details"""
     
-    data = request.get_json()
+    try:
+        project = Project.get(Project.id == project_id)
+    except DoesNotExist:
+        flash('Project not found.', 'error')
+        return redirect('/settings/projects')
+    
+    data = request.form
+        
+    project.name = data.get('name', project.name)
+    project.icon = data.get('icon', project.icon)
+    project.color = data.get('color', project.color)
+    project.save()
+    
+    flash(f'Project "{project.id}" updated successfully.', 'success')
+    return redirect('/settings/projects')
+    
+@secureroute('/api/settings/labels', methods=['POST'])
+def api_create_label(user:User):
+    """Create a new label"""
+    
+    data = request.form
     name = data.get('name', '').strip()
-    color = data.get('color', '#888888')
+    color = data.get('color', "#0075E3")
     
     if not name:
-        return json.dumps({'error': 'Label name is required'}), 400
+        flash('Label name is required.', 'error')
+        return redirect('/settings/labels')
     
     try:
         Label.get(Label.name == name)
-        return json.dumps({'error': 'Label already exists'}), 400
+        flash('Label already exists.', 'error')
+        return redirect('/settings/labels')
     except DoesNotExist:
         pass
     
     label = Label.create(name=name, color=color)
     
-    return json.dumps({
-        'success': True,
-        'name': label.name,
-        'color': label.color
-    }), 200
+    flash(f'Label "{name}" created successfully.', 'success')
+    return redirect('/settings/labels')
 
 
-@app.route('/api/settings/labels/<label_name>', methods=['DELETE'])
-def api_delete_label(label_name: str):
+@secureroute('/api/settings/labels/delete/<label_name>')
+def api_delete_label(user:User, label_name: str):
     """Delete a label"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user:
-        return json.dumps({'error': 'Unauthorized'}), 401
     
     try:
         label = Label.get(Label.name == label_name)
         label.delete_instance()
-        return json.dumps({'success': True}), 200
+        flash(f'Label "{label_name}" deleted successfully.', 'success')
     except DoesNotExist:
-        return json.dumps({'error': 'Label not found'}), 404
+        flash('Label not found.', 'error')
+    return redirect('/settings/labels')
 
 
 # ============ Danger Zone ============
@@ -741,13 +813,13 @@ def get_or_create_user_settings(user: User) -> 'UserSettings':
 def get_webhook_secret(user: User) -> str:
     """Get or generate webhook secret for user"""
     settings = get_or_create_user_settings(user)
-    return settings.webhook_secret or user.username
+    return str(settings.webhook_secret) or str(user.username)
 
 
 def get_github_webhook_secret(user: User) -> str:
     """Get or generate GitHub webhook secret for user"""
     settings = get_or_create_user_settings(user)
-    return settings.github_webhook_secret or hashlib.sha256(f"github-{user.username}".encode()).hexdigest()[:24]
+    return str(settings.github_webhook_secret) or hashlib.sha256(f"github-{user.username}".encode()).hexdigest()[:24]
 
 
 def get_github_integration(user: User):

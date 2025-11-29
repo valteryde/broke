@@ -1,0 +1,74 @@
+{% extends "standalone.jinja2" %}
+
+{% block title %}Welcome to Broke{% endblock %}
+
+{% block content %}
+
+<!-- Decorative background elements -->
+<div class="standalone-decoration standalone-decoration-1"></div>
+<div class="standalone-decoration standalone-decoration-2"></div>
+
+<div class="standalone-card">
+    <div class="standalone-card-header">
+        
+        <h1 style="display:flex;flex-direction:row;align-items:center;gap:0.5rem;justify-content:center;"><i class="ph ph-hand-waving"></i> Welcome {{ name }}!</h1>
+        <p>You've been invited to join the team. Set up your account to get started.</p>
+    </div>
+    
+    <div class="standalone-card-body">
+        <form method="POST" class="standalone-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    class="form-input" 
+                    placeholder="Choose a username"
+                    autocomplete="username"
+                    required
+                >
+                <span class="form-hint">This will be your unique identifier</span>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">
+                    Email 
+                    <span class="form-optional">(optional)</span>
+                </label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    class="form-input" 
+                    placeholder="you@example.com"
+                    autocomplete="email"
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    class="form-input" 
+                    placeholder="Create a strong password"
+                    autocomplete="new-password"
+                    minlength="8"
+                    required
+                >
+                <span class="form-hint">Must be at least 8 characters</span>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-submit">
+                    <i class="ph ph-rocket-launch"></i>
+                    Create Account
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
