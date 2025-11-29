@@ -19,7 +19,7 @@ def favicon():
 
 @app.route('/')
 def index():
-    return "Welcome to the Broke Server!"
+    return redirect('/news')
 
 def run_error_populator():
     
