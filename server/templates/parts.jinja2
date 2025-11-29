@@ -3,6 +3,7 @@
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dropdown.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lists.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
 {% endblock %}
 
@@ -37,21 +38,91 @@
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     
     <script>
+        // Available projects for the modal dropdown
+        const availableProjects = [
+            {% for proj in projects %}
+            { id: '{{ proj.id }}', name: '{{ proj.name }}', icon: '{{ proj.icon }}' },
+            {% endfor %}
+        ];
+        
+        // Current project filter (if any)
+        const currentProjectId = '{{ project.id if project else "" }}';
+
+        function showCreatePartModal() {
+            const projectOptions = availableProjects.map(p => 
+                `<option value="${p.id}" ${p.id === currentProjectId ? 'selected' : ''}>${p.name}</option>`
+            ).join('');
+
+            Modal.show('Create New Part', `
+                <form id="create-part-form">
+                    <div class="form-group">
+                        <label for="part-project">Project</label>
+                        <select id="part-project" name="project_id" required>
+                            <option value="">Select a project...</option>
+                            ${projectOptions}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="part-name">Name</label>
+                        <input type="text" id="part-name" name="name" placeholder="e.g. backend, frontend, api" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="part-description">Description</label>
+                        <textarea id="part-description" name="description" placeholder="Describe this service or component..." rows="3"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Part</button>
+                    </div>
+                </form>
+            `, {
+                onOpen: (element) => {
+                    const form = element.querySelector('#create-part-form');
+                    form.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        
+                        const projectId = document.getElementById('part-project').value;
+                        const name = document.getElementById('part-name').value.trim();
+                        const description = document.getElementById('part-description').value.trim();
+                        
+                        try {
+                            const response = await fetch('/api/parts', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ project_id: projectId, name, description })
+                            });
+                            
+                            const data = await response.json();
+                            
+                            if (data.success) {
+                                Modal.close();
+                                // Redirect to the new part or reload
+                                window.location.href = `/errors/${projectId}/${data.part.id}`;
+                            } else {
+                                alert(data.error || 'Failed to create part');
+                            }
+                        } catch (err) {
+                            alert('Failed to create part');
+                        }
+                    });
+                }
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const partList = new List('ticket-list', {
                 filters: {
-                    search: { placeholder: 'Search errors...' },
-                    labels: { label: 'Labels' },
-                    assignees: { label: 'Assignees' },
-                    urgency: { label: 'Urgency' },
-                    dateRange: { label: 'Date' }
+                    search: { placeholder: 'Search parts...' },
                 },
                 groupBy: {
-                    options: ['none', 'urgency', 'assignees', 'labels'],
+                    options: ['none'],
                     default: 'none'
-                }
+                },
+                onCreate: showCreatePartModal,
+                onCreateLabel: 'New Part'
             });
 
             const partListItems = [
@@ -61,17 +132,6 @@
                     title: '{{ part.name }}',
                     description: '{{ part.description | default("No description provided.", true) | safe }}',
                     icon: '{{ part.project.icon }}',
-                    {# labels: [
-                        {% for label in ticket.labels %}
-                        {text: '{{ label.name }}', color: '{{ label.color }}'},
-                        {% endfor %}
-                    ], #}
-                    {# assignees: [
-                        {% for assignee in ticket.assignees %}
-                        '{{ assignee }}',
-                        {% endfor %}
-                    ], #}
-                    {# createdAt: '{{ part.created_at }}', #}
                     project: '{{ part.project.id }}',
                     onClick: () => { window.location.href = '/errors/{{ part.project.id }}/{{ part.id }}'; }
                 },

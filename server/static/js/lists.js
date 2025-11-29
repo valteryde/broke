@@ -115,6 +115,7 @@ class List {
         
         // Callbacks
         this.onCreate = options.onCreate || null;
+        this.onCreateLabel = options.onCreateLabel || 'Add';
         
         // Create wrapper structure
         this.wrapper = document.createElement('div');

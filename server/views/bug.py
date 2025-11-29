@@ -256,6 +256,57 @@ def parts_specific_view(user: User, project_id: str):
         page = 'errors'
     )
 
+
+# ============ Parts API Endpoints ============
+
+@secureroute('/api/parts', methods=['POST'])
+def api_create_part(user: User):
+    """Create a new project part (service)"""
+    import json
+    data = request.get_json()
+    
+    project_id = data.get('project_id', '').strip()
+    name = data.get('name', '').strip()
+    description = data.get('description', '').strip()
+    
+    if not project_id:
+        return json.dumps({'error': 'Project is required'}), 400
+    
+    if not name:
+        return json.dumps({'error': 'Name is required'}), 400
+    
+    # Verify project exists
+    try:
+        project = Project.get(Project.id == project_id)
+    except:
+        return json.dumps({'error': 'Project not found'}), 404
+    
+    # Check if part already exists for this project
+    existing = ProjectPart.select().where(
+        (ProjectPart.project == project_id) & 
+        (ProjectPart.name == name)
+    ).first()
+    
+    if existing:
+        return json.dumps({'error': 'A part with this name already exists in this project'}), 400
+    
+    part = ProjectPart.create(
+        project=project_id,
+        name=name,
+        description=description or ''
+    )
+    
+    return json.dumps({
+        'success': True,
+        'part': {
+            'id': part.id,
+            'project_id': project_id,
+            'name': part.name,
+            'description': part.description
+        }
+    }), 200
+
+
 @secureroute('/errors/<project_id>/<int:part_id>')
 def part_view(user: User, project_id: str, part_id: int):
     

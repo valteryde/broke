@@ -60,6 +60,12 @@
     margin-bottom: 6px;
 }
 
+.modal-content input[type="text"],
+.modal-content input[type="email"],
+.modal-content input[type="password"],
+.modal-content input[type="number"],
+.modal-content select,
+.modal-content textarea,
 .modal-content .form-input,
 .modal-content .form-select {
     width: 100%;
@@ -67,15 +73,42 @@
     border: 1px solid #d1d5db;
     border-radius: 8px;
     font-size: 0.9rem;
+    font-family: inherit;
     transition: border-color 0.15s, box-shadow 0.15s;
     box-sizing: border-box;
+    background: white;
 }
 
+.modal-content textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.modal-content select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+}
+
+.modal-content input[type="text"]:focus,
+.modal-content input[type="email"]:focus,
+.modal-content input[type="password"]:focus,
+.modal-content input[type="number"]:focus,
+.modal-content select:focus,
+.modal-content textarea:focus,
 .modal-content .form-input:focus,
 .modal-content .form-select:focus {
     outline: none;
     border-color: #106ecc;
     box-shadow: 0 0 0 3px rgba(16, 110, 204, 0.1);
+}
+
+.modal-content input::placeholder,
+.modal-content textarea::placeholder {
+    color: #9ca3af;
 }
 
 .modal-content .form-hint {
