@@ -33,4 +33,11 @@ if __name__ == '__main__':
     
     start_new_thread(run_error_populator, ())
 
+    @app.route('/force-error')
+    def force_error():
+        raise Exception("This is a forced error for testing Sentry integration.")
+    
+
     app.run(debug=True, port=5000)
+
+

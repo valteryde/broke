@@ -9,12 +9,76 @@ import gzip
 import json
 import hashlib
 import time
+import re
+import base64
+
+
+def normalize_message(message: str | None) -> str:
+    """Normalize error message by removing dynamic content for better grouping."""
+    if not message:
+        return ""
+    
+    # Remove UUIDs (various formats)
+    message = re.sub(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', '<UUID>', message, flags=re.IGNORECASE)
+    
+    # Remove hex addresses/pointers (0x...)
+    message = re.sub(r'0x[0-9a-f]+', '<HEX>', message, flags=re.IGNORECASE)
+    
+    # Remove pure numbers (but preserve words with numbers like "utf8")
+    message = re.sub(r'\b\d+\b', '<N>', message)
+    
+    # Remove quoted strings (file paths, variable values, etc.)
+    message = re.sub(r'"[^"]*"', '"<STR>"', message)
+    message = re.sub(r"'[^']*'", "'<STR>'", message)
+    
+    # Remove IP addresses
+    message = re.sub(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '<IP>', message)
+    
+    # Remove timestamps (ISO format)
+    message = re.sub(r'\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}', '<TIMESTAMP>', message)
+    
+    return message
+
+
+def extract_frame_signatures(stacktrace_json: str | None) -> list[str]:
+    """Extract function call signatures from stacktrace frames for fingerprinting."""
+    if not stacktrace_json:
+        return []
+    
+    try:
+        stacktrace = json.loads(stacktrace_json)
+        frames = stacktrace.get('frames', [])
+        
+        signatures = []
+        # Use last 5 frames (most relevant to the error)
+        for frame in frames[-5:]:
+            module = frame.get('module') or frame.get('filename') or ''
+            function = frame.get('function') or ''
+            # Create signature without line numbers or variables
+            signatures.append(f"{module}:{function}")
+        
+        return signatures
+    except (json.JSONDecodeError, TypeError):
+        return []
 
 
 def generate_fingerprint(exception_type: str | None, exception_value: str | None, stacktrace: str | None) -> str:
-    """Generate a fingerprint for grouping similar errors together."""
-    # Combine exception type, message, and stacktrace for fingerprinting
-    fingerprint_data = f"{exception_type or ''}:{exception_value or ''}:{stacktrace or ''}"
+    """Generate a fingerprint for grouping similar errors together.
+    
+    Uses frame-based fingerprinting with message normalization:
+    - Exception type (e.g., ValueError, TypeError)
+    - Normalized error message (dynamic values removed)
+    - Function call chain (module:function, no line numbers)
+    """
+    # Normalize the error message to remove dynamic content
+    normalized_value = normalize_message(exception_value)
+    
+    # Extract frame signatures (module:function pairs)
+    frame_signatures = extract_frame_signatures(stacktrace)
+    frames_str = '|'.join(frame_signatures)
+    
+    # Build fingerprint from stable components
+    fingerprint_data = f"{exception_type or ''}:{normalized_value}:{frames_str}"
     return hashlib.sha256(fingerprint_data.encode('utf-8')).hexdigest()[:32]
 
 
@@ -207,7 +271,6 @@ def handle_attachment_item(part: ProjectPart, error_group: ErrorGroup, item_head
     content_type = item_headers.get('content_type') or item_headers.get('type')
     
     # Store attachment data (base64 encode if binary)
-    import base64
     try:
         # Try to store as-is if it's text
         if isinstance(payload, str):
@@ -431,6 +494,61 @@ def update_error_status(error_id: int):
     return json.dumps({'success': True, 'status': new_status}), 200
 
 
+def verify_dsn_token() -> bool:
+    """Verify the DSN token from the request.
+    
+    The token can be provided in multiple ways:
+    1. Basic auth username in Authorization header (Sentry SDK default)
+    2. X-Sentry-Auth header
+    3. sentry_key query parameter
+    """
+    token = None
+    
+    # Method 1: Basic auth (most common with Sentry SDK)
+    # Format: Authorization: Basic base64(token:)
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Basic '):
+        try:
+            decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
+            # Format is "token:" or just "token"
+            token = decoded.split(':')[0]
+        except:
+            pass
+    
+    # Method 2: X-Sentry-Auth header
+    # Format: Sentry sentry_key=token, sentry_version=7, ...
+    if not token:
+        sentry_auth = request.headers.get('X-Sentry-Auth', '')
+        if sentry_auth:
+            # Remove "Sentry " prefix if present
+            if sentry_auth.startswith('Sentry '):
+                sentry_auth = sentry_auth[7:]
+            
+            # Parse key=value pairs
+            for part in sentry_auth.split(','):
+                part = part.strip()
+                if part.startswith('sentry_key='):
+                    token = part[11:].strip()  # len('sentry_key=') == 11
+                    break
+    
+    # Method 3: Query parameter
+    if not token:
+        token = request.args.get('sentry_key')
+    
+    if not token:
+        return False
+    
+    # Verify token exists in database
+    try:
+        dsn_token = DSNToken.get(DSNToken.token == token)
+        # Update last used timestamp
+        dsn_token.last_used = int(time.time())
+        dsn_token.save()
+        return True
+    except DoesNotExist:
+        return False
+
+
 # @secureroute('/')
 
 ### Ingest endpoint for Sentry-like error messages
@@ -448,6 +566,11 @@ def ingest_envelope_view(part: int):
     
     Items are separated by newlines. An envelope can contain multiple items.
     """
+    
+    # Verify DSN token authentication
+    if not verify_dsn_token():
+        logger.info('Unauthorized DSN token attempt')
+        return 'Unauthorized: Invalid or missing DSN token', 401
     
     # Validate the project part exists
     try:
