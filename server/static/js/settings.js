@@ -29,17 +29,54 @@ function initForms() {
         passwordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            const currentPassword = document.getElementById('current_password').value;
             const newPassword = document.getElementById('new_password').value;
             const confirmPassword = document.getElementById('confirm_password').value;
+            
+            // Validate fields
+            if (!currentPassword) {
+                showToast('Please enter your current password', 'error');
+                return;
+            }
+            
+            if (!newPassword) {
+                showToast('Please enter a new password', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 8) {
+                showToast('Password must be at least 8 characters', 'error');
+                return;
+            }
             
             if (newPassword !== confirmPassword) {
                 showToast('Passwords do not match', 'error');
                 return;
             }
             
-            const formData = new FormData(passwordForm);
-            await submitSettings('password', Object.fromEntries(formData));
-            passwordForm.reset();
+            try {
+                const response = await fetch('/api/settings/security/password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_password: newPassword
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(result.message || 'Password updated successfully', 'success');
+                    passwordForm.reset();
+                } else {
+                    showToast(result.error || 'Failed to update password', 'error');
+                }
+            } catch (error) {
+                showToast('Failed to update password', 'error');
+            }
         });
     }
 }
@@ -362,31 +399,6 @@ window.disconnectGithub = async () => {
     } catch (error) {
         showToast('GitHub disconnected', 'success');
         setTimeout(() => location.reload(), 1000);
-    }
-};
-
-/**
- * Save GitHub repository mappings
- */
-window.saveGithubMappings = async () => {
-    const mappings = [];
-    document.querySelectorAll('.mapping-repo .form-input').forEach(input => {
-        mappings.push({
-            project_id: input.dataset.projectId,
-            github_repo: input.value.trim()
-        });
-    });
-    
-    try {
-        const response = await fetch(`/api/settings/webhooks/github/mappings`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mappings })
-        });
-        
-        showToast('Mappings saved successfully', 'success');
-    } catch (error) {
-        showToast('Mappings saved', 'success');
     }
 };
 

@@ -282,24 +282,6 @@ class WebhookDelivery(BaseModel):
     timestamp = IntegerField(default=lambda: int(time.time()))
 
 
-class GitHubIntegration(BaseModel):
-    """GitHub integration per project"""
-    id = AutoField(primary_key=True)
-    user = CharField()  # References User.username
-    project = CharField()  # References Project.id
-    
-    repository = CharField(null=True)  # owner/repo format
-    connected = IntegerField(default=0)
-    
-    # Settings
-    create_tickets = IntegerField(default=1)
-    link_commits = IntegerField(default=1)
-    sync_comments = IntegerField(default=0)
-    close_on_merge = IntegerField(default=1)
-    
-    created_at = IntegerField(default=lambda: int(time.time()))
-
-
 class APIToken(BaseModel):
     """API tokens for programmatic access"""
     id = AutoField(primary_key=True)
@@ -343,7 +325,6 @@ MODELS = [
     UserSettings,
     Webhook,
     WebhookDelivery,
-    GitHubIntegration,
     APIToken,
     DSNToken
 ]

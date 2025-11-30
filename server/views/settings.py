@@ -87,12 +87,6 @@ def settings_section_view(user: User, section: str):
         context['webhook_secret'] = get_webhook_secret(user)
         context['github_webhook_secret'] = get_github_webhook_secret(user)
         
-        # GitHub integration status
-        github_integration = get_github_integration(user)
-        context['github_connected'] = github_integration is not None and github_integration.connected
-        context['github_repo'] = github_integration.repository if github_integration else None
-        context['github_settings'] = github_integration
-        
         # Outgoing webhooks
         context['outgoing_webhooks'] = list(Webhook.select().where(
             Webhook.user == user.username
@@ -217,7 +211,7 @@ def api_change_password():
     new_password = data.get('new_password', '')
     
     # Verify current password
-    if pyargon2.hash(current_password, user.salt) != user.password_hash:
+    if pyargon2.hash(current_password, str(user.salt)) != user.password_hash:
         return json.dumps({'error': 'Current password is incorrect'}), 400
     
     # Validate new password
@@ -225,7 +219,7 @@ def api_change_password():
         return json.dumps({'error': 'Password must be at least 8 characters'}), 400
     
     # Update password
-    user.password_hash = pyargon2.hash(new_password, user.salt)
+    user.password_hash = pyargon2.hash(new_password, str(user.salt)) # type: ignore
     user.save()
     
     return json.dumps({'success': True, 'message': 'Password updated successfully'}), 200
@@ -251,80 +245,6 @@ def api_regenerate_webhook_secret():
     else:
         settings.webhook_secret = secrets.token_hex(16)
     
-    settings.save()
-    
-    return json.dumps({'success': True}), 200
-
-
-@app.route('/api/settings/webhooks/github/mappings', methods=['POST'])
-def api_save_github_mappings():
-    """Save GitHub repository to project mappings"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user:
-        return json.dumps({'error': 'Unauthorized'}), 401
-    
-    data = request.get_json()
-    mappings = data.get('mappings', [])
-    
-    for mapping in mappings:
-        project_id = mapping.get('project_id')
-        github_repo = mapping.get('github_repo', '').strip()
-        
-        try:
-            project = Project.get(Project.id == project_id)
-            # Store in GitHubIntegration or Project model
-            integration, created = GitHubIntegration.get_or_create(
-                project=project_id,
-                defaults={
-                    'user': user.username,
-                    'repository': github_repo,
-                    'connected': bool(github_repo)
-                }
-            )
-            if not created:
-                integration.repository = github_repo
-                integration.connected = bool(github_repo)
-                integration.save()
-        except DoesNotExist:
-            continue
-    
-    return json.dumps({'success': True}), 200
-
-
-@app.route('/api/settings/webhooks/github/disconnect', methods=['POST'])
-def api_disconnect_github():
-    """Disconnect GitHub integration"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user:
-        return json.dumps({'error': 'Unauthorized'}), 401
-    
-    # Delete all GitHub integrations for this user
-    GitHubIntegration.delete().where(GitHubIntegration.user == user.username).execute()
-    
-    return json.dumps({'success': True}), 200
-
-
-@app.route('/api/settings/webhooks/github/settings', methods=['POST'])
-def api_update_github_settings():
-    """Update GitHub webhook event settings"""
-    from utils.security import get_current_user
-    user = get_current_user()
-    if not user:
-        return json.dumps({'error': 'Unauthorized'}), 401
-    
-    data = request.get_json()
-    settings = get_or_create_user_settings(user)
-    
-    github_settings = json.loads(settings.github_settings or '{}')
-    github_settings.update({
-        'create_tickets_from_issues': data.get('issues', True),
-        'link_commits': data.get('commits', True),
-        'sync_comments': data.get('comments', False),
-        'close_on_merge': data.get('close_on_merge', True)
-    })
-    settings.github_settings = json.dumps(github_settings)
     settings.save()
     
     return json.dumps({'success': True}), 200
@@ -722,33 +642,6 @@ def api_delete_account():
     return json.dumps({'success': True}), 200
 
 
-@app.route('/api/settings/danger/clear-data', methods=['POST'])
-def api_clear_all_data():
-    """Clear all user data"""
-    from utils.security import get_current_user
-    from utils.models import Ticket, Comment, ErrorGroup, ErrorOccurrence
-    import pyargon2
-    
-    user = get_current_user()
-    if not user or not user.admin:
-        return json.dumps({'error': 'Unauthorized'}), 401
-    
-    data = request.get_json()
-    password = data.get('password', '')
-    
-    # Verify password
-    if pyargon2.hash(password, user.salt) != user.password_hash:
-        return json.dumps({'error': 'Incorrect password'}), 400
-    
-    # Clear data (keeping users and projects)
-    Comment.delete().execute()
-    Ticket.delete().execute()
-    ErrorOccurrence.delete().execute()
-    ErrorGroup.delete().execute()
-    
-    return json.dumps({'success': True}), 200
-
-
 # ============ GitHub Webhook Handler ============
 
 @app.route('/api/webhooks/github/<secret>', methods=['POST'])
@@ -782,23 +675,17 @@ def github_webhook(secret: str):
     
     # Get repository info
     repo = payload.get('repository', {})
-    repo_full_name = repo.get('full_name', '')
+    repo_name = repo.get('name', '')
     
-    # Find the project mapped to this repository
+    # Find a matching project by name, or use the first available project
     project = None
     try:
-        integration = GitHubIntegration.get(GitHubIntegration.repository == repo_full_name)
-        project = Project.get(Project.id == integration.project)
+        project = Project.get(Project.name == repo_name)
     except DoesNotExist:
-        # Try to find by name
-        try:
-            repo_name = repo.get('name', '')
-            project = Project.get(Project.name == repo_name)
-        except DoesNotExist:
-            project = Project.select().first()
+        project = Project.select().first()
     
     if not project:
-        return json.dumps({'error': 'No matching project found'}), 404
+        return json.dumps({'error': 'No projects found'}), 404
     
     response_data = {'event': event_type, 'delivery_id': delivery_id}
     
@@ -850,16 +737,6 @@ def get_github_webhook_secret(user: User) -> str:
     """Get or generate GitHub webhook secret for user"""
     settings = get_or_create_user_settings(user)
     return str(settings.github_webhook_secret) or hashlib.sha256(f"github-{user.username}".encode()).hexdigest()[:24]
-
-
-def get_github_integration(user: User):
-    """Get GitHub integration for user"""
-    try:
-        return GitHubIntegration.select().where(
-            GitHubIntegration.user == user.username
-        ).first()
-    except:
-        return None
 
 
 def get_recent_webhook_activity(user: User, limit: int = 10) -> list:

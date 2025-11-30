@@ -1,5 +1,7 @@
 {% extends "dashboard.jinja2" %}
 
+{% block title %}{{ error.exception_type or 'Error' }} | Broke{% endblock %}
+
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/error.css') }}">
     <!-- Highlight.js for syntax highlighting -->

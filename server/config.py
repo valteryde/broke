@@ -1,3 +1,3 @@
 
 eat_your_own_dogfood = True
-dogfood_dsn = "http://6vGC33q_EAZtd9Xb_Uja-0zqlUxm5mVwuufsVyJHDL8@localhost:8080/ingest/1"
+dogfood_dsn = "http://555b5CC5XHQmbbN75LiF1mWdkwMuEAdt48T66s3PPSo@192.168.0.157/ingest/1"
