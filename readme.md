@@ -1,9 +1,23 @@
 <p align="center">
-  <img src="server/static/images/logo_v2.png" alt="Broke Logo" width="200">
+  <img src="server/static/images/logo-blue-chopped.png" alt="Broke Logo" width="300">
+</p>
+
+<em>A lightweight ticket and error management system for broke people</em>
+
+<p align="center">
+  <a href="https://broke.dk">broke.dk</a>
+</p>
+
+---
+
+## Preview
+
+<p align="center">
+  <img src="server/static/images/preview_tickets.png" alt="Tickets Overview" width="800">
 </p>
 
 <p align="center">
-  <em>A lightweight ticket and error management system for broke people</em>
+  <img src="server/static/images/preview_ticket_editor.png" alt="Ticket Editor" width="800">
 </p>
 
 ---
@@ -127,5 +141,5 @@ sentry_sdk.init(
 ---
 
 <p align="center">
-  Made with frustration for freemium tiers
+  <a href="https://broke.dk">broke.dk</a> · Made with frustration for freemium tiers
 </p>
