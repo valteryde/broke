@@ -29,9 +29,9 @@ def run_error_populator():
 initialize_db()
 
 if __name__ == '__main__':
-    setup_test_data()
+    # setup_test_data()
     
-    start_new_thread(run_error_populator, ())
+    # start_new_thread(run_error_populator, ())
 
     @app.route('/force-error')
     def force_error():

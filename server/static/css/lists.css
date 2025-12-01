@@ -335,6 +335,7 @@
     /* border-radius: 4px 4px 0 0; */
     border-radius: 4px;
     margin-bottom: -1px;
+    cursor: pointer;
 }
 
 .list-group-label {
@@ -350,12 +351,21 @@
     border-radius: 10px;
 }
 
+.list-group-toggle {
+    margin-left: auto;
+    cursor: pointer;
+}
+
 .list-group-content {
     /* border: 1px dashed black; */
     border-top: none;
     border-radius: 0 0 4px 4px;
     margin-top:5px;
     padding-bottom:10px;
+}
+
+.list-group-content.collapsed {
+    display: none;
 }
 
 .list-group-content .list-element:last-child {

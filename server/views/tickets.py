@@ -10,6 +10,7 @@ import uuid
 import re
 from utils.path import data_path, path
 
+
 def populateTickets(tickets: list[Ticket]) -> None:
     """
     Populates the tickets page with tickets from the database.
@@ -34,8 +35,6 @@ def populateTickets(tickets: list[Ticket]) -> None:
         ticket.assignees = [User.get_or_none(User.username == utj.user) for utj in UserTicketJoin.select().where(UserTicketJoin.ticket == ticket.id)] # type: ignore
 
 
-
-
 @secureroute('/tickets')
 def tickets_view(user: User):
     tickets = list(Ticket.select())
@@ -46,7 +45,8 @@ def tickets_view(user: User):
         page = 'tickets',
         tickets = tickets,
         project = None,
-        projects = Project.select().distinct().order_by(Project.name)
+        projects = Project.select().distinct().order_by(Project.name),
+        group = request.args.get('group')
     )
 
 @secureroute('/tickets/<project_id>')
@@ -60,7 +60,8 @@ def project_tickets_view(user: User, project_id: str):
         project = project,
         tickets = tickets,
         page = 'tickets',
-        projects = Project.select().distinct().order_by(Project.name)
+        projects = Project.select().distinct().order_by(Project.name),
+        group = request.args.get('group')
     )
 
 @secureroute('/tickets/<project_id>/<ticket_id>')

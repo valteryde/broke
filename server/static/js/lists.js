@@ -578,6 +578,17 @@ class List {
                 `;
                 
                 groupContainer.appendChild(groupHeader);
+
+                const toggle = document.createElement('span');
+                toggle.className = 'list-group-toggle';
+                toggle.innerHTML = '<i class="ph ph-caret-down"></i>';
+                groupHeader.addEventListener('click', () => {
+                    groupContent.classList.toggle('collapsed');
+                    toggle.innerHTML = groupContent.classList.contains('collapsed') 
+                        ? '<i class="ph ph-caret-right"></i>' 
+                        : '<i class="ph ph-caret-down"></i>';
+                });
+                groupHeader.appendChild(toggle);
                 
                 const groupContent = document.createElement('div');
                 groupContent.className = 'list-group-content';

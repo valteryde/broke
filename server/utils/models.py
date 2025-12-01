@@ -25,6 +25,10 @@ class User(BaseModel):
     admin = IntegerField(default=0)
 
 def create_user(username: str, password, email: str, admin: int = 0):
+    
+    User.create_table(safe=True)
+
+
     salt = uuid.uuid4().hex
     password_hash = pyargon2.hash(password, salt)
     user = User.create(
