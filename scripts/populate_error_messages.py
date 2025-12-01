@@ -41,8 +41,6 @@ def main():
             except:
                 sentry_sdk.capture_exception()
 
-
-
 if __name__ == '__main__':
     main()
 

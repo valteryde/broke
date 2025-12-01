@@ -165,7 +165,7 @@ def linear_graphql_request(api_key: str, query: str, variables: dict | None = No
     
     payload = {"query": query}
     if variables:
-        payload["variables"] = variables
+        payload["variables"] = variables # type: ignore
     
     response = requests.post(
         "https://api.linear.app/graphql",
