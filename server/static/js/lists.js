@@ -1,129 +1,40 @@
-
 /*
- * List class with modular filtering and grouping support
+ * Generic List class with modular filtering, grouping, and rendering support.
  * 
  * Usage:
  * const list = new List('container-id', {
- *     filters: {
- *         search: { placeholder: 'Search...' },
- *         labels: { label: 'Labels' },
- *         assignees: { label: 'Assignees' },
- *         urgency: { label: 'Urgency' },
- *         dateRange: { label: 'Date Range' }
- *     },
- *     groupBy: {
- *         options: ['urgency', 'assignees', 'labels', 'none'],
- *         default: 'none'
- *     }
+ *     filters: { ... },
+ *     groups: { ... },
+ *     renderer: (element) => HTMLElement | string,
+ *     quickActions: { ... },
+ *     defaultGroupBy: 'none',
+ *     onCreate: () => void,
+ *     onUpdate: (item, field, value) => void
  * });
  */
-
-// Filter type definitions with icons and display names
-// TODO: Move filter functions to separate modules for better maintainability
-const FilterTypes = {
-    search: {
-        icon: 'ph-magnifying-glass',
-        label: 'Search',
-        filter: (element, value) => {
-            if (!value) return true;
-            const searchText = `${element.id} ${element.title} ${element.description}`.toLowerCase();
-            return searchText.includes(value.toLowerCase());
-        }
-    },
-    status: {
-        icon: 'ph-circle-half',
-        label: 'Status',
-        filter: (element, values) => {
-            if (!values || values.length === 0) return true;
-            return values.includes(element.status);
-        }
-    },
-    labels: {
-        icon: 'ph-tag',
-        label: 'Labels',
-        filter: (element, values) => {
-            if (!values || values.length === 0) return true;
-            const elementLabels = element.labels.map(l => l.text);
-            return values.every(v => elementLabels.includes(v));
-        }
-    },
-    assignees: {
-        icon: 'ph-users',
-        label: 'Assignees',
-        filter: (element, values) => {
-            if (!values || values.length === 0) return true;
-            return values.every(v => element.assignees.includes(v));
-        }
-    },
-    urgency: {
-        icon: 'ph-warning',
-        label: 'Urgency',
-        filter: (element, values) => {
-            if (!values || values.length === 0) return true;
-            return values.includes(element.urgency);
-        }
-    },
-    dateRange: {
-        icon: 'ph-calendar',
-        label: 'Date Range',
-        filter: (element, value) => {
-            if (!value || (!value.from && !value.to)) return true;
-            const elementDate = element.createdAt ? new Date(element.createdAt) : null;
-            if (!elementDate) return false;
-            if (value.from && elementDate < value.from) return false;
-            if (value.to && elementDate > value.to) return false;
-            return true;
-        }
-    }
-};
-
-// Group type definitions
-// StatusConfig, StatusOrder, PriorityConfig, PriorityOrder are loaded from config.js
-const GroupTypes = {
-    none: {
-        label: 'None',
-        icon: 'ph-list',
-        getGroupKey: () => null,
-        getGroupLabel: () => null
-    },
-    status: {
-        label: 'Status',
-        icon: 'ph-circle-half',
-        getGroupKey: (element) => element.status || 'backlog',
-        getGroupLabel: (key) => StatusConfig[key]?.label || key,
-        order: StatusOrder
-    },
-    urgency: {
-        label: 'Urgency',
-        icon: 'ph-warning',
-        getGroupKey: (element) => element.urgency || 'none',
-        getGroupLabel: (key) => PriorityConfig[key]?.label || key,
-        order: PriorityOrder
-    },
-    assignees: {
-        label: 'Assignee',
-        icon: 'ph-users',
-        getGroupKey: (element) => element.assignees && element.assignees.length > 0 ? element.assignees[0] : 'unassigned',
-        getGroupLabel: (key) => key === 'unassigned' ? 'Unassigned' : key
-    },
-    labels: {
-        label: 'Label',
-        icon: 'ph-tag',
-        getGroupKey: (element) => element.labels && element.labels.length > 0 ? element.labels[0].text : 'unlabeled',
-        getGroupLabel: (key) => key === 'unlabeled' ? 'No labels' : key
-    }
-};
 
 class List {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
+        if (!this.container) {
+            console.error(`List container #${containerId} not found`);
+            return;
+        }
         this.container.classList.add('list-container');
         this.elements = [];
         this.filteredElements = [];
         this.options = options;
+
+        // Configuration
+        this.filtersConfig = options.filters || {};
+        this.groupsConfig = options.groups || {};
+        this.renderer = options.renderer || this.defaultRenderer;
+        this.quickActions = options.quickActions || {};
+
         this.activeFilters = {};
         this.activeFilterChips = {};
-        this.currentGroupBy = options.groupBy?.default || 'none';
+        this.currentGroupBy = options.defaultGroupBy || options.groupBy?.default || 'none';
+        // Note: supporting old groupBy.default structure for backward compat if needed, but we are updating call sites.
 
         // Callbacks
         this.onCreate = options.onCreate || null;
@@ -135,8 +46,8 @@ class List {
         this.container.parentNode.insertBefore(this.wrapper, this.container);
 
         // Create filter bar if filters or groupBy are configured
-        if (options.filters || options.groupBy) {
-            this.filterBar = this.createFilterBar(options.filters || {});
+        if (Object.keys(this.filtersConfig).length > 0 || Object.keys(this.groupsConfig).length > 0) {
+            this.filterBar = this.createFilterBar();
             this.wrapper.appendChild(this.filterBar);
         }
 
@@ -150,6 +61,38 @@ class List {
         this.onUpdate = options.onUpdate || (() => { });
 
         this.initShortcuts();
+
+        // Get initial filters from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        Object.keys(this.filtersConfig).forEach(filterType => {
+            const paramKey = `filter_${filterType}`;
+            if (urlParams.has(paramKey)) {
+                const paramValue = urlParams.get(paramKey);
+                const config = this.filtersConfig[filterType];
+
+                // Check if getValueFromOption is present (single select)
+                if (config.getValueFromOption) {
+                    const value = config.getValueFromOption(paramValue);
+                    value.optionValue = paramValue;
+                    value.optionLabel = paramValue; // We don't have label info from URL, so use value
+                    this.activeFilters[filterType] = value;
+                    this.updateFilterChip(filterType, paramValue);
+                } else {
+                    // Multi-select (comma separated)
+                    const values = paramValue.split(',');
+                    this.activeFilters[filterType] = values;
+                    this.updateFilterChip(filterType, values.join(', '));
+                }
+            }
+        });
+
+        this.applyFilters();
+    }
+
+    defaultRenderer(element) {
+        const div = document.createElement('div');
+        div.textContent = JSON.stringify(element);
+        return div;
     }
 
     initShortcuts() {
@@ -176,11 +119,10 @@ class List {
         window.shortcuts.register('k', (target, e) => this.moveSelection(-1), 'Previous Item', false, target);
         window.shortcuts.register('Enter', (target, e) => this.openSelectedItem(), 'Open Item', false, target);
 
-        // Actions
-        window.shortcuts.register('s', (target, e) => this.triggerQuickAction('status', target), 'Change Status', false, target);
-        window.shortcuts.register('p', (target, e) => this.triggerQuickAction('priority', target), 'Change Priority', false, target);
-        window.shortcuts.register('a', (target, e) => this.triggerQuickAction('assignees', target), 'Change Assignees', false, target);
-        window.shortcuts.register('l', (target, e) => this.triggerQuickAction('labels', target), 'Change Labels', false, target);
+        // Register configured quick actions
+        Object.entries(this.quickActions).forEach(([key, action]) => {
+            window.shortcuts.register(key, (target, e) => this.triggerQuickAction(key, target), action.name, false, target);
+        });
     }
 
     moveSelection(direction) {
@@ -220,84 +162,31 @@ class List {
         }
     }
 
-    triggerQuickAction(action, target) {
-        console.log(this.selectedIndex);
+    triggerQuickAction(actionKey, target) {
+        const action = this.quickActions[actionKey];
+        if (!action) return;
+
         this.selectedIndex = this.renderedItems.findIndex(item => item.domNode === target);
         this.setSelection(this.selectedIndex);
 
         if (this.selectedIndex < 0 || !this.renderedItems[this.selectedIndex]) return;
 
         const item = this.renderedItems[this.selectedIndex].element;
-
-        if (action === 'status') {
-            new ListModal({
-                title: 'Set Status',
-                items: Object.values(StatusConfig).map(s => ({
-                    label: s.label,
-                    value: s.value, // value is sometimes key? No, StatusConfig values work.
-                    icon: s.icon,
-                    colorClass: `status-${s.value}`,
-                    selected: item.status === s.value
-                })),
-                onSelect: (selected) => this.handleUpdate(item, 'status', selected.value)
-            }).show();
-        } else if (action === 'priority') {
-            new ListModal({
-                title: 'Set Priority',
-                items: Object.entries(PriorityConfig).map(([key, conf]) => ({
-                    label: conf.label,
-                    value: key,
-                    icon: conf.icon,
-                    // colorClass? PriorityConfig usually has it? checking ticket.js... yes it does but list.js uses local StatusConfig/PriorityConfig?
-                    // In list.js top imports aren't visible but used.
-                    // Let's assume consistent config usage.
-                    selected: item.urgency === key
-                })),
-                onSelect: (selected) => this.handleUpdate(item, 'priority', selected.value)
-            }).show();
-        } else if (action === 'assignees') {
-            if (typeof window.availableUsers !== 'undefined') {
-                new ListModal({
-                    title: 'Assign Member',
-                    items: window.availableUsers.map(u => ({
-                        label: u.username,
-                        value: u.username,
-                        avatar: `<svg width="16" height="16" data-jdenticon-value="${u.username}"></svg>`,
-                        selected: item.assignees.includes(u.username)
-                    })),
-                    onSelect: (selected) => this.handleUpdate(item, 'assignees', selected.value, true),
-                    closeOnSelect: false
-                }).show();
-            } else {
-                // showToast('Users list not available', 'error');
-            }
-        } else if (action === 'labels') {
-            if (typeof window.availableLabels !== 'undefined') {
-                new ListModal({
-                    title: 'Add Label',
-                    items: window.availableLabels.map(l => ({
-                        label: l.name,
-                        value: l,
-                        color: l.color,
-                        selected: item.labels.some(lbl => lbl.text === l.name)
-                    })),
-                    onSelect: (selected) => this.handleUpdate(item, 'labels', selected.value, true),
-                    closeOnSelect: false
-                }).show();
-            } else {
-                // showToast('Labels list not available', 'error');
-            }
-        }
+        action.handler(this, item);
     }
 
     handleUpdate(item, field, value, isToggle = false) {
-        // Optimistic update
-        // We need to call the callback provided in constructor options.
-        // The item in this.elements needs to be updated too to reflect changes in UI.
+        // Optimistic update logic moved to specific list configs? 
+        // Actually, the generic list doesn't know how to update the item object deeply 
+        // (like arrays etc), so it relies on the caller or the specific logic handled in handler.
+        // BUT, `lists.js` originally had logic for updating item state (assignees array etc).
+        // This should probably be done inside the `handler` or `onUpdate`?
+        // Let's assume the `handler` in QuickActions takes care of mutating the item if needed, 
+        // OR we provide a helper here.
 
+        // Original lists.js had this logic:
         if (field === 'status') item.status = value;
-        if (field === 'priority') item.urgency = value;
-        // Arrays are harder (assignees, labels)
+        if (field === 'priority') item.urgency = value; // Coupled to 'urgency' prop
 
         if (field === 'assignees' && isToggle) {
             const idx = item.assignees.indexOf(value);
@@ -305,20 +194,23 @@ class List {
             else item.assignees.push(value);
         }
 
-        // Labels is tricky because of structure {text, color} vs just name
         if (field === 'labels' && isToggle) {
-            // value is {name, color}
-            const idx = item.labels.findIndex(l => l.text === value.name);
-            if (idx > -1) item.labels.splice(idx, 1);
-            else item.labels.push({ text: value.name, color: value.color });
+            // For value {name, color}
+            // We need to be careful. Generic list shouldn't know about 'labels' structure?
+            // Ideally this logic moves to the Specific Configs if possible, or we keep it here if commonly used.
+            // Given the constraints, I'll keep this simple update logic here BUT it might be risky if data shapes differ.
+            // However, Error list uses similar shapes (labels, status).
+            if (value && typeof value === 'object' && value.name) {
+                const idx = item.labels.findIndex(l => l.text === value.name);
+                if (idx > -1) item.labels.splice(idx, 1);
+                else item.labels.push({ text: value.name, color: value.color });
+            }
         }
 
-        // Apply filters again to ensure view is consistent (e.g. if filtered by status)
-        // But preserve selection!
+        // Re-apply filters
         const selectionId = item.id;
         this.applyFilters();
 
-        // Restore selection
         const newIndex = this.renderedItems.findIndex(i => i.element.id === selectionId);
         if (newIndex > -1) this.setSelection(newIndex);
 
@@ -327,74 +219,14 @@ class List {
 
     // Get submenu options for each filter type
     getFilterOptions(filterType) {
-        switch (filterType) {
-            case 'status':
-                return Object.entries(StatusConfig).map(([value, config]) => ({
-                    value,
-                    label: config.label,
-                    icon: config.icon
-                }));
-            case 'labels':
-                return this.extractLabels().map(l => ({ value: l.text, label: l.text, icon: 'ph-fill ph-circle', colorClass: `filter-color-${l.color}` }));
-            case 'assignees':
-                return this.extractAssignees().map(a => ({ value: a, label: a }));
-            case 'urgency':
-                return [
-                    { value: 'urgent', label: 'Urgent', icon: 'ph-warning' },
-                    { value: 'high', label: 'High', icon: 'ph-cell-signal-high' },
-                    { value: 'medium', label: 'Medium', icon: 'ph-cell-signal-medium' },
-                    { value: 'low', label: 'Low', icon: 'ph-cell-signal-low' }
-                ];
-            case 'dateRange':
-                return [
-                    { value: 'last7', label: 'Last 7 days', icon: 'ph-clock-counter-clockwise' },
-                    { value: 'last14', label: 'Last 14 days', icon: 'ph-clock-counter-clockwise' },
-                    { value: 'last30', label: 'Last 30 days', icon: 'ph-clock-counter-clockwise' },
-                    { value: 'older7', label: 'Older than 7 days', icon: 'ph-clock-clockwise' },
-                    { value: 'older14', label: 'Older than 14 days', icon: 'ph-clock-clockwise' },
-                    { value: 'older30', label: 'Older than 30 days', icon: 'ph-clock-clockwise' }
-                ];
-            default:
-                return [];
+        const config = this.filtersConfig[filterType];
+        if (config && config.getOptions) {
+            return config.getOptions(this);
         }
+        return [];
     }
 
-    // Convert date range option to actual date filter
-    getDateRangeFromOption(optionValue) {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-        switch (optionValue) {
-            case 'last7':
-                const last7 = new Date(today);
-                last7.setDate(last7.getDate() - 7);
-                return { from: last7, to: null };
-            case 'last14':
-                const last14 = new Date(today);
-                last14.setDate(last14.getDate() - 14);
-                return { from: last14, to: null };
-            case 'last30':
-                const last30 = new Date(today);
-                last30.setDate(last30.getDate() - 30);
-                return { from: last30, to: null };
-            case 'older7':
-                const older7 = new Date(today);
-                older7.setDate(older7.getDate() - 7);
-                return { from: null, to: older7 };
-            case 'older14':
-                const older14 = new Date(today);
-                older14.setDate(older14.getDate() - 14);
-                return { from: null, to: older14 };
-            case 'older30':
-                const older30 = new Date(today);
-                older30.setDate(older30.getDate() - 30);
-                return { from: null, to: older30 };
-            default:
-                return { from: null, to: null };
-        }
-    }
-
-    createFilterBar(filtersConfig) {
+    createFilterBar() {
         const filterBar = document.createElement('div');
         filterBar.className = 'list-filter-bar';
 
@@ -402,8 +234,8 @@ class List {
         const filterOptionsRow = document.createElement('div');
         filterOptionsRow.className = 'list-filter-options';
 
-        // Always-visible search bar (if configured)
-        if (filtersConfig.search) {
+        // Search bar (if configured)
+        if (this.filtersConfig.search) {
             const searchWrapper = document.createElement('div');
             searchWrapper.className = 'list-search-wrapper';
 
@@ -413,7 +245,7 @@ class List {
             const searchInput = document.createElement('input');
             searchInput.type = 'text';
             searchInput.className = 'list-search-input';
-            searchInput.placeholder = filtersConfig.search.placeholder || 'Search...';
+            searchInput.placeholder = this.filtersConfig.search.placeholder || 'Search...';
 
             searchInput.addEventListener('input', () => {
                 this.activeFilters.search = searchInput.value;
@@ -425,7 +257,7 @@ class List {
             filterOptionsRow.appendChild(searchWrapper);
         }
 
-        // Add filter dropdown using reusable Dropdown class
+        // Add filter dropdown
         const addFilterWrapper = document.createElement('div');
         addFilterWrapper.className = 'list-add-filter-wrapper';
 
@@ -437,7 +269,7 @@ class List {
         filterOptionsRow.appendChild(addFilterWrapper);
 
         // Group by dropdown
-        if (this.options.groupBy) {
+        if (Object.keys(this.groupsConfig).length > 0) {
             const groupByWrapper = document.createElement('div');
             groupByWrapper.className = 'list-group-by-wrapper';
 
@@ -450,13 +282,16 @@ class List {
             filterOptionsRow.appendChild(groupByWrapper);
 
             // Build group by dropdown items
-            const groupByItems = (this.options.groupBy.options || ['none', 'urgency', 'assignees', 'labels']).map(groupType => ({
-                label: GroupTypes[groupType]?.label || groupType,
-                icon: GroupTypes[groupType]?.icon || 'ph-list',
-                onClick: () => {
-                    this.setGroupBy(groupType);
-                }
-            }));
+            const groupByItems = Object.keys(this.groupsConfig).map(groupType => {
+                const conf = this.groupsConfig[groupType];
+                return {
+                    label: conf.label || groupType,
+                    icon: conf.icon || 'ph-list',
+                    onClick: () => {
+                        this.setGroupBy(groupType);
+                    }
+                };
+            });
 
             this.groupByDropdown = new Dropdown(groupByBtn, {
                 items: groupByItems,
@@ -469,12 +304,9 @@ class List {
             createButton.className = 'list-create-btn';
             createButton.innerHTML = `<span> <i class="ph ph-plus"></i> ${this.onCreateLabel || 'Add'} </span>`;
 
-            // Wire up onCreate callback
-            if (this.onCreate) {
-                createButton.addEventListener('click', () => {
-                    this.onCreate();
-                });
-            }
+            createButton.addEventListener('click', () => {
+                this.onCreate();
+            });
 
             filterOptionsRow.appendChild(createButton);
         }
@@ -485,11 +317,12 @@ class List {
 
         // Build dropdown items with submenus for each filter type
         const dropdownItems = [];
-        Object.keys(filtersConfig).forEach(filterType => {
-            if (FilterTypes[filterType] && filterType !== 'search') {
+        Object.keys(this.filtersConfig).forEach(filterType => {
+            if (filterType !== 'search') {
+                const config = this.filtersConfig[filterType];
                 dropdownItems.push({
-                    label: filtersConfig[filterType].label || FilterTypes[filterType].label,
-                    icon: FilterTypes[filterType].icon,
+                    label: config.label,
+                    icon: config.icon,
                     getSubmenuItems: () => {
                         const options = this.getFilterOptions(filterType);
                         return options.map(opt => ({
@@ -520,7 +353,12 @@ class List {
         const filter = this.activeFilters[filterType];
         if (!filter) return false;
 
-        if (filterType === 'dateRange') {
+        // Special handling for dateRange stored as object {from, to}
+        // Actually, the original stored {optionValue, optionLabel, ...} in dateRange
+        // Let's stick to the generic approach:
+
+        // If filter is an object and has optionValue (like DateRange in original)
+        if (filter.optionValue) {
             return filter.optionValue === value;
         }
 
@@ -532,19 +370,23 @@ class List {
     }
 
     toggleFilterOption(filterType, option) {
-        if (filterType === 'dateRange') {
-            // Date range is single-select
-            if (this.activeFilters.dateRange?.optionValue === option.value) {
+        const config = this.filtersConfig[filterType];
+
+        // Check if it's single select or "date range" style (helper in config?)
+        // Or if getValueFromOption is present
+        if (config.getValueFromOption) {
+            // Single select / Replace mode
+            if (this.activeFilters[filterType]?.optionValue === option.value) {
                 this.removeFilter(filterType);
             } else {
-                const dateRange = this.getDateRangeFromOption(option.value);
-                dateRange.optionValue = option.value;
-                dateRange.optionLabel = option.label;
-                this.activeFilters.dateRange = dateRange;
+                const value = config.getValueFromOption(option.value);
+                value.optionValue = option.value;
+                value.optionLabel = option.label;
+                this.activeFilters[filterType] = value;
                 this.updateFilterChip(filterType, option.label);
             }
         } else {
-            // Multi-select filters (labels, assignees, urgency)
+            // Default Multi-select behavior
             if (!this.activeFilters[filterType]) {
                 this.activeFilters[filterType] = [];
             }
@@ -567,21 +409,22 @@ class List {
     }
 
     updateFilterChip(filterType, displayValue) {
-        // Remove existing chip if any
         if (this.activeFilterChips[filterType]) {
             this.activeFilterChips[filterType].remove();
         }
+
+        const config = this.filtersConfig[filterType];
 
         const chip = document.createElement('div');
         chip.className = 'list-filter-chip';
         chip.dataset.filterType = filterType;
 
         const icon = document.createElement('i');
-        icon.className = `ph ${FilterTypes[filterType].icon}`;
+        icon.className = `ph ${config.icon}`;
 
         const label = document.createElement('span');
         label.className = 'list-filter-chip-label';
-        label.textContent = this.options.filters[filterType]?.label || FilterTypes[filterType].label;
+        label.textContent = config.label;
 
         const value = document.createElement('span');
         value.className = 'list-filter-chip-value-text';
@@ -638,10 +481,9 @@ class List {
         return Array.from(assignees).sort();
     }
 
-    // Grouping methods
     updateGroupByButtonLabel() {
         if (this.groupByBtn) {
-            const groupType = GroupTypes[this.currentGroupBy];
+            const groupType = this.groupsConfig[this.currentGroupBy];
             const label = groupType?.label || 'Group';
             this.groupByBtn.innerHTML = `<i class="ph ${groupType?.icon || 'ph-list'}"></i> <span>Group: ${label}</span> <i class="ph ph-caret-down"></i>`;
         }
@@ -651,14 +493,24 @@ class List {
         this.currentGroupBy = groupType;
         this.updateGroupByButtonLabel();
         this.render();
+
+        // Update URL
+        const url = new URL(window.location);
+        if (groupType === 'none') {
+            url.searchParams.delete('group');
+        } else {
+            url.searchParams.set('group', groupType);
+        }
+        window.history.replaceState({}, '', url);
+
     }
 
     groupElements(elements) {
-        if (this.currentGroupBy === 'none' || !GroupTypes[this.currentGroupBy]) {
+        const groupType = this.groupsConfig[this.currentGroupBy];
+        if (!groupType || this.currentGroupBy === 'none') {
             return null;
         }
 
-        const groupType = GroupTypes[this.currentGroupBy];
         const groups = new Map();
 
         elements.forEach(element => {
@@ -669,7 +521,7 @@ class List {
             groups.get(key).push(element);
         });
 
-        // Sort groups if order is defined
+        // Sort groups
         let sortedKeys;
         if (groupType.order) {
             sortedKeys = [...groups.keys()].sort((a, b) => {
@@ -693,29 +545,59 @@ class List {
 
     clearAllFilters() {
         this.activeFilters = {};
-
-        // Remove all chips
         Object.keys(this.activeFilterChips).forEach(filterType => {
             if (this.activeFilterChips[filterType]) {
                 this.activeFilterChips[filterType].remove();
             }
         });
         this.activeFilterChips = {};
-
         this.applyFilters();
     }
 
     applyFilters() {
         this.filteredElements = this.elements.filter(element => {
             return Object.keys(this.activeFilters).every(filterType => {
-                if (FilterTypes[filterType]) {
-                    return FilterTypes[filterType].filter(element, this.activeFilters[filterType]);
+                const config = this.filtersConfig[filterType];
+                if (config && config.filter) {
+                    return config.filter(element, this.activeFilters[filterType]);
                 }
                 return true;
             });
         });
 
         this.render();
+
+        // Add filters to URL
+        Object.keys(this.activeFilters).forEach((key) => {
+            const value = this.activeFilters[key];
+            const paramKey = `filter_${key}`;
+            let paramValue = '';
+
+            if (Array.isArray(value)) {
+                paramValue = value.join(',');
+            } else if (typeof value === 'object' && value.optionValue) {
+                paramValue = value.optionValue;
+            } else {
+                paramValue = value;
+            }
+
+            const url = new URL(window.location);
+            url.searchParams.set(paramKey, paramValue);
+            window.history.replaceState({}, '', url);
+        });
+
+        // Remove cleared filters from URL
+        Object.keys(this.filtersConfig).forEach(filterType => {
+            if (!this.activeFilters[filterType]) {
+                const paramKey = `filter_${filterType}`;
+                const url = new URL(window.location);
+                if (url.searchParams.has(paramKey)) {
+                    url.searchParams.delete(paramKey);
+                    window.history.replaceState({}, '', url);
+                }
+            }
+        });
+        
     }
 
     add(element) {
@@ -730,7 +612,7 @@ class List {
 
     render() {
         this.container.innerHTML = '';
-        this.renderedItems = []; // Reset rendered items map
+        this.renderedItems = [];
 
         const elementsToRender = this.filteredElements.length > 0 || Object.keys(this.activeFilters).length > 0
             ? this.filteredElements
@@ -744,11 +626,9 @@ class List {
             return;
         }
 
-        // Check if we should group the elements
         const groups = this.groupElements(elementsToRender);
 
         if (groups) {
-            // Render grouped elements
             groups.forEach(group => {
                 const groupContainer = document.createElement('div');
                 groupContainer.className = 'list-group';
@@ -784,7 +664,6 @@ class List {
                 this.container.appendChild(groupContainer);
             });
         } else {
-            // Render flat list
             elementsToRender.forEach(element => {
                 this.container.appendChild(this.renderElement(element));
             });
@@ -792,50 +671,18 @@ class List {
     }
 
     renderElement(element) {
-        const inner = document.createElement('div');
-        inner.className = 'list-element-inner';
+        // Use configured renderer
+        const inner = this.renderer(element);
 
-        if (element.createdAt) {
-            var date = new Date(element.createdAt * 1000);
-            var dateString = date.toLocaleDateString();
-        } else {
-            var dateString = '';
-        }
-
-        // Extract text content safely from HTML description
-        const parser = new DOMParser();
-        const htmlDoc = parser.parseFromString(element.description || '', 'text/html');
-
-        // Get status config if available
-        const statusConfig = element.status ? StatusConfig[element.status] : null;
-        const statusHtml = statusConfig
-            ? `<span class="list-status" style="--status-color: ${statusConfig.color}" title="${statusConfig.label}">
-                <i class="ph ${statusConfig.icon}"></i>
-               </span>`
-            : '';
-
-        inner.innerHTML = `
-            <i class="ph ${element.icon} list-element-icon"></i>
-            <span class="list-element-id">${element.id}</span>
-            ${statusHtml}
-            <span class="list-element-text">
-                <h3>${element.title}</h3>
-                <p class="list-element-description">${(htmlDoc.body.textContent || "")}</p>
-            </span>
-            <span class="list-labels">
-                ${(element.labels || []).map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}
-            </span>
-            <span class="list-assignees">
-                ${(element.assignees || []).map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${assignee}</span>`).join('')}
-            </span>
-            <span class="list-date">
-                ${dateString}
-            </span>
-        `;
-
+        // Wrap in list-element and add event listeners
         const elDiv = document.createElement('div');
         elDiv.className = 'list-element';
-        elDiv.appendChild(inner);
+
+        if (typeof inner === 'string') {
+            elDiv.innerHTML = inner;
+        } else {
+            elDiv.appendChild(inner);
+        }
 
         elDiv.addEventListener('click', () => {
             if (element.onClick) {
@@ -843,13 +690,7 @@ class List {
             }
         });
 
-        // Track rendered item for selection
         this.renderedItems.push({ element, domNode: elDiv });
-
-        // Restore selection if needed (by index matched during loop, or wait for setSelection)
-        // Actually better to handle selection after full render because indices change.
-
         return elDiv;
     }
 }
-

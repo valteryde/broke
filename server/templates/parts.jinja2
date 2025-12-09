@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/errors"><i class="ph ph-bug-beetle"></i> Errors</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="/errors/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
+    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -18,13 +18,13 @@
 <h1>Project parts error management</h1>
 
 <div class="project-tabs" id="project-tabs">
-    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="window.location.href = '/errors'">
+    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="openUrlWithArgs('/errors')">
         <i class="ph ph-squares-four"></i> All
     </button>
     <!-- Project tabs will be populated dynamically -->
 
     {% for proj in projects %}
-    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="window.location.href = '/errors/{{ proj.id }}' ">
+    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="openUrlWithArgs('/errors/{{ proj.id }}')">
         <i class="{{ proj.icon }}"></i> {{ proj.name }}
     </button>
     {% endfor %}
@@ -40,8 +40,9 @@
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
     
     <script>
         // Available projects for the modal dropdown
@@ -118,14 +119,33 @@
         document.addEventListener('DOMContentLoaded', () => {
             const partList = new List('ticket-list', {
                 filters: {
-                    search: { placeholder: 'Search parts...' },
+                    search: { 
+                        placeholder: 'Search parts...',
+                        filter: (element, value) => {
+                            if (!value) return true;
+                            const searchText = `${element.title} ${element.description}`.toLowerCase();
+                            return searchText.includes(value.toLowerCase());
+                        }
+                    },
                 },
                 groupBy: {
-                    options: ['none'],
-                    default: 'none'
                 },
+                defaultGroupBy: 'none',
                 onCreate: showCreatePartModal,
-                onCreateLabel: 'New Part'
+                onCreateLabel: 'New Part',
+                renderer: (element) => {
+                    const inner = document.createElement('div');
+                    inner.className = 'list-element-inner';
+                    inner.innerHTML = `
+                        <i class="ph ${element.icon} list-element-icon"></i>
+                        <span class="list-element-id">${element.id}</span>
+                        <span class="list-element-text">
+                            <h3>${element.title}</h3>
+                            <p class="list-element-description">${element.description}</p>
+                        </span>
+                    `;
+                    return inner;
+                }
             });
 
             const partListItems = [

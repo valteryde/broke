@@ -269,22 +269,6 @@
     display: none;
 }
 
-/* Status colors - must match config.js */
-.status-backlog { color: #6b7280; }
-.status-todo { color: #8b5cf6; }
-.status-in-progress { color: #3b82f6; }
-.status-in-review { color: #f59e0b; }
-.status-done { color: #22c55e; }
-.status-closed { color: #9ca3af; }
-.status-duplicate { color: #ef4444; }
-
-/* Priority colors - must match config.js */
-.priority-urgent { color: #ef4444; }
-.priority-high { color: #f97316; }
-.priority-medium { color: #eab308; }
-.priority-low { color: #22c55e; }
-.priority-none { color: #6b7280; }
-
 /* Labels in property */
 .ticket-labels-list {
     display: flex;

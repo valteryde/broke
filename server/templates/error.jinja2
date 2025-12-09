@@ -9,11 +9,11 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/errors"><i class="ph ph-bug-beetle"></i> Errors</a> 
+    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a> 
     <i class="ph ph-caret-right"></i> 
-    <a href="/errors/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+    <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
     <i class="ph ph-caret-right"></i> 
-    <a href="/errors/{{ project.id }}/{{ part.id }}"><i class="ph ph-puzzle-piece"></i> {{ part.name }}</a>
+    <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}/{{ part.id }}'); return false;"><i class="ph ph-puzzle-piece"></i> {{ part.name }}</a>
     <i class="ph ph-caret-right"></i> 
     <span><i class="ph ph-warning-circle"></i> {{ error.exception_type or 'Error' }}</span>
 {% endblock %}

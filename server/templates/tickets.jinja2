@@ -38,13 +38,13 @@
 <h1>Tickets</h1>
 
 <div class="project-tabs" id="project-tabs">
-    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="window.location.href = '/tickets'">
+    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="openUrlWithArgs('/tickets')">
         <i class="ph ph-squares-four"></i> All
     </button>
     <!-- Project tabs will be populated dynamically -->
 
     {% for proj in projects %}
-    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="window.location.href = '/tickets/{{ proj.id }}' ">
+    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="openUrlWithArgs('/tickets/{{ proj.id }}')">
         <i class="{{ proj.icon }}"></i> {{ proj.name }}
     </button>
     {% endfor %}
@@ -56,7 +56,7 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
+    <a href="#" onclick="openUrlWithArgs('/tickets'); return false;"><i class="ph ph-ticket"></i> Tickets</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="#" onclick="openUrlWithArgs('/tickets/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -64,7 +64,11 @@
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ticket_list.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
+    
     
     <script>
         // Available projects for ticket creation modal
@@ -200,18 +204,12 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             const ticketList = new List('ticket-list', {
-                filters: {
-                    search: { placeholder: 'Search tickets...' },
-                    status: { label: 'Status' },
-                    labels: { label: 'Labels' },
-                    assignees: { label: 'Assignees' },
-                    urgency: { label: 'Urgency' },
-                    dateRange: { label: 'Date' }
-                },
+                ...TicketListConfig, // Spread base config
                 groupBy: {
-                    options: ['none', 'status', 'urgency', 'assignees', 'labels'],
-                    default: 'none'
+                    ...TicketListConfig.groups,
+                    default: '{{ group }}' || 'none'
                 },
+                defaultGroupBy: '{{ group }}' || 'none',
                 onCreate: () => {
                     showCreateTicketModal();
                 },
@@ -280,7 +278,7 @@
             ];
 
             tickets.forEach(ticket => ticketList.add(ticket));
-
+            
             if ('{{ group }}') {
                 ticketList.setGroupBy('{{ group }}');
             }
