@@ -3,10 +3,8 @@
 </p>
 
 <em>A lightweight ticket and error management system for broke people</em>
+<a href="https://broke.dk">broke.dk</a>
 
-<p align="center">
-  <a href="https://broke.dk">broke.dk</a>
-</p>
 
 ---
 

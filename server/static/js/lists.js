@@ -21,8 +21,8 @@
 // Filter type definitions with icons and display names
 // TODO: Move filter functions to separate modules for better maintainability
 const FilterTypes = {
-    search: { 
-        icon: 'ph-magnifying-glass', 
+    search: {
+        icon: 'ph-magnifying-glass',
         label: 'Search',
         filter: (element, value) => {
             if (!value) return true;
@@ -38,8 +38,8 @@ const FilterTypes = {
             return values.includes(element.status);
         }
     },
-    labels: { 
-        icon: 'ph-tag', 
+    labels: {
+        icon: 'ph-tag',
         label: 'Labels',
         filter: (element, values) => {
             if (!values || values.length === 0) return true;
@@ -47,24 +47,24 @@ const FilterTypes = {
             return values.every(v => elementLabels.includes(v));
         }
     },
-    assignees: { 
-        icon: 'ph-users', 
+    assignees: {
+        icon: 'ph-users',
         label: 'Assignees',
         filter: (element, values) => {
             if (!values || values.length === 0) return true;
             return values.every(v => element.assignees.includes(v));
         }
     },
-    urgency: { 
-        icon: 'ph-warning', 
+    urgency: {
+        icon: 'ph-warning',
         label: 'Urgency',
         filter: (element, values) => {
             if (!values || values.length === 0) return true;
             return values.includes(element.urgency);
         }
     },
-    dateRange: { 
-        icon: 'ph-calendar', 
+    dateRange: {
+        icon: 'ph-calendar',
         label: 'Date Range',
         filter: (element, value) => {
             if (!value || (!value.from && !value.to)) return true;
@@ -124,25 +124,207 @@ class List {
         this.activeFilters = {};
         this.activeFilterChips = {};
         this.currentGroupBy = options.groupBy?.default || 'none';
-        
+
         // Callbacks
         this.onCreate = options.onCreate || null;
         this.onCreateLabel = options.onCreateLabel || 'Add';
-        
+
         // Create wrapper structure
         this.wrapper = document.createElement('div');
         this.wrapper.className = 'list-wrapper';
         this.container.parentNode.insertBefore(this.wrapper, this.container);
-        
+
         // Create filter bar if filters or groupBy are configured
         if (options.filters || options.groupBy) {
             this.filterBar = this.createFilterBar(options.filters || {});
             this.wrapper.appendChild(this.filterBar);
         }
-        
+
         this.wrapper.appendChild(this.container);
+
+        // Selection state
+        this.selectedIndex = -1;
+        this.renderedItems = []; // Array of { element, domNode }
+
+        // Action callback
+        this.onUpdate = options.onUpdate || (() => { });
+
+        this.initShortcuts();
     }
-    
+
+    initShortcuts() {
+        if (!window.shortcuts) return;
+
+        // Only trigger shortcuts if mouse is hovering over the list area
+        const target = () => {
+            if (!this.wrapper || !this.wrapper.matches(':hover')) {
+                return null;
+            }
+
+            // Find the currently selected item
+            let children = this.wrapper.querySelectorAll('.list-element');
+            for (let i = 0; i < children.length; i++) {
+                if (children[i].matches(':hover')) {
+                    return children[i];
+                }
+            }
+
+            return null;
+        };
+
+        window.shortcuts.register('j', (target, e) => this.moveSelection(1), 'Next Item', false, target);
+        window.shortcuts.register('k', (target, e) => this.moveSelection(-1), 'Previous Item', false, target);
+        window.shortcuts.register('Enter', (target, e) => this.openSelectedItem(), 'Open Item', false, target);
+
+        // Actions
+        window.shortcuts.register('s', (target, e) => this.triggerQuickAction('status', target), 'Change Status', false, target);
+        window.shortcuts.register('p', (target, e) => this.triggerQuickAction('priority', target), 'Change Priority', false, target);
+        window.shortcuts.register('a', (target, e) => this.triggerQuickAction('assignees', target), 'Change Assignees', false, target);
+        window.shortcuts.register('l', (target, e) => this.triggerQuickAction('labels', target), 'Change Labels', false, target);
+    }
+
+    moveSelection(direction) {
+        if (this.renderedItems.length === 0) return;
+
+        const oldIndex = this.selectedIndex;
+        let newIndex = this.selectedIndex + direction;
+
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= this.renderedItems.length) newIndex = this.renderedItems.length - 1;
+
+        if (oldIndex !== newIndex) {
+            this.setSelection(newIndex);
+        }
+    }
+
+    setSelection(index) {
+        if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]) {
+            this.renderedItems[this.selectedIndex].domNode.classList.remove('selected');
+        }
+
+        this.selectedIndex = index;
+
+        if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]) {
+            const node = this.renderedItems[this.selectedIndex].domNode;
+            node.classList.add('selected');
+            node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    openSelectedItem() {
+        if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]) {
+            const item = this.renderedItems[this.selectedIndex].element;
+            if (item.onClick) {
+                item.onClick(item);
+            }
+        }
+    }
+
+    triggerQuickAction(action, target) {
+        console.log(this.selectedIndex);
+        this.selectedIndex = this.renderedItems.findIndex(item => item.domNode === target);
+        this.setSelection(this.selectedIndex);
+
+        if (this.selectedIndex < 0 || !this.renderedItems[this.selectedIndex]) return;
+
+        const item = this.renderedItems[this.selectedIndex].element;
+
+        if (action === 'status') {
+            new ListModal({
+                title: 'Set Status',
+                items: Object.values(StatusConfig).map(s => ({
+                    label: s.label,
+                    value: s.value, // value is sometimes key? No, StatusConfig values work.
+                    icon: s.icon,
+                    colorClass: `status-${s.value}`,
+                    selected: item.status === s.value
+                })),
+                onSelect: (selected) => this.handleUpdate(item, 'status', selected.value)
+            }).show();
+        } else if (action === 'priority') {
+            new ListModal({
+                title: 'Set Priority',
+                items: Object.entries(PriorityConfig).map(([key, conf]) => ({
+                    label: conf.label,
+                    value: key,
+                    icon: conf.icon,
+                    // colorClass? PriorityConfig usually has it? checking ticket.js... yes it does but list.js uses local StatusConfig/PriorityConfig?
+                    // In list.js top imports aren't visible but used.
+                    // Let's assume consistent config usage.
+                    selected: item.urgency === key
+                })),
+                onSelect: (selected) => this.handleUpdate(item, 'priority', selected.value)
+            }).show();
+        } else if (action === 'assignees') {
+            if (typeof window.availableUsers !== 'undefined') {
+                new ListModal({
+                    title: 'Assign Member',
+                    items: window.availableUsers.map(u => ({
+                        label: u.username,
+                        value: u.username,
+                        avatar: `<svg width="16" height="16" data-jdenticon-value="${u.username}"></svg>`,
+                        selected: item.assignees.includes(u.username)
+                    })),
+                    onSelect: (selected) => this.handleUpdate(item, 'assignees', selected.value, true),
+                    closeOnSelect: false
+                }).show();
+            } else {
+                // showToast('Users list not available', 'error');
+            }
+        } else if (action === 'labels') {
+            if (typeof window.availableLabels !== 'undefined') {
+                new ListModal({
+                    title: 'Add Label',
+                    items: window.availableLabels.map(l => ({
+                        label: l.name,
+                        value: l,
+                        color: l.color,
+                        selected: item.labels.some(lbl => lbl.text === l.name)
+                    })),
+                    onSelect: (selected) => this.handleUpdate(item, 'labels', selected.value, true),
+                    closeOnSelect: false
+                }).show();
+            } else {
+                // showToast('Labels list not available', 'error');
+            }
+        }
+    }
+
+    handleUpdate(item, field, value, isToggle = false) {
+        // Optimistic update
+        // We need to call the callback provided in constructor options.
+        // The item in this.elements needs to be updated too to reflect changes in UI.
+
+        if (field === 'status') item.status = value;
+        if (field === 'priority') item.urgency = value;
+        // Arrays are harder (assignees, labels)
+
+        if (field === 'assignees' && isToggle) {
+            const idx = item.assignees.indexOf(value);
+            if (idx > -1) item.assignees.splice(idx, 1);
+            else item.assignees.push(value);
+        }
+
+        // Labels is tricky because of structure {text, color} vs just name
+        if (field === 'labels' && isToggle) {
+            // value is {name, color}
+            const idx = item.labels.findIndex(l => l.text === value.name);
+            if (idx > -1) item.labels.splice(idx, 1);
+            else item.labels.push({ text: value.name, color: value.color });
+        }
+
+        // Apply filters again to ensure view is consistent (e.g. if filtered by status)
+        // But preserve selection!
+        const selectionId = item.id;
+        this.applyFilters();
+
+        // Restore selection
+        const newIndex = this.renderedItems.findIndex(i => i.element.id === selectionId);
+        if (newIndex > -1) this.setSelection(newIndex);
+
+        this.onUpdate(item, field, value, isToggle);
+    }
+
     // Get submenu options for each filter type
     getFilterOptions(filterType) {
         switch (filterType) {
@@ -158,10 +340,10 @@ class List {
                 return this.extractAssignees().map(a => ({ value: a, label: a }));
             case 'urgency':
                 return [
-                    { value: 'urgent', label: 'Urgent', icon: 'ph-warning'},
-                    { value: 'high', label: 'High', icon: 'ph-cell-signal-high'},
-                    { value: 'medium', label: 'Medium', icon: 'ph-cell-signal-medium'},
-                    { value: 'low', label: 'Low', icon: 'ph-cell-signal-low'}
+                    { value: 'urgent', label: 'Urgent', icon: 'ph-warning' },
+                    { value: 'high', label: 'High', icon: 'ph-cell-signal-high' },
+                    { value: 'medium', label: 'Medium', icon: 'ph-cell-signal-medium' },
+                    { value: 'low', label: 'Low', icon: 'ph-cell-signal-low' }
                 ];
             case 'dateRange':
                 return [
@@ -176,12 +358,12 @@ class List {
                 return [];
         }
     }
-    
+
     // Convert date range option to actual date filter
     getDateRangeFromOption(optionValue) {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
+
         switch (optionValue) {
             case 'last7':
                 const last7 = new Date(today);
@@ -211,62 +393,62 @@ class List {
                 return { from: null, to: null };
         }
     }
-    
+
     createFilterBar(filtersConfig) {
         const filterBar = document.createElement('div');
         filterBar.className = 'list-filter-bar';
-        
+
         // Top row: search and add filter button
         const filterOptionsRow = document.createElement('div');
         filterOptionsRow.className = 'list-filter-options';
-        
+
         // Always-visible search bar (if configured)
         if (filtersConfig.search) {
             const searchWrapper = document.createElement('div');
             searchWrapper.className = 'list-search-wrapper';
-            
+
             const searchIcon = document.createElement('i');
             searchIcon.className = 'ph ph-magnifying-glass';
-            
+
             const searchInput = document.createElement('input');
             searchInput.type = 'text';
             searchInput.className = 'list-search-input';
             searchInput.placeholder = filtersConfig.search.placeholder || 'Search...';
-            
+
             searchInput.addEventListener('input', () => {
                 this.activeFilters.search = searchInput.value;
                 this.applyFilters();
             });
-            
+
             searchWrapper.appendChild(searchIcon);
             searchWrapper.appendChild(searchInput);
             filterOptionsRow.appendChild(searchWrapper);
         }
-        
+
         // Add filter dropdown using reusable Dropdown class
         const addFilterWrapper = document.createElement('div');
         addFilterWrapper.className = 'list-add-filter-wrapper';
-        
+
         const addFilterBtn = document.createElement('button');
         addFilterBtn.className = 'list-add-filter-btn';
         addFilterBtn.innerHTML = '<i class="ph ph-funnel"></i> <span>Add filter</span> <i class="ph ph-caret-down"></i>';
-        
+
         addFilterWrapper.appendChild(addFilterBtn);
         filterOptionsRow.appendChild(addFilterWrapper);
-        
+
         // Group by dropdown
         if (this.options.groupBy) {
             const groupByWrapper = document.createElement('div');
             groupByWrapper.className = 'list-group-by-wrapper';
-            
+
             const groupByBtn = document.createElement('button');
             groupByBtn.className = 'list-group-by-btn';
             this.groupByBtn = groupByBtn;
             this.updateGroupByButtonLabel();
-            
+
             groupByWrapper.appendChild(groupByBtn);
             filterOptionsRow.appendChild(groupByWrapper);
-            
+
             // Build group by dropdown items
             const groupByItems = (this.options.groupBy.options || ['none', 'urgency', 'assignees', 'labels']).map(groupType => ({
                 label: GroupTypes[groupType]?.label || groupType,
@@ -275,7 +457,7 @@ class List {
                     this.setGroupBy(groupType);
                 }
             }));
-            
+
             this.groupByDropdown = new Dropdown(groupByBtn, {
                 items: groupByItems,
                 closeOnClick: true
@@ -283,24 +465,24 @@ class List {
         }
 
         if (this.onCreate) {
-        const createButton = document.createElement('button');
-        createButton.className = 'list-create-btn';
+            const createButton = document.createElement('button');
+            createButton.className = 'list-create-btn';
             createButton.innerHTML = `<span> <i class="ph ph-plus"></i> ${this.onCreateLabel || 'Add'} </span>`;
-            
+
             // Wire up onCreate callback
             if (this.onCreate) {
                 createButton.addEventListener('click', () => {
                     this.onCreate();
                 });
             }
-            
+
             filterOptionsRow.appendChild(createButton);
         }
-        
+
         // Bottom row: Active filters container (chips)
         this.activeFiltersContainer = document.createElement('div');
         this.activeFiltersContainer.className = 'list-active-filters';
-        
+
         // Build dropdown items with submenus for each filter type
         const dropdownItems = [];
         Object.keys(filtersConfig).forEach(filterType => {
@@ -321,34 +503,34 @@ class List {
                 });
             }
         });
-        
+
         // Create the dropdown
         this.filterDropdown = new Dropdown(addFilterBtn, {
             items: dropdownItems,
             closeOnClick: true
         });
-        
+
         filterBar.appendChild(filterOptionsRow);
         filterBar.appendChild(this.activeFiltersContainer);
-        
+
         return filterBar;
     }
-    
+
     isOptionSelected(filterType, value) {
         const filter = this.activeFilters[filterType];
         if (!filter) return false;
-        
+
         if (filterType === 'dateRange') {
             return filter.optionValue === value;
         }
-        
+
         if (Array.isArray(filter)) {
             return filter.includes(value);
         }
-        
+
         return filter === value;
     }
-    
+
     toggleFilterOption(filterType, option) {
         if (filterType === 'dateRange') {
             // Date range is single-select
@@ -366,7 +548,7 @@ class List {
             if (!this.activeFilters[filterType]) {
                 this.activeFilters[filterType] = [];
             }
-            
+
             const index = this.activeFilters[filterType].indexOf(option.value);
             if (index > -1) {
                 this.activeFilters[filterType].splice(index, 1);
@@ -377,61 +559,61 @@ class List {
             } else {
                 this.activeFilters[filterType].push(option.value);
             }
-            
+
             this.updateFilterChip(filterType, this.activeFilters[filterType].join(', '));
         }
-        
+
         this.applyFilters();
     }
-    
+
     updateFilterChip(filterType, displayValue) {
         // Remove existing chip if any
         if (this.activeFilterChips[filterType]) {
             this.activeFilterChips[filterType].remove();
         }
-        
+
         const chip = document.createElement('div');
         chip.className = 'list-filter-chip';
         chip.dataset.filterType = filterType;
-        
+
         const icon = document.createElement('i');
         icon.className = `ph ${FilterTypes[filterType].icon}`;
-        
+
         const label = document.createElement('span');
         label.className = 'list-filter-chip-label';
         label.textContent = this.options.filters[filterType]?.label || FilterTypes[filterType].label;
-        
+
         const value = document.createElement('span');
         value.className = 'list-filter-chip-value-text';
         value.textContent = displayValue;
-        
+
         const removeBtn = document.createElement('button');
         removeBtn.className = 'list-filter-chip-remove';
         removeBtn.innerHTML = '<i class="ph ph-x"></i>';
         removeBtn.addEventListener('click', () => {
             this.removeFilter(filterType);
         });
-        
+
         chip.appendChild(icon);
         chip.appendChild(label);
         chip.appendChild(value);
         chip.appendChild(removeBtn);
-        
+
         this.activeFiltersContainer.appendChild(chip);
         this.activeFilterChips[filterType] = chip;
     }
-    
+
     removeFilter(filterType) {
         delete this.activeFilters[filterType];
-        
+
         if (this.activeFilterChips[filterType]) {
             this.activeFilterChips[filterType].remove();
             delete this.activeFilterChips[filterType];
         }
-        
+
         this.applyFilters();
     }
-    
+
     extractLabels() {
         const labelsMap = new Map();
         this.elements.forEach(el => {
@@ -445,7 +627,7 @@ class List {
         });
         return Array.from(labelsMap.values());
     }
-    
+
     extractAssignees() {
         const assignees = new Set();
         this.elements.forEach(el => {
@@ -455,7 +637,7 @@ class List {
         });
         return Array.from(assignees).sort();
     }
-    
+
     // Grouping methods
     updateGroupByButtonLabel() {
         if (this.groupByBtn) {
@@ -464,21 +646,21 @@ class List {
             this.groupByBtn.innerHTML = `<i class="ph ${groupType?.icon || 'ph-list'}"></i> <span>Group: ${label}</span> <i class="ph ph-caret-down"></i>`;
         }
     }
-    
+
     setGroupBy(groupType) {
         this.currentGroupBy = groupType;
         this.updateGroupByButtonLabel();
         this.render();
     }
-    
+
     groupElements(elements) {
         if (this.currentGroupBy === 'none' || !GroupTypes[this.currentGroupBy]) {
             return null;
         }
-        
+
         const groupType = GroupTypes[this.currentGroupBy];
         const groups = new Map();
-        
+
         elements.forEach(element => {
             const key = groupType.getGroupKey(element);
             if (!groups.has(key)) {
@@ -486,7 +668,7 @@ class List {
             }
             groups.get(key).push(element);
         });
-        
+
         // Sort groups if order is defined
         let sortedKeys;
         if (groupType.order) {
@@ -501,17 +683,17 @@ class List {
         } else {
             sortedKeys = [...groups.keys()].sort();
         }
-        
+
         return sortedKeys.map(key => ({
             key,
             label: groupType.getGroupLabel(key),
             elements: groups.get(key)
         }));
     }
-    
+
     clearAllFilters() {
         this.activeFilters = {};
-        
+
         // Remove all chips
         Object.keys(this.activeFilterChips).forEach(filterType => {
             if (this.activeFilterChips[filterType]) {
@@ -519,10 +701,10 @@ class List {
             }
         });
         this.activeFilterChips = {};
-        
+
         this.applyFilters();
     }
-    
+
     applyFilters() {
         this.filteredElements = this.elements.filter(element => {
             return Object.keys(this.activeFilters).every(filterType => {
@@ -532,7 +714,7 @@ class List {
                 return true;
             });
         });
-        
+
         this.render();
     }
 
@@ -540,7 +722,7 @@ class List {
         this.elements.push(element);
         this.applyFilters();
     }
-    
+
     addAll(elements) {
         this.elements.push(...elements);
         this.applyFilters();
@@ -548,11 +730,12 @@ class List {
 
     render() {
         this.container.innerHTML = '';
-        
-        const elementsToRender = this.filteredElements.length > 0 || Object.keys(this.activeFilters).length > 0 
-            ? this.filteredElements 
+        this.renderedItems = []; // Reset rendered items map
+
+        const elementsToRender = this.filteredElements.length > 0 || Object.keys(this.activeFilters).length > 0
+            ? this.filteredElements
             : this.elements;
-        
+
         if (elementsToRender.length === 0 && this.elements.length > 0) {
             const noResults = document.createElement('div');
             noResults.className = 'list-no-results';
@@ -560,23 +743,23 @@ class List {
             this.container.appendChild(noResults);
             return;
         }
-        
+
         // Check if we should group the elements
         const groups = this.groupElements(elementsToRender);
-        
+
         if (groups) {
             // Render grouped elements
             groups.forEach(group => {
                 const groupContainer = document.createElement('div');
                 groupContainer.className = 'list-group';
-                
+
                 const groupHeader = document.createElement('div');
                 groupHeader.className = 'list-group-header';
                 groupHeader.innerHTML = `
                     <span class="list-group-label">${group.label}</span>
                     <span class="list-group-count">${group.elements.length}</span>
                 `;
-                
+
                 groupContainer.appendChild(groupHeader);
 
                 const toggle = document.createElement('span');
@@ -584,19 +767,19 @@ class List {
                 toggle.innerHTML = '<i class="ph ph-caret-down"></i>';
                 groupHeader.addEventListener('click', () => {
                     groupContent.classList.toggle('collapsed');
-                    toggle.innerHTML = groupContent.classList.contains('collapsed') 
-                        ? '<i class="ph ph-caret-right"></i>' 
+                    toggle.innerHTML = groupContent.classList.contains('collapsed')
+                        ? '<i class="ph ph-caret-right"></i>'
                         : '<i class="ph ph-caret-down"></i>';
                 });
                 groupHeader.appendChild(toggle);
-                
+
                 const groupContent = document.createElement('div');
                 groupContent.className = 'list-group-content';
-                
+
                 group.elements.forEach(element => {
                     groupContent.appendChild(this.renderElement(element));
                 });
-                
+
                 groupContainer.appendChild(groupContent);
                 this.container.appendChild(groupContainer);
             });
@@ -607,11 +790,11 @@ class List {
             });
         }
     }
-    
+
     renderElement(element) {
         const inner = document.createElement('div');
         inner.className = 'list-element-inner';
-    
+
         if (element.createdAt) {
             var date = new Date(element.createdAt * 1000);
             var dateString = date.toLocaleDateString();
@@ -625,7 +808,7 @@ class List {
 
         // Get status config if available
         const statusConfig = element.status ? StatusConfig[element.status] : null;
-        const statusHtml = statusConfig 
+        const statusHtml = statusConfig
             ? `<span class="list-status" style="--status-color: ${statusConfig.color}" title="${statusConfig.label}">
                 <i class="ph ${statusConfig.icon}"></i>
                </span>`
@@ -649,7 +832,7 @@ class List {
                 ${dateString}
             </span>
         `;
-        
+
         const elDiv = document.createElement('div');
         elDiv.className = 'list-element';
         elDiv.appendChild(inner);
@@ -659,6 +842,12 @@ class List {
                 element.onClick(element);
             }
         });
+
+        // Track rendered item for selection
+        this.renderedItems.push({ element, domNode: elDiv });
+
+        // Restore selection if needed (by index matched during loop, or wait for setSelection)
+        // Actually better to handle selection after full render because indices change.
 
         return elDiv;
     }

@@ -7,6 +7,30 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lists.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
+
+    <script>
+    window.availableUsers = [
+        {% for available_user in available_users %} 
+        {
+            id: '{{ available_user.username }}',
+            username: '{{ available_user.username }}',
+        },
+        {% endfor %}
+    ];
+
+    window.availableLabels = [
+        {% for available_label in available_labels %} 
+        {
+            id: '{{ available_label.name }}',
+            name: '{{ available_label.name }}',
+            color: '{{ available_label.color }}'
+        },
+        {% endfor %}
+    ];
+
+    </script>
+
+
 {% endblock %}
 
 {% block content %}
@@ -40,7 +64,6 @@
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
     
     <script>
@@ -52,6 +75,26 @@
                 name: '{{ proj.name }}',
                 icon: '{{ proj.icon }}',
                 color: '{{ proj.color }}'
+            },
+            {% endfor %}
+        ];
+
+        // Available options for dropdowns (globals for List/Shortcuts to use)
+        window.availableUsers = [
+            {% for available_user in available_users %} 
+            {
+                id: '{{ available_user.username }}',
+                username: '{{ available_user.username }}',
+            },
+            {% endfor %}
+        ];
+        
+        window.availableLabels = [
+            {% for available_label in available_labels %}
+            {
+                id: '{{ available_label.name }}',
+                name: '{{ available_label.name }}',
+                color: '{{ available_label.color }}'
             },
             {% endfor %}
         ];
@@ -171,6 +214,42 @@
                 },
                 onCreate: () => {
                     showCreateTicketModal();
+                },
+                onUpdate: async (item, field, value, isToggle) => {
+                     let backendField = field;
+                     let backendValue = value;
+                     
+                     if (field === 'priority') backendField = 'priority';
+
+                     if (field === 'assignees') {
+                         backendField = 'assignees';
+                         // Map strings back to objects
+                         backendValue = item.assignees.map(u => {
+                             const user = window.availableUsers.find(au => au.username === u);
+                             return user ? { username: user.username, id: user.id } : { username: u };
+                         });
+                     }
+                     
+                     if (field === 'labels') {
+                         backendValue = item.labels.map(l => ({ name: l.text, color: l.color }));
+                     }
+
+                     try {
+                        const response = await fetch(`/api/tickets/${item.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ field: backendField, value: backendValue })
+                        });
+                        
+                        if (!response.ok) {
+                            showToast('Failed to save changes', 'error');
+                        } else {
+                            showToast('Updated ' + field, 'success');
+                        }
+                    } catch (error) {
+                        console.error('Save error:', error);
+                        showToast('Error saving changes', 'error');
+                    }
                 }
             });
 
