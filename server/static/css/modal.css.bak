@@ -178,25 +178,13 @@
 
 /* Animations */
 @keyframes modalFadeIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 @keyframes modalScaleIn {
-    from {
-        transform: scale(0.95);
-        opacity: 0;
-    }
-
-    to {
-        transform: scale(1);
-        opacity: 1;
-    }
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
 /* Loading state */
@@ -214,38 +202,6 @@
 }
 
 @keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.list-modal-item {
-    cursor: pointer;
-    border-bottom: 1px solid #e5e7eb;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    position: relative;
-}
-
-.list-modal-item:hover {}
-
-.list-modal-item:last-child {
-    border-bottom: none;
-}
-
-
-.list-modal-item *:last-child {
-    margin-left: auto;
-}
-
-.list-modal-item-icon {
-    font-size: 1.25rem;
-    color: #6b7280;
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }

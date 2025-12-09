@@ -5,3 +5,4 @@ peewee
 sentry_sdk
 gunicorn
 python-dotenv
+requests

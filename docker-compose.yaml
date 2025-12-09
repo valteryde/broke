@@ -1,8 +1,7 @@
 # docker-compose.yml
-name: broke
-
 services:
   broke-server:
+    restart: always
     build: .
     ports:
       - "127.0.0.1:8080:8080"

@@ -39,28 +39,32 @@ class TicketEditor {
         this.currentUser = options.currentUser;
         this.activity = options.activity || [];
         this.activityFilter = 'all'; // 'all', 'comments', 'updates'
-        
+
         // Callbacks
-        this.onSave = options.onSave || (() => {});
-        this.onComment = options.onComment || (() => {});
-        this.onDeleteComment = options.onDeleteComment || (() => {});
-        this.onEditComment = options.onEditComment || (() => {});
-        
+        this.onSave = options.onSave || (() => { });
+        this.onComment = options.onComment || (() => { });
+        this.onDeleteComment = options.onDeleteComment || (() => { });
+        this.onEditComment = options.onEditComment || (() => { });
+
         // Quill instances
         this.descriptionEditor = null;
         this.commentEditor = null;
-        
+
         // Save debounce timer
         this.saveTimer = null;
-        
+
+        // Dropdown instances
+        this.dropdowns = {};
+
         this.init();
     }
-    
+
     init() {
         this.render();
         this.initQuillEditors();
         this.initPropertyDropdowns();
         this.initEventListeners();
+        this.initShortcuts();
     }
 
     renderAvatarIconJdenticon() {
@@ -87,7 +91,7 @@ class TicketEditor {
         `;
     }
 
-    
+
     render() {
         this.container.innerHTML = `
             <div class="ticket-page">
@@ -105,7 +109,7 @@ class TicketEditor {
         `;
         this.renderAvatarIconJdenticon();
     }
-    
+
     renderHeader() {
         return `
             <div class="ticket-header">
@@ -119,7 +123,7 @@ class TicketEditor {
             </div>
         `;
     }
-    
+
     renderDescription() {
         return `
             <div class="ticket-description">
@@ -134,11 +138,11 @@ class TicketEditor {
             </div>
         `;
     }
-    
+
     renderProperties() {
         const status = StatusList.find(s => s.value === this.ticket.status) || StatusList[0];
         const priority = PriorityList.find(p => p.value === this.ticket.priority) || PriorityList[4];
-        
+
         return `
             <div class="ticket-properties">
                 <!-- Status -->
@@ -199,7 +203,7 @@ class TicketEditor {
             </div>
         `;
     }
-    
+
     renderAssigneesValue() {
         if (!this.ticket.assignees || this.ticket.assignees.length === 0) {
             return '<span style="color: #999;">No assignees</span>';
@@ -211,7 +215,7 @@ class TicketEditor {
             </span> <br>
         `).join('');
     }
-    
+
     renderLabelsValue() {
         if (!this.ticket.labels || this.ticket.labels.length === 0) {
             return '<span style="color: #999;">No labels</span>';
@@ -223,7 +227,7 @@ class TicketEditor {
             </span><br>
         `).join('');
     }
-    
+
     renderActivity() {
         return `
             <div class="ticket-activity">
@@ -247,7 +251,7 @@ class TicketEditor {
             </div>
         `;
     }
-    
+
     renderActivityItems() {
         const filtered = this.activity.filter(item => {
             if (this.activityFilter === 'all') return true;
@@ -259,7 +263,7 @@ class TicketEditor {
         // sort by createdAt ascending
         filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-        
+
         if (filtered.length === 0) {
             return '<div style="color: #999; font-size: 0.9rem; padding: 20px 0;">No activity yet.</div>';
         }
@@ -276,10 +280,10 @@ class TicketEditor {
 
         return res;
     }
-    
+
     renderComment(comment) {
         const isOwn = comment.author.username === this.currentUser.username;
-        
+
         return `
             <div class="ticket-activity-item" data-comment-id="${comment.id}">
                 <div class="ticket-activity-avatar">
@@ -309,7 +313,7 @@ class TicketEditor {
             </div>
         `;
     }
-    
+
     renderUpdate(update) {
         return `
             <div class="ticket-activity-item">
@@ -328,7 +332,7 @@ class TicketEditor {
             </div>
         `;
     }
-    
+
     renderNewComment() {
         return `
             <div class="ticket-new-comment">
@@ -352,7 +356,7 @@ class TicketEditor {
             </div>
         `;
     }
-    
+
     initQuillEditors() {
         // Description editor (invisible, no toolbar)
         this.descriptionEditor = new Quill('#ticket-description-editor', {
@@ -367,18 +371,18 @@ class TicketEditor {
                 }
             }
         });
-        
+
         // Set initial content
         if (this.ticket.description) {
             this.descriptionEditor.root.innerHTML = this.ticket.description;
         }
-        
+
         // Autosave on change
         this.descriptionEditor.on('text-change', () => {
             this.showSaveIndicator('saving');
             this.debounceSave('description', this.descriptionEditor.root.innerHTML);
         });
-        
+
         // Comment editor (invisible, no toolbar)
         this.commentEditor = new Quill('#ticket-comment-editor', {
             theme: 'snow',
@@ -387,7 +391,7 @@ class TicketEditor {
                 toolbar: false
             }
         });
-        
+
         // Ctrl+Enter to submit comment
         this.commentEditor.keyboard.addBinding({
             key: 'Enter',
@@ -395,7 +399,7 @@ class TicketEditor {
         }, () => {
             this.submitComment();
         });
-        
+
         // Also support Cmd+Enter on Mac
         this.commentEditor.keyboard.addBinding({
             key: 'Enter',
@@ -404,12 +408,12 @@ class TicketEditor {
             this.submitComment();
         });
     }
-    
+
     initPropertyDropdowns() {
         // Status dropdown
         const statusBtn = this.container.querySelector('[data-property="status"]');
         if (statusBtn) {
-            new Dropdown(statusBtn, {
+            this.dropdowns.status = new Dropdown(statusBtn, {
                 items: StatusList.map(s => ({
                     label: s.label,
                     icon: s.icon,
@@ -420,11 +424,11 @@ class TicketEditor {
                 closeOnClick: true
             });
         }
-        
+
         // Priority dropdown
         const priorityBtn = this.container.querySelector('[data-property="priority"]');
         if (priorityBtn) {
-            new Dropdown(priorityBtn, {
+            this.dropdowns.priority = new Dropdown(priorityBtn, {
                 items: PriorityList.map(p => ({
                     label: p.label,
                     icon: p.icon,
@@ -435,11 +439,11 @@ class TicketEditor {
                 closeOnClick: true
             });
         }
-        
+
         // Assignees dropdown (would need available users from options)
         const assigneesBtn = this.container.querySelector('[data-property="assignees"]');
         if (assigneesBtn && this.options.availableUsers) {
-            new Dropdown(assigneesBtn, {
+            this.dropdowns.assignees = new Dropdown(assigneesBtn, {
                 items: this.options.availableUsers.map(u => ({
                     label: u.username,
                     avatar: '<svg width="16" height="16" data-jdenticon-value="' + this.escapeHtml(u.username) + '"></svg>',
@@ -449,11 +453,11 @@ class TicketEditor {
                 closeOnClick: false // Multi-select
             });
         }
-        
+
         // Labels dropdown (would need available labels from options)
         const labelsBtn = this.container.querySelector('[data-property="labels"]');
         if (labelsBtn && this.options.availableLabels) {
-            new Dropdown(labelsBtn, {
+            this.dropdowns.labels = new Dropdown(labelsBtn, {
                 items: this.options.availableLabels.map(l => ({
                     label: l.name,
                     icon: 'ph-fill ph-circle',
@@ -464,11 +468,11 @@ class TicketEditor {
                 closeOnClick: false // Multi-select
             });
         }
-        
+
         // Due date dropdown
         const dueDateBtn = this.container.querySelector('[data-property="dueDate"]');
         if (dueDateBtn) {
-            new Dropdown(dueDateBtn, {
+            this.dropdowns.dueDate = new Dropdown(dueDateBtn, {
                 items: [
                     { label: 'No due date', icon: 'ph-x', onClick: () => this.updateProperty('dueDate', null) },
                     { divider: true },
@@ -483,7 +487,7 @@ class TicketEditor {
             });
         }
     }
-    
+
     initEventListeners() {
         // Title input
         const titleInput = this.container.querySelector('.ticket-title');
@@ -491,13 +495,13 @@ class TicketEditor {
             titleInput.addEventListener('input', () => {
                 this.debounceSave('title', titleInput.value);
             });
-            
+
             titleInput.addEventListener('blur', () => {
                 this.ticket.title = titleInput.value;
                 this.onSave('title', titleInput.value);
             });
         }
-        
+
         // Activity filter tabs
         this.container.querySelectorAll('.ticket-activity-tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -505,13 +509,13 @@ class TicketEditor {
                 this.refreshActivityList();
             });
         });
-        
+
         // Submit comment button
         const submitBtn = this.container.querySelector('#submit-comment');
         if (submitBtn) {
             submitBtn.addEventListener('click', () => this.submitComment());
         }
-        
+
         // Comment actions (edit/delete)
         this.container.addEventListener('click', (e) => {
             const actionBtn = e.target.closest('.ticket-comment-action');
@@ -519,7 +523,7 @@ class TicketEditor {
                 const commentEl = actionBtn.closest('[data-comment-id]');
                 const commentId = commentEl?.dataset.commentId;
                 const action = actionBtn.dataset.action;
-                
+
                 if (action === 'delete' && commentId) {
                     this.deleteComment(commentId);
                 } else if (action === 'edit' && commentId) {
@@ -527,7 +531,7 @@ class TicketEditor {
                 }
             }
         });
-        
+
         // Copy ticket ID
         const ticketIdEl = this.container.querySelector('.ticket-id');
         if (ticketIdEl) {
@@ -537,7 +541,108 @@ class TicketEditor {
             });
         }
     }
-    
+
+    initShortcuts() {
+        if (!window.shortcuts) return;
+        window.shortcuts.init();
+
+        // Only trigger shortcuts if not editing content
+        const target = () => {
+            const isDescriptionFocused = this.descriptionEditor && this.descriptionEditor.hasFocus();
+            const isCommentFocused = this.commentEditor && this.commentEditor.hasFocus();
+            // Also check title input manually since shortcuts.js handles generic inputs but strict check is better
+            const isTitleFocused = document.activeElement && document.activeElement.classList.contains('ticket-title');
+
+            if (isDescriptionFocused || isCommentFocused || isTitleFocused) {
+                return false;
+            }
+
+            // Allow shortcuts to trigger
+            return true;
+
+        };
+
+        window.shortcuts.register('s', () => {
+            const modal = new ListModal({
+                title: 'Set Status',
+                items: StatusList.map(s => ({
+                    label: s.label,
+                    value: s.value,
+                    icon: s.icon,
+                    colorClass: s.colorClass,
+                    selected: this.ticket.status === s.value,
+                })),
+                onSelect: (item) => this.updateProperty('status', item.value)
+            })
+            modal.show();
+            console.log(modal);
+
+        }, 'Change Status', false, target);
+
+        window.shortcuts.register('p', () => {
+            new ListModal({
+                title: 'Set Priority',
+                items: PriorityList.map(p => ({
+                    label: p.label,
+                    value: p.value,
+                    icon: p.icon,
+                    colorClass: p.colorClass,
+                    selected: this.ticket.priority === p.value
+                })),
+                onSelect: (item) => this.updateProperty('priority', item.value)
+            }).show();
+        }, 'Change Priority', false, target);
+
+        window.shortcuts.register('a', () => {
+            if (!this.options.availableUsers) return;
+            new ListModal({
+                title: 'Assign Member',
+                items: this.options.availableUsers.map(u => ({
+                    label: u.username,
+                    value: u,
+                    avatar: `<svg width="16" height="16" data-jdenticon-value="${this.escapeHtml(u.username)}"></svg>`,
+                    selected: this.ticket.assignees?.some(a => a.id === u.id)
+                })),
+                onSelect: (item) => this.toggleAssignee(item.value),
+                closeOnSelect: false
+            }).show();
+        }, 'Change Assignees', false, target);
+
+        window.shortcuts.register('l', () => {
+            if (!this.options.availableLabels) return;
+            new ListModal({
+                title: 'Add Label',
+                items: this.options.availableLabels.map(l => ({
+                    label: l.name,
+                    value: l,
+                    color: l.color,
+                    selected: this.ticket.labels?.some(label => label.name === l.name)
+                })),
+                onSelect: (item) => this.toggleLabel(item.value),
+                closeOnSelect: false
+            }).show();
+        }, 'Change Labels', false, target);
+
+        window.shortcuts.register('d', () => {
+            new ListModal({
+                title: 'Set Due Date',
+                items: [
+                    { label: 'No due date', value: null, icon: 'ph-x' },
+                    { label: 'Today', value: 0, icon: 'ph-calendar-blank' },
+                    { label: 'Tomorrow', value: 1, icon: 'ph-calendar-blank' },
+                    { label: 'In 3 days', value: 3, icon: 'ph-calendar-blank' },
+                    { label: 'In 1 week', value: 7, icon: 'ph-calendar-blank' },
+                    { label: 'In 2 weeks', value: 14, icon: 'ph-calendar-blank' },
+                    { label: 'In 1 month', value: 30, icon: 'ph-calendar-blank' }
+                ],
+                onSelect: (item) => {
+                    if (item.value === null) this.updateProperty('dueDate', null);
+                    else this.setDueDate(item.value);
+                }
+            }).show();
+        }, 'Change Due Date', false, target);
+    }
+
     // Property updates
     updateProperty(field, value) {
         const oldValue = this.ticket[field];
@@ -545,11 +650,11 @@ class TicketEditor {
         this.onSave(field, value, oldValue);
         this.refreshProperty(field);
     }
-    
+
     refreshProperty(field) {
         const btn = this.container.querySelector(`[data-property="${field}"]`);
         if (!btn) return;
-        
+
         if (field === 'status') {
             const status = StatusList.find(s => s.value === this.ticket.status) || StatusList[0];
             btn.innerHTML = `
@@ -584,51 +689,51 @@ class TicketEditor {
             `;
         }
     }
-    
+
     toggleAssignee(user) {
         if (!this.ticket.assignees) this.ticket.assignees = [];
-        
+
         const index = this.ticket.assignees.findIndex(a => a.id === user.id);
         if (index > -1) {
             this.ticket.assignees.splice(index, 1);
         } else {
             this.ticket.assignees.push(user);
         }
-        
+
         this.onSave('assignees', this.ticket.assignees);
         this.refreshProperty('assignees');
         this.renderAvatarIconJdenticon();
     }
-    
+
     toggleLabel(label) {
         if (!this.ticket.labels) this.ticket.labels = [];
-        
+
         const index = this.ticket.labels.findIndex(l => l.name === label.name);
         if (index > -1) {
             this.ticket.labels.splice(index, 1);
         } else {
             this.ticket.labels.push(label);
         }
-        
+
         console.log(this.ticket.labels);
         this.onSave('labels', this.ticket.labels);
         this.refreshProperty('labels');
     }
-    
+
     setDueDate(daysFromNow) {
         const date = new Date();
         date.setDate(date.getDate() + daysFromNow);
         const dateStr = date.toISOString().split('T')[0];
         this.updateProperty('dueDate', dateStr);
     }
-    
+
     // Comments
     submitComment() {
         const content = this.commentEditor.root.innerHTML;
         const text = this.commentEditor.getText().trim();
-        
+
         if (!text) return;
-        
+
         // Create comment object
         const comment = {
             type: 'comment',
@@ -637,18 +742,18 @@ class TicketEditor {
             content: content,
             createdAt: new Date().toISOString()
         };
-        
+
         // Add to activity
         this.activity.push(comment);
         this.refreshActivityList();
-        
+
         // Clear editor
         this.commentEditor.setText('');
-        
+
         // Callback
         this.onComment(content, comment);
     }
-    
+
     deleteComment(commentId) {
         const index = this.activity.findIndex(item => item.id === commentId);
         if (index > -1) {
@@ -657,7 +762,7 @@ class TicketEditor {
             this.onDeleteComment(commentId);
         }
     }
-    
+
     editComment(commentId) {
         // For now, just log - could implement inline editing
         const comment = this.activity.find(item => item.id === commentId);
@@ -665,13 +770,13 @@ class TicketEditor {
             this.onEditComment(commentId, comment.content);
         }
     }
-    
+
     refreshActivityList() {
         // Update tabs
         this.container.querySelectorAll('.ticket-activity-tab').forEach(tab => {
             tab.classList.toggle('active', tab.dataset.filter === this.activityFilter);
         });
-        
+
         // Update list
         const list = this.container.querySelector('.ticket-activity-list');
         if (list) {
@@ -680,13 +785,13 @@ class TicketEditor {
 
         this.renderAvatarIconJdenticon();
     }
-    
+
     // Add activity (for external use)
     addActivity(item) {
         this.activity.push(item);
         this.refreshActivityList();
     }
-    
+
     // Save helpers
     debounceSave(field, value) {
         clearTimeout(this.saveTimer);
@@ -696,14 +801,14 @@ class TicketEditor {
             this.showSaveIndicator('saved');
         }, 500);
     }
-    
+
     showSaveIndicator(state) {
         const indicator = this.container.querySelector('.ticket-save-indicator');
         if (!indicator) return;
-        
+
         indicator.classList.remove('saving', 'saved');
         indicator.classList.add('show', state);
-        
+
         if (state === 'saving') {
             indicator.innerHTML = '<i class="ph ph-circle-notch"></i> Saving...';
         } else if (state === 'saved') {
@@ -713,19 +818,19 @@ class TicketEditor {
             }, 2000);
         }
     }
-    
+
     // Utility methods
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
-    
+
     getInitials(name) {
         if (!name) return '?';
         return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     }
-    
+
     formatRelativeTime(dateStr) {
         const date = new Date(dateStr);
         const now = new Date();
@@ -733,48 +838,48 @@ class TicketEditor {
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMins / 60);
         const diffDays = Math.floor(diffHours / 24);
-        
+
         if (diffMins < 1) return 'just now';
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         if (diffDays < 7) return `${diffDays}d ago`;
-        
+
         return date.toLocaleDateString();
     }
-    
+
     formatDueDate() {
         if (!this.ticket.dueDate) return 'No due date';
-        
+
         const date = new Date(this.ticket.dueDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        
+
         if (date.toDateString() === today.toDateString()) {
             return 'Today';
         } else if (date.toDateString() === tomorrow.toDateString()) {
             return 'Tomorrow';
         }
-        
+
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
-    
+
     getDueDateClass() {
         if (!this.ticket.dueDate) return '';
-        
+
         const date = new Date(this.ticket.dueDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         const diffDays = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
-        
+
         if (diffDays < 0) return 'overdue';
         if (diffDays <= 2) return 'soon';
         return '';
     }
-    
+
     formatFieldName(field) {
         const names = {
             status: 'status',
@@ -787,7 +892,7 @@ class TicketEditor {
         };
         return names[field] || field;
     }
-    
+
     formatFieldValue(field, value) {
         if (field === 'status') {
             const status = StatusList.find(s => s.value === value);

@@ -35,10 +35,34 @@ def populateTickets(tickets: list[Ticket]) -> None:
         ticket.assignees = [User.get_or_none(User.username == utj.user) for utj in UserTicketJoin.select().where(UserTicketJoin.ticket == ticket.id)] # type: ignore
 
 
+def getArgsUrl(exclude: list[str] = []) -> str:
+    """
+    Constructs a URL query string from the current request arguments,
+    excluding specified keys.
+
+    Parameters:
+        exclude (list): List of argument keys to exclude.
+    
+    Returns:
+        str: Constructed query string.
+    """
+    args = request.args
+    arg_list = []
+    for key in args:
+        if key not in exclude:
+            values = args.getlist(key)
+            for value in values:
+                arg_list.append(f"{key}={value}")
+    return '&'.join(arg_list)
+
+
 @secureroute('/tickets')
 def tickets_view(user: User):
     tickets = list(Ticket.select())
     populateTickets(tickets)
+
+    available_users = User.select().order_by(User.username)
+    available_labels = Label.select().order_by(Label.name)
 
     return render_template('tickets.jinja2', 
         user=user,
@@ -46,7 +70,10 @@ def tickets_view(user: User):
         tickets = tickets,
         project = None,
         projects = Project.select().distinct().order_by(Project.name),
-        group = request.args.get('group')
+        group = request.args.get('group'),
+        available_users = available_users,
+        available_labels = available_labels,
+        args_url = getArgsUrl()
     )
 
 @secureroute('/tickets/<project_id>')
@@ -55,13 +82,19 @@ def project_tickets_view(user: User, project_id: str):
     tickets = list(Ticket.select().where(Ticket.project == project_id))
     populateTickets(tickets)
 
+    available_users = User.select().order_by(User.username)
+    available_labels = Label.select().order_by(Label.name)
+
     return render_template('tickets.jinja2', 
         user=user,
         project = project,
         tickets = tickets,
         page = 'tickets',
         projects = Project.select().distinct().order_by(Project.name),
-        group = request.args.get('group')
+        group = request.args.get('group'),
+        available_users = available_users,
+        available_labels = available_labels,
+        args_url = getArgsUrl()
     )
 
 @secureroute('/tickets/<project_id>/<ticket_id>')

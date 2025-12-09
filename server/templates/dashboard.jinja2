@@ -48,7 +48,7 @@
 
         <div class="sb-body">
             
-            <div class="sb-element {% if page == 'news' %}active{% endif %}" onclick="window.location.href = '/news'">
+            <div class="sb-element {% if page == 'news' %}active{% endif %}" onclick="openUrlWithArgs('/news')">
                 <i class="ph ph-bird"></i>
                 <span>News</span>
             </div>
@@ -58,12 +58,12 @@
                 <span>Home</span>
             </div> #}
 
-            <div class="sb-element {% if page == 'tickets' %}active{% endif %}" onclick="window.location.href = '/tickets?group=status'">
+            <div class="sb-element {% if page == 'tickets' %}active{% endif %}" onclick="openUrlWithArgs('/tickets?group=status')">
                 <i class="ph ph-ticket"></i>
                 <span>Tickets</span>
             </div>
 
-            <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="window.location.href = '/errors'">
+            <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="openUrlWithArgs('/errors')">
                 <i class="ph ph-bug-beetle"></i>
                 <span>Errors</span>
             </div>
@@ -113,6 +113,7 @@
         {% endblock %}
     </div>
 
+    <script src="{{ url_for('static', filename='js/shortcuts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/master.js') }}"></script>
     
     {% block scripts %}

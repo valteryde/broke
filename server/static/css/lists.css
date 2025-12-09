@@ -421,6 +421,7 @@
     border-radius:4px;
     padding:5px;
     border: solid 1px transparent;
+    min-height:4.5rem;
 }
 
 .list-element:hover{
@@ -509,10 +510,20 @@
 }
 
 .list-assignees {
+    position: absolute;
+    top:0;
     margin-left: auto;
     display: flex;
+    flex-direction: row;
+    right:0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: center;
-    gap: 5px;
+    gap: 2px;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .list-assignee {

@@ -20,10 +20,20 @@ class Modal {
     constructor(options = {}) {
         this.title = options.title || '';
         this.content = options.content || '';
-        this.onClose = options.onClose || (() => {});
-        this.onOpen = options.onOpen || (() => {});
-        this.closeOnOverlay = options.closeOnOverlay !== false;
-        this.closeOnEscape = options.closeOnEscape !== false;
+        this.onClose = options.onClose || (() => { });
+        this.onOpen = options.onOpen || (() => { });
+        this.closeOnOverlay = options.closeOnOverlay;
+
+        if (this.closeOnOverlay === undefined) {
+            this.closeOnOverlay = true;
+        }
+
+        this.closeOnEscape = options.closeOnEscape;
+
+        if (this.closeOnEscape === undefined) {
+            this.closeOnEscape = true;
+        }
+
         this.element = null;
         this.escapeHandler = null;
     }

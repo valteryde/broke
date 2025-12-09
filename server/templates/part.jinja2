@@ -8,9 +8,9 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/errors"><i class="ph ph-bug-beetle"></i> Errors</a> 
+    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a> 
     <i class="ph ph-caret-right"></i> 
-    <a href="/errors/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+    <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
     <i class="ph ph-caret-right"></i> 
     <span><i class="ph ph-puzzle-piece"></i> {{ part.name }}</span>
 {% endblock %}
@@ -28,18 +28,12 @@
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/error_list.js') }}"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const errorList = new List('error-list', {
-                filters: {
-                    search: { placeholder: 'Search errors...' },
-                    urgency: { label: 'Status' }
-                },
-                groupBy: {
-                    options: ['none', 'urgency'],
-                    default: 'none'
-                }
+                ...ErrorListConfig
             });
 
             const errorListItems = [
@@ -49,13 +43,12 @@
                     title: '{{ error.exception_type or "Error" }}',
                     description: '{{ error.exception_value | default("No message", true) | replace("'", "\\'") | replace("\n", " ") | truncate(200) }}',
                     icon: 'ph-warning-circle',
+                    status: '{{ error.status }}',
                     labels: [
-                        { text: '{{ error.status }}', color: '{% if error.status == "resolved" %}green{% elif error.status == "ignored" %}gray{% else %}red{% endif %}' },
                         {% if error.platform %}
-                        { text: '{{ error.platform }}', color: 'blue' },
+                        { text: '{{ error.platform }}', color: '#3b82f6' },
                         {% endif %}
                     ],
-                    urgency: '{% if error.status == "unresolved" %}high{% elif error.status == "resolved" %}low{% else %}medium{% endif %}',
                     createdAt: {{ error.last_seen }} * 1000,
                     meta: '{{ error.event_count }} events',
                     onClick: () => { window.location.href = '/errors/{{ project.id }}/{{ part.id }}/{{ error.id }}'; }
