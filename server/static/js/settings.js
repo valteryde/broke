@@ -28,32 +28,32 @@ function initForms() {
     if (passwordForm) {
         passwordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const currentPassword = document.getElementById('current_password').value;
             const newPassword = document.getElementById('new_password').value;
             const confirmPassword = document.getElementById('confirm_password').value;
-            
+
             // Validate fields
             if (!currentPassword) {
                 showToast('Please enter your current password', 'error');
                 return;
             }
-            
+
             if (!newPassword) {
                 showToast('Please enter a new password', 'error');
                 return;
             }
-            
+
             if (newPassword.length < 8) {
                 showToast('Password must be at least 8 characters', 'error');
                 return;
             }
-            
+
             if (newPassword !== confirmPassword) {
                 showToast('Passwords do not match', 'error');
                 return;
             }
-            
+
             try {
                 const response = await fetch('/api/settings/security/password', {
                     method: 'POST',
@@ -65,9 +65,9 @@ function initForms() {
                         new_password: newPassword
                     })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (response.ok) {
                     showToast(result.message || 'Password updated successfully', 'success');
                     passwordForm.reset();
@@ -86,12 +86,12 @@ function initForms() {
  */
 function initToggles() {
     const toggles = document.querySelectorAll('.toggle-switch input');
-    
+
     toggles.forEach(toggle => {
         toggle.addEventListener('change', async () => {
             const settingName = toggle.id || toggle.name;
             const value = toggle.checked;
-            
+
             // Save preference
             await savePreference(settingName, value);
         });
@@ -131,22 +131,22 @@ function initCopyButtons() {
     // Global function for onclick handlers
     window.copyToClipboard = async (button) => {
         const url = button.dataset.url;
-        
+
         try {
             await navigator.clipboard.writeText(url);
-            
+
             // Visual feedback
             const icon = button.querySelector('.ph');
             icon.classList.remove('ph-copy');
             icon.classList.add('ph-check');
             button.style.color = '#22c55e';
-            
+
             setTimeout(() => {
                 icon.classList.remove('ph-check');
                 icon.classList.add('ph-copy');
                 button.style.color = '';
             }, 2000);
-            
+
             showToast('Copied to clipboard', 'success');
         } catch (err) {
             showToast('Failed to copy', 'error');
@@ -185,7 +185,7 @@ async function submitSettings(type, data) {
 async function savePreference(name, value) {
     // Store in localStorage for now
     localStorage.setItem(`pref_${name}`, JSON.stringify(value));
-    
+
     // Also send to server
     try {
         await fetch('/api/settings/preference', {
@@ -207,12 +207,12 @@ function loadPreferences() {
     // Theme
     const theme = JSON.parse(localStorage.getItem('pref_theme') || '"light"');
     applyTheme(theme);
-    
+
     const themeSelect = document.getElementById('theme-select');
     if (themeSelect) {
         themeSelect.value = theme;
     }
-    
+
     // Compact mode
     const compactMode = JSON.parse(localStorage.getItem('pref_compact-mode') || 'false');
     const compactToggle = document.getElementById('compact-mode');
@@ -222,7 +222,7 @@ function loadPreferences() {
     if (compactMode) {
         document.body.classList.add('compact-mode');
     }
-    
+
     // Animations
     const animations = JSON.parse(localStorage.getItem('pref_animations') || 'true');
     const animationsToggle = document.getElementById('animations');
@@ -277,7 +277,7 @@ PhosphorIcons = [
 ];
 
 function randomColor() {
-    return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+    return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
 }
 
 
@@ -361,14 +361,14 @@ window.regenerateSecret = async (type) => {
     if (!confirm('Are you sure you want to regenerate this secret? You will need to update it in your GitHub webhook settings.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/settings/webhooks/regenerate-secret`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type })
         });
-        
+
         if (response.ok) {
             showToast('Secret regenerated. Please update your GitHub webhook.', 'success');
             setTimeout(() => location.reload(), 1500);
@@ -388,12 +388,12 @@ window.disconnectGithub = async () => {
     if (!confirm('Are you sure you want to disconnect GitHub? You will stop receiving webhook events.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/settings/webhooks/github/disconnect`, {
             method: 'POST'
         });
-        
+
         showToast('GitHub disconnected', 'success');
         setTimeout(() => location.reload(), 1000);
     } catch (error) {
@@ -447,20 +447,20 @@ window.showAddWebhookModal = () => {
             </div>
         </form>
     `);
-    
+
     document.getElementById('add-webhook-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const url = document.getElementById('webhook-url').value;
         const secret = document.getElementById('webhook-secret').value;
         const events = Array.from(document.querySelectorAll('input[name="events"]:checked')).map(cb => cb.value);
-        
+
         try {
             const response = await fetch('/api/settings/webhooks/outgoing', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url, secret, events })
             });
-            
+
             showToast('Webhook added successfully', 'success');
             closeModal();
             setTimeout(() => location.reload(), 1000);
@@ -476,12 +476,12 @@ window.showAddWebhookModal = () => {
  */
 window.testWebhook = async (webhookId) => {
     showToast('Sending test event...', 'info');
-    
+
     try {
         const response = await fetch(`/api/settings/webhooks/${webhookId}/test`, {
             method: 'POST'
         });
-        
+
         if (response.ok) {
             showToast('Test event sent successfully', 'success');
         } else {
@@ -506,12 +506,12 @@ window.deleteWebhook = async (webhookId) => {
     if (!confirm('Are you sure you want to delete this webhook?')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/settings/webhooks/${webhookId}`, {
             method: 'DELETE'
         });
-        
+
         showToast('Webhook deleted', 'success');
         setTimeout(() => location.reload(), 1000);
     } catch (error) {
@@ -528,11 +528,11 @@ function generateNewToken() {
     fetch('/api/settings/tokens', {
         method: 'POST'
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.token) {
-            
-            Modal.show('New API Token', `
+        .then(response => response.json())
+        .then(data => {
+            if (data.token) {
+
+                Modal.show('New API Token', `
                 <p>Your new API token is shown below. Please copy it now, as you won't be able to see it again!</p>
                 <br>
                 <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; word-break: break-all; margin-bottom: 16px;">${data.token}</div>
@@ -541,35 +541,35 @@ function generateNewToken() {
                 </div>
             `);
 
-        } else {
+            } else {
+                showToast('Failed to generate token', 'error');
+            }
+        })
+        .catch(() => {
             showToast('Failed to generate token', 'error');
-        }
-    })
-    .catch(() => {
-        showToast('Failed to generate token', 'error');
-    });
+        });
 }
 
 function deleteToken(tokenId) {
     if (!confirm('Are you sure you want to delete this token?')) {
         return;
     }
-    
+
     fetch(`/api/settings/tokens/${tokenId}`, {
         method: 'DELETE'
     })
-    .then(response => {
-        if (response.ok) {
+        .then(response => {
+            if (response.ok) {
+                showToast('Token deleted', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Failed to delete token', 'error');
+            }
+        })
+        .catch(() => {
             showToast('Token deleted', 'success');
             setTimeout(() => location.reload(), 1000);
-        } else {
-            showToast('Failed to delete token', 'error');
-        }
-    })
-    .catch(() => {
-        showToast('Token deleted', 'success');
-        setTimeout(() => location.reload(), 1000);
-    });
+        });
 }
 
 
@@ -579,37 +579,77 @@ function generateDSNToken() {
     fetch('/api/settings/dsn-token', {
         method: 'POST'
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showToast('DSN token generated', 'success');
-            setTimeout(() => location.reload(), 1000);
-        } else {
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('DSN token generated', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Failed to generate DSN token', 'error');
+            }
+        })
+        .catch(() => {
             showToast('Failed to generate DSN token', 'error');
-        }
-    })
-    .catch(() => {
-        showToast('Failed to generate DSN token', 'error');
-    });
+        });
 }
 
 function revokeDSNToken() {
     if (!confirm('Are you sure you want to revoke the DSN token? All applications using this token will stop working.')) {
         return;
     }
-    
+
     fetch('/api/settings/dsn-token', {
         method: 'DELETE'
     })
-    .then(response => {
+        .then(response => {
+            if (response.ok) {
+                showToast('DSN token revoked', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Failed to revoke DSN token', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('Failed to revoke DSN token', 'error');
+        });
+}
+
+// ============ Trash Functions ============
+
+async function restoreTicket(ticketId) {
+    try {
+        const response = await fetch(`/api/tickets/${ticketId}/restore`, {
+            method: 'POST'
+        });
+
         if (response.ok) {
-            showToast('DSN token revoked', 'success');
+            showToast('Ticket restored', 'success');
             setTimeout(() => location.reload(), 1000);
         } else {
-            showToast('Failed to revoke DSN token', 'error');
+            showToast('Failed to restore ticket', 'error');
         }
-    })
-    .catch(() => {
-        showToast('Failed to revoke DSN token', 'error');
-    });
+    } catch (error) {
+        showToast('Failed to restore ticket', 'error');
+    }
+}
+
+async function hardDeleteTicket(ticketId) {
+    if (!confirm('Are you sure you want to PERMANENTLY delete this ticket? This cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/tickets/${ticketId}/hard`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showToast('Ticket permanently deleted', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast('Failed to delete ticket', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to delete ticket', 'error');
+    }
 }

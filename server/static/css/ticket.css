@@ -135,9 +135,17 @@
     margin: 1em 0 0.5em;
 }
 
-.ticket-editor-container .ql-editor h1 { font-size: 1.5rem; }
-.ticket-editor-container .ql-editor h2 { font-size: 1.25rem; }
-.ticket-editor-container .ql-editor h3 { font-size: 1.1rem; }
+.ticket-editor-container .ql-editor h1 {
+    font-size: 1.5rem;
+}
+
+.ticket-editor-container .ql-editor h2 {
+    font-size: 1.25rem;
+}
+
+.ticket-editor-container .ql-editor h3 {
+    font-size: 1.1rem;
+}
 
 .ticket-editor-container .ql-editor p {
     margin-bottom: 0.75em;
@@ -674,20 +682,90 @@
     .ticket-page {
         flex-direction: column;
     }
-    
+
     .ticket-sidebar {
         width: 100%;
         order: -1;
     }
-    
+
     .ticket-properties {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 12px;
     }
-    
+
     .ticket-property {
         margin-bottom: 0;
     }
 }
 
+
+/* Update Groups */
+.ticket-activity-item.update-group .update-group-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+}
+
+.update-group-toggle {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.update-group-toggle:hover {
+    background: #f3f4f6;
+}
+
+.ticket-update-group-items {
+    display: none;
+    margin-top: 8px;
+    padding-left: 12px;
+    border-left: 2px solid #f3f4f6;
+}
+
+.ticket-update-group-items.expanded {
+    display: block;
+}
+
+.ticket-update-item-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 0.85rem;
+    color: #4b5563;
+}
+
+.ticket-update-item-row i {
+    color: #9ca3af;
+}
+
+.ticket-update-item-row .update-time {
+    color: #9ca3af;
+    font-size: 0.75rem;
+    margin-left: auto;
+}
+
+.update-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+}

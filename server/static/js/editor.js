@@ -264,16 +264,36 @@ class TicketEditor {
         filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
 
-        if (filtered.length === 0) {
+        const groups = [];
+        let currentGroup = null;
+
+        filtered.forEach(item => {
+            if (item.type === 'update') {
+                if (currentGroup) {
+                    currentGroup.items.push(item);
+                } else {
+                    currentGroup = {
+                        type: 'update-group',
+                        items: [item],
+                        createdAt: item.createdAt // Use first item's time for sorting/display
+                    };
+                    groups.push(currentGroup);
+                }
+            } else {
+                currentGroup = null;
+                groups.push(item);
+            }
+        });
+
+        if (groups.length === 0) {
             return '<div style="color: #999; font-size: 0.9rem; padding: 20px 0;">No activity yet.</div>';
         }
 
-        const res = filtered.map(item => {
-            console.log(item)
+        const res = groups.map(item => {
             if (item.type === 'comment') {
                 return this.renderComment(item);
-            } else if (item.type === 'update') {
-                return this.renderUpdate(item);
+            } else if (item.type === 'update-group') {
+                return this.renderUpdateGroup(item);
             }
             return '';
         }).join('');
@@ -314,15 +334,56 @@ class TicketEditor {
         `;
     }
 
+    renderUpdateGroup(group) {
+        if (group.items.length === 1) {
+            return this.renderUpdate(group.items[0]);
+        }
+
+        const count = group.items.length;
+        const authors = [...new Set(group.items.map(i => i.author?.username || 'System'))];
+        // For the group ID, we can use the timestamp of the first item
+        const groupId = `group-${group.createdAt}`;
+
+        return `
+            <div class="ticket-activity-item update-group">
+                <div class="ticket-activity-avatar">
+                   <div class="update-group-icon">
+                        <i class="ph ph-stack"></i>
+                   </div>
+                </div>
+                <div class="ticket-activity-content">
+                    <div class="ticket-activity-meta">
+                        <span class="ticket-activity-author">${count} updates</span>
+                        <span class="ticket-activity-time">${this.formatRelativeTime(group.createdAt)}</span>
+                        <button class="update-group-toggle" onclick="document.getElementById('${groupId}').classList.toggle('expanded');">
+                            Show details <i class="ph ph-caret-down"></i>
+                        </button>
+                    </div>
+                    <div class="ticket-update-group-items" id="${groupId}">
+                        ${group.items.map(item => `
+                            <div class="ticket-update-item-row">
+                                <i class="ph ${item.icon || 'ph-pencil'}"></i>
+                                <span>${this.escapeHtml(item.message)}</span>
+                                <span class="update-time">${this.formatRelativeTime(item.createdAt)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     renderUpdate(update) {
         return `
             <div class="ticket-activity-item">
                 <div class="ticket-activity-avatar">
-                    
+                    <div class="update-icon">
+                        <i class="ph ${update.icon}"></i>
+                    </div>
                 </div>
                 <div class="ticket-activity-content">
                     <div class="ticket-activity-meta">
-                        <span class="ticket-activity-author"> <i class="ph ${update.icon}"> </i> </span>
+                         <span class="ticket-activity-author">Update</span>
                         <span class="ticket-activity-time">${this.formatRelativeTime(update.createdAt)}</span>
                     </div>
                     <div class="ticket-update">

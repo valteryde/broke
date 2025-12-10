@@ -33,7 +33,24 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const errorList = new List('error-list', {
-                ...ErrorListConfig
+                ...ErrorListConfig,
+                onDelete: async (item) => {
+                    try {
+                        const response = await fetch(`/api/errors/${item.id}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            errorList.remove(item.id);
+                            // Also show a toast if available, or just log
+                            if (window.showToast) showToast('Error deleted', 'success');
+                        } else {
+                            if (window.showToast) showToast('Failed to delete error', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Delete error:', error);
+                    }
+                }
             });
 
             const errorListItems = [

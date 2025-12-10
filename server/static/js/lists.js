@@ -38,6 +38,7 @@ class List {
 
         // Callbacks
         this.onCreate = options.onCreate || null;
+        this.onDelete = options.onDelete || null;
         this.onCreateLabel = options.onCreateLabel || 'Add';
 
         // Create wrapper structure
@@ -118,6 +119,19 @@ class List {
         window.shortcuts.register('j', (target, e) => this.moveSelection(1), 'Next Item', false, target);
         window.shortcuts.register('k', (target, e) => this.moveSelection(-1), 'Previous Item', false, target);
         window.shortcuts.register('Enter', (target, e) => this.openSelectedItem(), 'Open Item', false, target);
+
+        if (this.onDelete) {
+            const deleteAction = (target, e) => {
+                if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]) {
+                    const item = this.renderedItems[this.selectedIndex].element;
+                    if (confirm('Are you sure you want to delete this item?')) {
+                        this.onDelete(item);
+                    }
+                }
+            };
+            window.shortcuts.register('d', deleteAction, 'Delete Item', false, target);
+            window.shortcuts.register('Backspace', deleteAction, 'Delete Item', false, target);
+        }
 
         // Register configured quick actions
         Object.entries(this.quickActions).forEach(([key, action]) => {
@@ -597,7 +611,7 @@ class List {
                 }
             }
         });
-        
+
     }
 
     add(element) {
@@ -690,7 +704,34 @@ class List {
             }
         });
 
+        // Add delete button if onDelete is configured
+        if (this.onDelete) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'list-element-delete-btn';
+            deleteBtn.innerHTML = '<i class="ph ph-trash"></i>';
+            deleteBtn.title = 'Delete';
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent item click
+                if (confirm('Are you sure you want to delete this item?')) {
+                    this.onDelete(element);
+                }
+            });
+            elDiv.appendChild(deleteBtn);
+        }
+
         this.renderedItems.push({ element, domNode: elDiv });
         return elDiv;
     }
+
+    remove(itemId) {
+        // Remove from data source
+        const index = this.elements.findIndex(el => el.id === itemId);
+        if (index > -1) {
+            this.elements.splice(index, 1);
+        }
+
+        // Re-apply filters to update rendered list
+        this.applyFilters();
+    }
 }
+

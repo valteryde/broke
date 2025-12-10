@@ -173,6 +173,7 @@ class Ticket(BaseModel):
     error = ForeignKeyField(ErrorGroup, null=True)
 
     created_at = IntegerField(default=lambda: int(time.time()))
+    active = IntegerField(default=1)
 
 
 class UserTicketJoin(BaseModel):

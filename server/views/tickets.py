@@ -58,7 +58,7 @@ def getArgsUrl(exclude: list[str] = []) -> str:
 
 @secureroute('/tickets')
 def tickets_view(user: User):
-    tickets = list(Ticket.select())
+    tickets = list(Ticket.select().where(Ticket.active == 1))
     populateTickets(tickets)
 
     available_users = User.select().order_by(User.username)
@@ -79,7 +79,7 @@ def tickets_view(user: User):
 @secureroute('/tickets/<project_id>')
 def project_tickets_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
-    tickets = list(Ticket.select().where(Ticket.project == project_id))
+    tickets = list(Ticket.select().where((Ticket.project == project_id) & (Ticket.active == 1)))
     populateTickets(tickets)
 
     available_users = User.select().order_by(User.username)
@@ -101,7 +101,7 @@ def project_tickets_view(user: User, project_id: str):
 def ticket_detail_view(user: User, project_id: str, ticket_id: str):
     ticket = Ticket.get_or_none(Ticket.id == ticket_id)
 
-    if ticket is None:
+    if ticket is None or ticket.active == 0:
         return redirect(f'/tickets/{project_id}')
 
     populateTickets([ticket])  # type: ignore
@@ -454,3 +454,68 @@ def get_uploads(user: User, filename: str):
     """Get all uploads for the user (placeholder)"""
     
     return send_file(data_path("uploads", filename))
+
+
+@secureroute('/api/tickets/<ticket_id>', methods=['DELETE'])
+def delete_ticket(user: User, ticket_id: str):
+    """Soft delete a ticket"""
+    ticket = Ticket.get_or_none(Ticket.id == ticket_id)
+    
+    if not ticket:
+        return jsonify({'error': 'Ticket not found'}), 404
+        
+    ticket.active = 0
+    ticket.save()
+    
+    # Log deletion?
+    TicketUpdateMessage.create(
+        ticket=ticket_id,
+        title='Ticket deleted',
+        icon='ph ph-trash',
+        message=f'{user.username} deleted this ticket',
+        created_at=int(time.time())
+    )
+    
+    return jsonify({'success': True})
+
+
+@secureroute('/api/tickets/<ticket_id>/restore', methods=['POST'])
+def restore_ticket(user: User, ticket_id: str):
+    """Restore a soft-deleted ticket"""
+    ticket = Ticket.get_or_none(Ticket.id == ticket_id)
+    
+    if not ticket:
+        return jsonify({'error': 'Ticket not found'}), 404
+        
+    ticket.active = 1
+    ticket.save()
+    
+    TicketUpdateMessage.create(
+        ticket=ticket_id,
+        title='Ticket restored',
+        icon='ph ph-arrow-u-up-left',
+        message=f'{user.username} restored this ticket',
+        created_at=int(time.time())
+    )
+    
+    return jsonify({'success': True})
+
+
+@secureroute('/api/tickets/<ticket_id>/hard', methods=['DELETE'])
+def delete_ticket_hard(user: User, ticket_id: str):
+    """Hard delete a ticket and all its associations"""
+    ticket = Ticket.get_or_none(Ticket.id == ticket_id)
+    
+    if not ticket:
+        return jsonify({'error': 'Ticket not found'}), 404
+            
+    # Delete all associations manually since we use CharField IDs
+    Comment.delete().where(Comment.ticket == ticket_id).execute()
+    TicketUpdateMessage.delete().where(TicketUpdateMessage.ticket == ticket_id).execute()
+    UserTicketJoin.delete().where(UserTicketJoin.ticket == ticket_id).execute()
+    TicketLabelJoin.delete().where(TicketLabelJoin.ticket == ticket_id).execute()
+    
+    # Finally delete the ticket
+    ticket.delete_instance()
+    
+    return jsonify({'success': True})

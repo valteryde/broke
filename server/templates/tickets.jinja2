@@ -248,6 +248,23 @@
                         console.error('Save error:', error);
                         showToast('Error saving changes', 'error');
                     }
+                },
+                onDelete: async (item) => {
+                    try {
+                        const response = await fetch(`/api/tickets/${item.id}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            ticketList.remove(item.id);
+                            showToast('Ticket deleted', 'success');
+                        } else {
+                            showToast('Failed to delete ticket', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Delete error:', error);
+                        showToast('Error deleting ticket', 'error');
+                    }
                 }
             });
 

@@ -133,7 +133,9 @@
                             </div>
                             <div class="error-info">
                                 <span class="error-type">{{ error.exception_type or 'Error' }}</span>
-                                <span class="error-message">{{ error.exception_value[:60] }}{% if error.exception_value|length > 60 %}...{% endif %}</span>
+                                {% if error.exception_value %}
+                                   <span class="error-message">{{ error.exception_value[:60] }}{% if error.exception_value|length > 60 %}...{% endif %}</span>
+                                {% endif %}
                             </div>
                             <div class="error-count">
                                 <span class="count-badge">{{ error.event_count }}</span>

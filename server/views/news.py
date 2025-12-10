@@ -296,6 +296,65 @@ def build_timeline_events(project_id: str | None = None, days: int = 30) -> dict
     # Sort events by timestamp (most recent first)
     events.sort(key=lambda x: x['timestamp'], reverse=True)
     
+    # Post-process: Group consecutive updates for the same ticket
+    grouped_events = []
+    current_group = None
+    
+    for event in events:
+        if event['type'] == 'update':
+            ticket_id = event['meta'].get('ticket_id')
+            
+            if current_group and \
+               current_group['type'] == 'update_group' and \
+               current_group['meta'].get('ticket_id') == ticket_id:
+                # Add to existing group
+                current_group['events'].append(event)
+                # Keep the group timestamp as the most recent event's timestamp
+            else:
+                # Create new group
+                current_group = {
+                    'type': 'update_group',
+                    'type_label': 'Updates',
+                    'icon': 'ph-stack',
+                    'title': 'Multiple Updates',  # Will be updated with count
+                    'description': '',
+                    'timestamp': event['timestamp'],
+                    'link': event['link'],
+                    'meta': {
+                        'ticket_id': ticket_id,
+                        'project': event.get('meta', {}).get('project') # inherit project if available
+                    },
+                    'events': [event],
+                    # Copy date parts from the most recent event
+                    'date_str': event['date_str'],
+                    'date_day': event['date_day'],
+                    'date_month': event['date_month'],
+                    'date_full': event['date_full'],
+                    'time_str': event['time_str'],
+                    'date_key': event['date_key']
+                }
+                grouped_events.append(current_group)
+        else:
+            current_group = None
+            grouped_events.append(event)
+            
+    # Finalize groups (update titles, handle single-item groups)
+    final_events = []
+    for event in grouped_events:
+        if event['type'] == 'update_group':
+            count = len(event['events'])
+            if count == 1:
+                # Flatten back to single event
+                final_events.append(event['events'][0])
+            else:
+                event['title'] = f"{count} Updates"
+                event['type_label'] = f"{count} Updates"
+                final_events.append(event)
+        else:
+            final_events.append(event)
+            
+    events = final_events
+    
     # Calculate statistics
     tickets_all = list(Ticket.select() if not project_id else Ticket.select().where(Ticket.project == project_id))
     tickets_created = len([t for t in tickets_all if t.created_at >= cutoff]) if cutoff > 0 else len(tickets_all)

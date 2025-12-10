@@ -53,8 +53,10 @@
             </div>
             
             <div class="stacktrace-container">
+                {# TODO rewrite this code to be alot more readable... somehow #}
                 {% if stacktrace_frames %}
                     {% for frame in stacktrace_frames %}
+                    {# TODO error platform should be set better #}
                     {% set lang = 'python' if error.platform == 'python' else ('javascript' if error.platform == 'javascript' else 'python') %}
                     {% set pre_context_len = frame.pre_context|length if frame.pre_context else 0 %}
                     {% set start_line = (frame.lineno - pre_context_len) if frame.lineno else 1 %}
@@ -72,9 +74,9 @@
                         </div>
                         <div class="frame-context">
                             {% if frame.context_line %}
-                            <pre class="frame-code"><code class="language-{{ lang }}">{% if frame.pre_context %}{% for line in frame.pre_context %}{{ line }}
+                            <pre class="frame-code"><code class="language-{{ lang }}">{% if frame.pre_context %}{% for line in frame.pre_context %}{{ line|e }}
 {% endfor %}{% endif %}{{ frame.context_line }}{% if frame.post_context %}
-{% for line in frame.post_context %}{{ line }}{% if not loop.last %}
+{% for line in frame.post_context %}{{ line|e }}{% if not loop.last %}
 {% endif %}{% endfor %}{% endif %}</code></pre>
                             {% elif frame.lineno %}
                             <pre class="frame-code"><code class="language-{{ lang }}">// Line {{ frame.lineno }}</code></pre>
@@ -88,8 +90,8 @@
                                 <table>
                                     {% for var_name, var_value in frame.vars.items() %}
                                     <tr>
-                                        <td class="var-name">{{ var_name }}</td>
-                                        <td class="var-value"><code class="language-{{ lang }}">{{ var_value }}</code></td>
+                                        <td class="var-name">{{ var_name|safe }}</td>
+                                        <td class="var-value"><code class="language-{{ lang }}">{{ var_value|e }}</code></td>
                                     </tr>
                                     {% endfor %}
                                 </table>

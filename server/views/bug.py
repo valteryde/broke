@@ -726,3 +726,21 @@ def create_ticket_from_error(error_id: int):
     )
 
     return redirect(f'/tickets/{error.part.project.id}/{ticket_id}')
+
+
+@secureroute('/api/errors/<int:error_id>', methods=['DELETE'])
+def delete_error(user: User, error_id: int):
+    """Hard delete an error group and its related data."""
+    try:
+        error = ErrorGroup.get(ErrorGroup.id == error_id)
+    except DoesNotExist:
+        return json.dumps({'error': 'Error not found'}), 404
+    
+    # Cascade delete occurrences and attachments
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error.id).execute()
+    Attachment.delete().where(Attachment.error_group == error.id).execute()
+    
+    # Delete the error group itself
+    error.delete_instance()
+    
+    return json.dumps({'success': True}), 200

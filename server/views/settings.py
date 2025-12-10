@@ -40,6 +40,7 @@ def settings_section_view(user: User, section: str):
         'api': 'API & Tokens',
         'webhooks': 'Webhooks',
         'sentry': 'Sentry Integration',
+        'trash': 'Trash',
         'danger': 'Danger Zone'
     }
     
@@ -105,6 +106,10 @@ def settings_section_view(user: User, section: str):
             context['dsn_token'] = dsn_token
         except DoesNotExist:
             context['dsn_token'] = None
+
+    elif section == 'trash':
+        # Fetch deleted tickets
+        context['deleted_tickets'] = list(Ticket.select().where(Ticket.active == 0).order_by(Ticket.created_at.desc()))
     
     return render_template('settings.jinja2', **context)
 

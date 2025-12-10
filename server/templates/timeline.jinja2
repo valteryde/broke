@@ -277,8 +277,25 @@
                         </div>
                         <div class="event-content">
                             <h4 class="event-title">{{ event.title }}</h4>
-                            {% if event.description %}
-                            <p class="event-description">{{ event.description[:200] }}{% if event.description|length > 200 %}...{% endif %}</p>
+                            
+                            {% if event.type == 'update_group' %}
+                                <details class="timeline-group-details">
+                                    <summary class="timeline-group-summary">
+                                        <i class="ph ph-list"></i>
+                                        <span>Show details</span>
+                                    </summary>
+                                    <div class="timeline-group-content">
+                                        {% for sub in event.events %}
+                                           <div class="timeline-sub-event">
+                                              <i class="ph {{ sub.icon }}"></i>
+                                              <span>{{ sub.description }}</span>
+                                              <span class="time">{{ sub.time_str }}</span>
+                                           </div>
+                                        {% endfor %}
+                                    </div>
+                                </details>
+                            {% elif event.description %}
+                                <p class="event-description">{{ event.description[:200] }}{% if event.description|length > 200 %}...{% endif %}</p>
                             {% endif %}
                             {% if event.meta %}
                             <div class="event-meta">

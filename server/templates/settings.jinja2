@@ -79,6 +79,14 @@
         </div>
 
         <div class="settings-nav-section">
+            <h3 class="nav-section-title">Maintenance</h3>
+            <a href="/settings/trash" class="settings-nav-item {% if section == 'trash' %}active{% endif %}">
+                <i class="ph ph-trash"></i>
+                <span>Trash</span>
+            </a>
+        </div>
+
+        <div class="settings-nav-section">
         
             <h3 class="nav-section-title">Danger Zone</h3>
             <a href="/settings/danger" class="settings-nav-item danger {% if section == 'danger' %}active{% endif %}">
@@ -911,6 +919,45 @@ sentry_sdk.init(
     dsn="YOUR_DSN_URL_HERE",
     traces_sample_rate=1.0,
 )</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'trash' %}
+        <!-- Trash / Maintenance Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Trash</h1>
+                <p class="section-description">Manage deleted tickets and items. Items here can be restored or permanently deleted.</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Deleted Tickets</h3>
+                    <div class="trash-list">
+                        {% for ticket in deleted_tickets %}
+                        <div class="trash-item">
+                            <div class="trash-info">
+                                <span class="trash-id">{{ ticket.id }}</span>
+                                <span class="trash-title">{{ ticket.title }}</span>
+                                <span class="trash-meta">Deleted {{ ticket.created_at | timestamp_to_date }}</span>
+                            </div>
+                            <div class="trash-actions">
+                                <button class="btn btn-sm btn-secondary" onclick="restoreTicket('{{ ticket.id }}')" title="Restore">
+                                    <i class="ph ph-arrow-u-up-left"></i> Restore
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="hardDeleteTicket('{{ ticket.id }}')" title="Delete Forever">
+                                    <i class="ph ph-trash"></i> Delete Forever
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="ph ph-trash"></i>
+                            <p>Trash is empty. Good job!</p>
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
