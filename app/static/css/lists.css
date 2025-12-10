@@ -438,7 +438,7 @@
     border-radius: 4px;
     padding: 5px;
     border: solid 1px transparent;
-    min-height: 4.5rem;
+    height: 4.5rem;
 }
 
 .list-element:hover {
@@ -453,7 +453,7 @@
     align-items: center;
     gap: 20px;
     margin-bottom: 1.5rem;
-    width: calc(100% - var(--list-element-delete-btn-width));
+    width: 100%;
 }
 
 .list-element-text {
@@ -626,9 +626,11 @@
 }
 
 .list-element-delete-btn {
-    position: relative;
-    top: 0;
-    right: 0;
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    min-width: var(--list-element-delete-btn-width);
+    min-height: var(--list-element-delete-btn-width);
     width: var(--list-element-delete-btn-width);
     height: var(--list-element-delete-btn-width);
     border: dashed 1px var(--bg-red);

@@ -273,7 +273,7 @@
                 {
                     id: '{{ ticket.id }}',
                     title: '{{ ticket.title.replace("'", "\\'") | safe }}',
-                    description: '{{ ticket.description | default("No description provided.", true) | safe }}',
+                    description: '{{ ticket.description | safe }}',
                     icon: {% if ticket.priority == "urgent" %}'ph ph-warning'{% else %} 'ph ph-cell-signal-{{ "high" if ticket.priority == "high" else "medium" if ticket.priority == "medium" else "low" if ticket.priority == "low" else "none" }}'{% endif %},
                     status: '{{ ticket.status | default("backlog") }}',
                     urgency: '{{ ticket.priority }}',

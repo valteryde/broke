@@ -43,7 +43,7 @@
             const ticketData = {
                 id: '{{ ticket.id }}',
                 title: '{{ ticket.title }}',
-                description: `{{ ticket.description.replace("`", "\\`").replace("\n", "\\n") | default("<p>No description yet.</p>", true) | safe }}`,
+                description: `{{ ticket.description.replace("`", "\\`").replace("\n", "\\n") | safe }}`,
                 status: '{{ ticket.status | default("todo", true) }}',
                 priority: '{{ ticket.priority | default("medium", true) }}',
                 error: { {% if ticket.error %}

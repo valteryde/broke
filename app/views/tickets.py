@@ -228,6 +228,9 @@ def create_ticket(user: User):
         message=f'{user.username} created this ticket',
         created_at=int(time.time())
     )
+
+    # Auto assign ticket to creator
+    UserTicketJoin.create(user=user.username, ticket=ticket_id)
     
     return jsonify({
         'success': True,
