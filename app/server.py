@@ -19,15 +19,12 @@ def run_error_populator():
     subprocess.run(["python3", "scripts/populate_error_messages.py"])
 
 
-def run_test_app():
+def run_test_app(app):
     """Run the Flask application in test mode"""
     # Initialize database
     initialize_db()
     setup_test_data()
-    
-    # Create app instance
-    app = create_app()
-    
+        
     # start_new_thread(run_error_populator, ())
 
     @app.route('/force-error')
