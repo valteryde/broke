@@ -644,8 +644,8 @@
                         <div class="webhook-url-section">
                             <label>Webhook URL</label>
                             <div class="dsn-url-wrapper">
-                                <code class="dsn-url">{{ base_url }}/api/webhooks/github/{{ webhook_secret }}</code>
-                                <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ base_url }}/api/webhooks/github/{{ webhook_secret }}">
+                                <code class="dsn-url">{{ base_url }}/api/webhooks/github/</code>
+                                <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ base_url }}/api/webhooks/github/">
                                     <i class="ph ph-copy"></i>
                                 </button>
                             </div>
@@ -675,68 +675,6 @@
                         </button>
                     </div>
                     {% endif %}
-                </div>
-            </div>
-
-            <!-- GitHub Event Settings -->
-            <div class="settings-card">
-                <div class="card-section">
-                    <h3>GitHub Event Mapping</h3>
-                    <p class="card-description">Configure how GitHub events are handled</p>
-
-                    <div class="preference-group">
-                        <div class="preference-item">
-                            <div class="preference-info">
-                                <span class="preference-label">Create tickets from issues</span>
-                                <span class="preference-description">Automatically create Broke tickets when GitHub issues are opened</span>
-                            </div>
-                            <div class="preference-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="github-issues" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="preference-item">
-                            <div class="preference-info">
-                                <span class="preference-label">Link commits to tickets</span>
-                                <span class="preference-description">Link commits that mention ticket IDs (e.g., "fixes #123")</span>
-                            </div>
-                            <div class="preference-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="github-commits" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="preference-item">
-                            <div class="preference-info">
-                                <span class="preference-label">Sync issue comments</span>
-                                <span class="preference-description">Add GitHub comments to linked Broke tickets</span>
-                            </div>
-                            <div class="preference-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="github-comments">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="preference-item">
-                            <div class="preference-info">
-                                <span class="preference-label">Close tickets on merge</span>
-                                <span class="preference-description">Automatically close tickets when linked PRs are merged</span>
-                            </div>
-                            <div class="preference-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="github-close-on-merge" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 

@@ -1,9 +1,8 @@
 
 from urllib.parse import urlparse
-from utils.security import secureroute
-from utils.models import *
-from flask import redirect, render_template, request
-from utils.app import app
+from ..utils.security import secureroute
+from ..utils.models import *
+from flask import redirect, render_template, request, Blueprint
 from peewee import DoesNotExist
 import gzip
 import json
@@ -11,6 +10,9 @@ import hashlib
 import time
 import re
 import base64
+
+# Create blueprint
+bug_bp = Blueprint('bug', __name__)
 
 
 def normalize_message(message: str | None) -> str:
@@ -290,7 +292,8 @@ def handle_attachment_item(part: ProjectPart, error_group: ErrorGroup, item_head
     return attachment
 
 
-@secureroute('/errors')
+@bug_bp.route('/errors')
+@secureroute
 def parts_view(user: User):
     
     # Project parts
@@ -305,7 +308,8 @@ def parts_view(user: User):
     )
 
 
-@secureroute('/errors/<project_id>')
+@bug_bp.route('/errors/<project_id>')
+@secureroute
 def parts_specific_view(user: User, project_id: str):
     
     # Project parts
@@ -322,7 +326,8 @@ def parts_specific_view(user: User, project_id: str):
 
 # ============ Parts API Endpoints ============
 
-@secureroute('/api/parts', methods=['POST'])
+@bug_bp.route('/api/parts', methods=['POST'])
+@secureroute
 def api_create_part(user: User):
     """Create a new project part (service)"""
     import json
@@ -370,7 +375,8 @@ def api_create_part(user: User):
     }), 200
 
 
-@secureroute('/errors/<project_id>/<int:part_id>')
+@bug_bp.route('/errors/<project_id>/<int:part_id>')
+@secureroute
 def part_view(user: User, project_id: str, part_id: int):
     
     part = ProjectPart.get((ProjectPart.project == project_id) & (ProjectPart.id == part_id))
@@ -385,7 +391,8 @@ def part_view(user: User, project_id: str, part_id: int):
     )
 
 
-@secureroute('/errors/<project_id>/<int:part_id>/<int:error_id>')
+@bug_bp.route('/errors/<project_id>/<int:part_id>/<int:error_id>')
+@secureroute
 def error_detail_view(user: User, project_id: str, part_id: int, error_id: int):
     """Display detailed view of an error group."""
     
@@ -474,7 +481,7 @@ def error_detail_view(user: User, project_id: str, part_id: int, error_id: int):
     )
 
 
-@app.route('/api/errors/<int:error_id>/status', methods=['POST']) # type: ignore
+@bug_bp.route('/api/errors/<int:error_id>/status', methods=['POST']) # type: ignore
 def update_error_status(error_id: int):
     """API endpoint to update error status."""
     try:
@@ -552,8 +559,8 @@ def verify_dsn_token() -> bool:
 # @secureroute('/')
 
 ### Ingest endpoint for Sentry-like error messages
-@app.route('/ingest/api/<int:part>/envelope/', methods=['POST']) # type: ignore
-@app.route('/ingest/<int:part>/envelope', methods=['POST']) # type: ignore
+@bug_bp.route('/ingest/api/<int:part>/envelope/', methods=['POST']) # type: ignore
+@bug_bp.route('/ingest/<int:part>/envelope', methods=['POST']) # type: ignore
 def ingest_envelope_view(part: int):
     """
     Handle Sentry envelope format.
@@ -704,7 +711,7 @@ def ingest_envelope_view(part: int):
     return f'OK: processed {", ".join(processed_items)}', 200
 
 
-@app.route('/api/errors/<int:error_id>/create_ticket', methods=['GET']) # type: ignore
+@bug_bp.route('/api/errors/<int:error_id>/create_ticket', methods=['GET']) # type: ignore
 def create_ticket_from_error(error_id: int):
     """Create a ticket in an external system from the error."""
     try:
@@ -728,7 +735,8 @@ def create_ticket_from_error(error_id: int):
     return redirect(f'/tickets/{error.part.project.id}/{ticket_id}')
 
 
-@secureroute('/api/errors/<int:error_id>', methods=['DELETE'])
+@bug_bp.route('/api/errors/<int:error_id>', methods=['DELETE'])
+@secureroute
 def delete_error(user: User, error_id: int):
     """Hard delete an error group and its related data."""
     try:

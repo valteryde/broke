@@ -1,14 +1,16 @@
 
-from utils.security import secureroute
-from utils.models import TicketLabelJoin, User, Ticket, Project, Comment, TicketUpdateMessage, UserTicketJoin, Label
-from flask import redirect, render_template, request, jsonify, send_file
-from utils.app import app
+from ..utils.security import secureroute
+from ..utils.models import TicketLabelJoin, User, Ticket, Project, Comment, TicketUpdateMessage, UserTicketJoin, Label
+from flask import redirect, render_template, request, jsonify, send_file, Blueprint
 import time
 import os
 import base64
 import uuid
 import re
-from utils.path import data_path, path
+from ..utils.path import data_path, path
+
+# Create blueprint
+tickets_bp = Blueprint('tickets', __name__)
 
 
 def populateTickets(tickets: list[Ticket]) -> None:
@@ -56,7 +58,8 @@ def getArgsUrl(exclude: list[str] = []) -> str:
     return '&'.join(arg_list)
 
 
-@secureroute('/tickets')
+@tickets_bp.route('/tickets')
+@secureroute
 def tickets_view(user: User):
     tickets = list(Ticket.select().where(Ticket.active == 1))
     populateTickets(tickets)
@@ -76,7 +79,8 @@ def tickets_view(user: User):
         args_url = getArgsUrl()
     )
 
-@secureroute('/tickets/<project_id>')
+@tickets_bp.route('/tickets/<project_id>')
+@secureroute
 def project_tickets_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
     tickets = list(Ticket.select().where((Ticket.project == project_id) & (Ticket.active == 1)))
@@ -97,7 +101,8 @@ def project_tickets_view(user: User, project_id: str):
         args_url = getArgsUrl()
     )
 
-@secureroute('/tickets/<project_id>/<ticket_id>')
+@tickets_bp.route('/tickets/<project_id>/<ticket_id>')
+@secureroute
 def ticket_detail_view(user: User, project_id: str, ticket_id: str):
     ticket = Ticket.get_or_none(Ticket.id == ticket_id)
 
@@ -183,7 +188,8 @@ def extract_and_save_images(html_content: str) -> str:
     return re.sub(pattern, replace_image, html_content)
 
 
-@secureroute('/api/tickets', methods=['POST'])
+@tickets_bp.route('/api/tickets', methods=['POST'])
+@secureroute
 def create_ticket(user: User):
     """Create a new ticket"""
     data = request.get_json()
@@ -235,7 +241,8 @@ def create_ticket(user: User):
     }), 201
 
 
-@secureroute('/api/tickets/<ticket_id>', methods=['PUT', 'PATCH'])
+@tickets_bp.route('/api/tickets/<ticket_id>', methods=['PUT', 'PATCH'])
+@secureroute
 def update_ticket(user: User, ticket_id: str):
     """Update a ticket field"""
     data = request.get_json()
@@ -381,7 +388,8 @@ def update_ticket(user: User, ticket_id: str):
     return jsonify({'success': True})
 
 
-@secureroute('/api/tickets/<ticket_id>/comments', methods=['POST'])
+@tickets_bp.route('/api/tickets/<ticket_id>/comments', methods=['POST'])
+@secureroute
 def add_comment(user: User, ticket_id: str):
     """Add a comment to a ticket"""
     data = request.get_json()
@@ -418,7 +426,8 @@ def add_comment(user: User, ticket_id: str):
     }), 201
 
 
-@secureroute('/api/comments/<int:comment_id>', methods=['DELETE'])
+@tickets_bp.route('/api/comments/<int:comment_id>', methods=['DELETE'])
+@secureroute
 def delete_comment(user: User, comment_id: int):
     """Delete a comment"""
     comment = Comment.get_or_none(Comment.id == comment_id)
@@ -434,7 +443,8 @@ def delete_comment(user: User, comment_id: int):
     return jsonify({'success': True})
 
 
-@secureroute('/api/projects', methods=['GET'])
+@tickets_bp.route('/api/projects', methods=['GET'])
+@secureroute
 def get_projects(user: User):
     """Get all projects for the dropdown"""
     projects = Project.select().order_by(Project.name)
@@ -449,14 +459,16 @@ def get_projects(user: User):
     })
 
 
-@secureroute('/uploads/<path:filename>', methods=['GET'])
+@tickets_bp.route('/uploads/<path:filename>', methods=['GET'])
+@secureroute
 def get_uploads(user: User, filename: str):
     """Get all uploads for the user (placeholder)"""
     
     return send_file(data_path("uploads", filename))
 
 
-@secureroute('/api/tickets/<ticket_id>', methods=['DELETE'])
+@tickets_bp.route('/api/tickets/<ticket_id>', methods=['DELETE'])
+@secureroute
 def delete_ticket(user: User, ticket_id: str):
     """Soft delete a ticket"""
     ticket = Ticket.get_or_none(Ticket.id == ticket_id)
@@ -479,7 +491,8 @@ def delete_ticket(user: User, ticket_id: str):
     return jsonify({'success': True})
 
 
-@secureroute('/api/tickets/<ticket_id>/restore', methods=['POST'])
+@tickets_bp.route('/api/tickets/<ticket_id>/restore', methods=['POST'])
+@secureroute
 def restore_ticket(user: User, ticket_id: str):
     """Restore a soft-deleted ticket"""
     ticket = Ticket.get_or_none(Ticket.id == ticket_id)
@@ -501,7 +514,8 @@ def restore_ticket(user: User, ticket_id: str):
     return jsonify({'success': True})
 
 
-@secureroute('/api/tickets/<ticket_id>/hard', methods=['DELETE'])
+@tickets_bp.route('/api/tickets/<ticket_id>/hard', methods=['DELETE'])
+@secureroute
 def delete_ticket_hard(user: User, ticket_id: str):
     """Hard delete a ticket and all its associations"""
     ticket = Ticket.get_or_none(Ticket.id == ticket_id)

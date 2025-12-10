@@ -7,7 +7,7 @@ import os
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from server.utils.models import Ticket, database
+from app.utils.models import Ticket, database
 
 def run_migration():
     print("Running migration: Adding active column to Ticket table...")

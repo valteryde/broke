@@ -9,8 +9,8 @@ import faker
 
 sys.path.append('.')
 
-from server.utils import app
-from server.utils.models import ProjectPart, Error
+from app.utils import app
+from app.utils.models import ProjectPart, Error
 
 fake = faker.Faker()
 

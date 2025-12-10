@@ -1,13 +1,16 @@
 
-from utils.security import secureroute
-from utils.models import (
+from ..utils.security import secureroute
+from ..utils.models import (
     User, Ticket, UserTicketJoin, ErrorGroup, Project, 
     Comment, TicketUpdateMessage, TicketLabelJoin
 )
-from flask import render_template, redirect
+from flask import render_template, redirect, Blueprint
 import json
 import time
-from utils.path import data_path, path
+from ..utils.path import data_path, path
+
+# Create blueprint
+news_bp = Blueprint('news', __name__)
 
 def time_ago(timestamp: int) -> str:
     """Convert a Unix timestamp to a human-readable 'time ago' string."""
@@ -33,7 +36,8 @@ def time_ago(timestamp: int) -> str:
         return f"{months} month{'s' if months != 1 else ''} ago"
 
 
-@secureroute('/news')
+@news_bp.route('/news')
+@secureroute
 def news_view(user: User):
     
     print('-1->',data_path('app.db'))
@@ -426,7 +430,8 @@ def build_timeline_events(project_id: str | None = None, days: int = 30) -> dict
     }
 
 
-@secureroute('/timeline')
+@news_bp.route('/timeline')
+@secureroute
 def timeline_view(user: User):
     data = build_timeline_events(project_id=None, days=30)
     
@@ -455,7 +460,8 @@ def timeline_view(user: User):
     )
 
 
-@secureroute('/timeline/<project_id>')
+@news_bp.route('/timeline/<project_id>')
+@secureroute
 def timeline_project_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
     if not project:

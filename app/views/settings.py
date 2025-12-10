@@ -3,10 +3,11 @@ Settings Views and API Endpoints
 Handles user preferences, webhooks, and workspace configuration
 """
 
-from utils.security import secureroute
-from utils.models import *
-from flask import redirect, render_template, request, flash
-from utils.app import app
+import os
+from ..utils.security import secureroute
+from ..utils.models import *
+from flask import redirect, render_template, request, flash, Blueprint
+from ..utils.reltime import time_ago
 from peewee import DoesNotExist
 import json
 import hashlib
@@ -14,16 +15,21 @@ import time
 import secrets
 import re
 
+# Create blueprint
+settings_bp = Blueprint('settings', __name__)
+
 
 # ============ Settings Page Routes ============
 
-@secureroute('/settings')
+@settings_bp.route('/settings')
+@secureroute
 def settings_view(user: User):
     """Default settings view - redirects to profile"""
     return redirect('/settings/profile')
 
 
-@secureroute('/settings/<section>')
+@settings_bp.route('/settings/<section>')
+@secureroute
 def settings_section_view(user: User, section: str):
     """Render settings page for a specific section"""
     
@@ -85,8 +91,8 @@ def settings_section_view(user: User, section: str):
     elif section == 'webhooks':
         context['projects'] = list(Project.select().order_by(Project.name))
         context['base_url'] = request.host_url.rstrip('/')
-        context['webhook_secret'] = get_webhook_secret(user)
-        context['github_webhook_secret'] = get_github_webhook_secret(user)
+        context['webhook_secret'] = get_webhook_secret()
+        context['github_webhook_secret'] = get_github_webhook_secret()
         
         # Outgoing webhooks
         context['outgoing_webhooks'] = list(Webhook.select().where(
@@ -116,7 +122,7 @@ def settings_section_view(user: User, section: str):
 
 # ============ Settings API Endpoints ============
 
-@app.route('/api/settings/profile', methods=['POST'])
+@settings_bp.route('/api/settings/profile', methods=['POST'])
 def api_update_profile():
     """Update user profile settings"""
     from utils.security import get_current_user
@@ -149,7 +155,7 @@ def api_update_profile():
     return json.dumps({'success': True}), 200
 
 
-@app.route('/api/settings/preferences', methods=['POST'])
+@settings_bp.route('/api/settings/preferences', methods=['POST'])
 def api_update_preferences():
     """Update user preferences"""
     from utils.security import get_current_user
@@ -181,7 +187,7 @@ def api_update_preferences():
     return json.dumps({'success': True}), 200
 
 
-@app.route('/api/settings/notifications', methods=['POST'])
+@settings_bp.route('/api/settings/notifications', methods=['POST'])
 def api_update_notifications():
     """Update notification settings"""
     from utils.security import get_current_user
@@ -201,7 +207,7 @@ def api_update_notifications():
     return json.dumps({'success': True}), 200
 
 
-@app.route('/api/settings/security/password', methods=['POST'])
+@settings_bp.route('/api/settings/security/password', methods=['POST'])
 def api_change_password():
     """Change user password"""
     from utils.security import get_current_user
@@ -232,7 +238,7 @@ def api_change_password():
 
 # ============ Webhook API Endpoints ============
 
-@app.route('/api/settings/webhooks/regenerate-secret', methods=['POST'])
+@settings_bp.route('/api/settings/webhooks/regenerate-secret', methods=['POST'])
 def api_regenerate_webhook_secret():
     """Regenerate webhook secret"""
     from utils.security import get_current_user
@@ -255,7 +261,7 @@ def api_regenerate_webhook_secret():
     return json.dumps({'success': True}), 200
 
 
-@app.route('/api/settings/webhooks/outgoing', methods=['POST'])
+@settings_bp.route('/api/settings/webhooks/outgoing', methods=['POST'])
 def api_create_outgoing_webhook():
     """Create a new outgoing webhook"""
     from utils.security import get_current_user
@@ -287,7 +293,7 @@ def api_create_outgoing_webhook():
     return json.dumps({'success': True, 'webhook_id': webhook.id}), 200
 
 
-@app.route('/api/settings/webhooks/<int:webhook_id>', methods=['DELETE'])
+@settings_bp.route('/api/settings/webhooks/<int:webhook_id>', methods=['DELETE'])
 def api_delete_webhook(webhook_id: int):
     """Delete an outgoing webhook"""
     from utils.security import get_current_user
@@ -306,7 +312,7 @@ def api_delete_webhook(webhook_id: int):
         return json.dumps({'error': 'Webhook not found'}), 404
 
 
-@app.route('/api/settings/webhooks/<int:webhook_id>/test', methods=['POST'])
+@settings_bp.route('/api/settings/webhooks/<int:webhook_id>/test', methods=['POST'])
 def api_test_webhook(webhook_id: int):
     """Send a test event to a webhook"""
     from utils.security import get_current_user
@@ -388,7 +394,7 @@ def api_invite_team_member(user:User):
     return render_template('invite_sent.jinja2', name=name, token=invite_token, base_url=base_url, user=user, page='settings', section='team')
 
 
-@app.route('/welcome/<token>', methods=['GET', 'POST'])
+@settings_bp.route('/welcome/<token>', methods=['GET', 'POST'])
 def welcome_new_member(token:str):
     """Welcome a new team member and allow them to set up their account"""
     from utils.security import get_current_user
@@ -619,7 +625,7 @@ def api_delete_label(user:User, label_name: str):
 
 # ============ Danger Zone ============
 
-@app.route('/api/settings/danger/delete-account', methods=['POST'])
+@settings_bp.route('/api/settings/danger/delete-account', methods=['POST'])
 def api_delete_account():
     """Delete user account"""
     from utils.security import get_current_user
@@ -647,68 +653,6 @@ def api_delete_account():
     return json.dumps({'success': True}), 200
 
 
-# ============ GitHub Webhook Handler ============
-
-@app.route('/api/webhooks/github/<secret>', methods=['POST'])
-def github_webhook(secret: str):
-    """
-    Handle incoming GitHub webhook events.
-    
-    Supported events:
-    - issues: Create tickets from GitHub issues
-    - push: Link commits to tickets
-    - pull_request: Track PRs and close tickets on merge
-    - issue_comment: Sync comments to tickets
-    """
-    from utils.models import Ticket, Comment
-    
-    # Get the event type from headers
-    event_type = request.headers.get('X-GitHub-Event', 'ping')
-    delivery_id = request.headers.get('X-GitHub-Delivery', '')
-    
-    # Handle ping event (GitHub sends this when webhook is created)
-    if event_type == 'ping':
-        return json.dumps({'message': 'Pong! Webhook configured successfully.'}), 200
-    
-    try:
-        payload = request.get_json()
-    except:
-        return json.dumps({'error': 'Invalid JSON payload'}), 400
-    
-    if not payload:
-        return json.dumps({'error': 'Empty payload'}), 400
-    
-    # Get repository info
-    repo = payload.get('repository', {})
-    repo_name = repo.get('name', '')
-    
-    # Find a matching project by name, or use the first available project
-    project = None
-    try:
-        project = Project.get(Project.name == repo_name)
-    except DoesNotExist:
-        project = Project.select().first()
-    
-    if not project:
-        return json.dumps({'error': 'No projects found'}), 404
-    
-    response_data = {'event': event_type, 'delivery_id': delivery_id}
-    
-    # Handle different event types
-    if event_type == 'issues':
-        response_data.update(handle_github_issue_event(payload, project))
-    elif event_type == 'push':
-        response_data.update(handle_github_push_event(payload, project))
-    elif event_type == 'pull_request':
-        response_data.update(handle_github_pr_event(payload, project))
-    elif event_type == 'issue_comment':
-        response_data.update(handle_github_comment_event(payload, project))
-    else:
-        response_data['message'] = f'Event type "{event_type}" received but not processed'
-    
-    return json.dumps(response_data), 200
-
-
 # ============ Helper Functions ============
 
 def get_or_create_user_settings(user: User) -> 'UserSettings':
@@ -732,16 +676,28 @@ def get_or_create_user_settings(user: User) -> 'UserSettings':
         )
 
 
-def get_webhook_secret(user: User) -> str:
-    """Get or generate webhook secret for user"""
-    settings = get_or_create_user_settings(user)
-    return str(settings.webhook_secret) or str(user.username)
+def get_secret_from_txt_file(fpath:str) -> str: 
+    
+    # Get or create settings
+    if not os.path.exists(data_path(fpath)):
+        with open(data_path(fpath), 'w') as f:
+            f.write(secrets.token_hex(16))
+
+    with open(data_path(fpath), 'r') as f:
+        secret = f.read().strip()
+
+    return secret
 
 
-def get_github_webhook_secret(user: User) -> str:
-    """Get or generate GitHub webhook secret for user"""
-    settings = get_or_create_user_settings(user)
-    return str(settings.github_webhook_secret) or hashlib.sha256(f"github-{user.username}".encode()).hexdigest()[:24]
+
+def get_webhook_secret() -> str:
+    """Get or generate webhook secret"""
+    return get_secret_from_txt_file('webhook_secret.txt')
+
+
+def get_github_webhook_secret() -> str:
+    """Get or generate webhook secret"""
+    return get_secret_from_txt_file('github_webhook_secret.txt')
 
 
 def get_recent_webhook_activity(user: User, limit: int = 10) -> list:
@@ -775,190 +731,3 @@ def log_webhook_delivery(webhook: 'Webhook', event: str, response_code: int, sta
         pass
 
 
-def time_ago(timestamp: int) -> str:
-    """Convert Unix timestamp to human-readable time ago string"""
-    now = int(time.time())
-    diff = now - timestamp
-    
-    if diff < 60:
-        return "just now"
-    elif diff < 3600:
-        minutes = diff // 60
-        return f"{minutes}m ago"
-    elif diff < 86400:
-        hours = diff // 3600
-        return f"{hours}h ago"
-    elif diff < 604800:
-        days = diff // 86400
-        return f"{days}d ago"
-    else:
-        weeks = diff // 604800
-        return f"{weeks}w ago"
-
-
-# ============ GitHub Event Handlers ============
-
-def handle_github_issue_event(payload: dict, project: Project) -> dict:
-    """Handle GitHub issue events - create/update tickets."""
-    from utils.models import Ticket
-    
-    action = payload.get('action', '')
-    issue = payload.get('issue', {})
-    
-    issue_number = issue.get('number')
-    issue_title = issue.get('title', 'Untitled Issue')
-    issue_body = issue.get('body', '') or ''
-    issue_url = issue.get('html_url', '')
-    
-    if action == 'opened':
-        try:
-            existing = Ticket.get(Ticket.title.contains(f"[GitHub #{issue_number}]"))
-            return {'action': 'skipped', 'reason': 'Ticket already exists'}
-        except DoesNotExist:
-            pass
-        
-        ticket = Ticket.create(
-            id=f"{project.id}-gh-{issue_number}",
-            project=project.id,
-            title=f"[GitHub #{issue_number}] {issue_title}",
-            description=f"{issue_body}\n\n---\n*Created from GitHub issue: {issue_url}*",
-            status='todo',
-            priority='medium',
-            created_at=int(time.time())
-        )
-        
-        return {'action': 'created', 'ticket_id': str(ticket.id), 'issue_number': issue_number}
-    
-    elif action == 'closed':
-        try:
-            ticket = Ticket.get(Ticket.title.contains(f"[GitHub #{issue_number}]"))
-            ticket.status = 'closed'
-            ticket.save()
-            return {'action': 'closed', 'ticket_id': str(ticket.id)}
-        except DoesNotExist:
-            return {'action': 'skipped', 'reason': 'No matching ticket found'}
-    
-    elif action == 'reopened':
-        try:
-            ticket = Ticket.get(Ticket.title.contains(f"[GitHub #{issue_number}]"))
-            ticket.status = 'todo'
-            ticket.save()
-            return {'action': 'reopened', 'ticket_id': str(ticket.id)}
-        except DoesNotExist:
-            return {'action': 'skipped', 'reason': 'No matching ticket found'}
-    
-    return {'action': action, 'processed': False}
-
-
-def handle_github_push_event(payload: dict, project: Project) -> dict:
-    """Handle GitHub push events - link commits to tickets."""
-    from utils.models import Ticket, Comment, User
-    
-    commits = payload.get('commits', [])
-    linked_tickets = []
-    
-    ticket_pattern = re.compile(r'(?:fix|fixes|fixed|close|closes|closed|resolve|resolves|resolved|refs?)\s*#(\d+)', re.IGNORECASE)
-    
-    for commit in commits:
-        message = commit.get('message', '')
-        commit_sha = commit.get('id', '')[:8]
-        commit_url = commit.get('url', '')
-        author = commit.get('author', {}).get('name', 'Unknown')
-        
-        matches = ticket_pattern.findall(message)
-        
-        for ticket_id_str in matches:
-            try:
-                ticket_id = int(ticket_id_str)
-                ticket = Ticket.get(Ticket.id == ticket_id)
-                
-                Comment.create(
-                    ticket=ticket.id,
-                    user=User.select().first(),
-                    body=f"🔗 Commit [{commit_sha}]({commit_url}) by {author}\n\n> {message.split(chr(10))[0]}",
-                    created_at=int(time.time())
-                )
-                
-                if re.search(r'(?:fix|fixes|fixed|close|closes|closed)\s*#' + ticket_id_str, message, re.IGNORECASE):
-                    ticket.status = 'closed'
-                    ticket.save()
-                
-                linked_tickets.append({'ticket_id': ticket_id, 'commit': commit_sha})
-            except (DoesNotExist, ValueError):
-                continue
-    
-    return {'action': 'push', 'commits_processed': len(commits), 'linked_tickets': linked_tickets}
-
-
-def handle_github_pr_event(payload: dict, project: Project) -> dict:
-    """Handle GitHub pull request events."""
-    from utils.models import Ticket, Comment, User
-    
-    action = payload.get('action', '')
-    pr = payload.get('pull_request', {})
-    
-    pr_number = pr.get('number')
-    pr_title = pr.get('title', '')
-    pr_body = pr.get('body', '') or ''
-    pr_url = pr.get('html_url', '')
-    merged = pr.get('merged', False)
-    
-    ticket_pattern = re.compile(r'(?:fix|fixes|fixed|close|closes|closed|resolve|resolves|resolved|refs?)\s*#(\d+)', re.IGNORECASE)
-    
-    if action == 'closed' and merged:
-        all_text = f"{pr_title} {pr_body}"
-        matches = ticket_pattern.findall(all_text)
-        closed_tickets = []
-        
-        for ticket_id_str in matches:
-            try:
-                ticket_id = int(ticket_id_str)
-                ticket = Ticket.get(Ticket.id == ticket_id)
-                ticket.status = 'closed'
-                ticket.save()
-                
-                Comment.create(
-                    ticket=ticket.id,
-                    user=User.select().first(),
-                    body=f"✅ Closed via PR #{pr_number}: [{pr_title}]({pr_url})",
-                    created_at=int(time.time())
-                )
-                
-                closed_tickets.append(ticket_id)
-            except (DoesNotExist, ValueError):
-                continue
-        
-        return {'action': 'merged', 'pr_number': pr_number, 'closed_tickets': closed_tickets}
-    
-    return {'action': action, 'pr_number': pr_number}
-
-
-def handle_github_comment_event(payload: dict, project: Project) -> dict:
-    """Handle GitHub issue comment events."""
-    from utils.models import Ticket, Comment, User
-    
-    action = payload.get('action', '')
-    issue = payload.get('issue', {})
-    comment = payload.get('comment', {})
-    
-    if action != 'created':
-        return {'action': action, 'processed': False}
-    
-    issue_number = issue.get('number')
-    comment_body = comment.get('body', '')
-    comment_user = comment.get('user', {}).get('login', 'github')
-    comment_url = comment.get('html_url', '')
-    
-    try:
-        ticket = Ticket.get(Ticket.title.contains(f"[GitHub #{issue_number}]"))
-        
-        Comment.create(
-            ticket=ticket.id,
-            user=User.select().first(),
-            body=f"💬 **{comment_user}** commented on GitHub:\n\n{comment_body}\n\n[View on GitHub]({comment_url})",
-            created_at=int(time.time())
-        )
-        
-        return {'action': 'comment_synced', 'ticket_id': str(ticket.id)}
-    except DoesNotExist:
-        return {'action': 'skipped', 'reason': 'No matching ticket found'}

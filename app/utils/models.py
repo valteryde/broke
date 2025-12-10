@@ -28,7 +28,6 @@ def create_user(username: str, password, email: str, admin: int = 0):
     
     User.create_table(safe=True)
 
-
     salt = uuid.uuid4().hex
     password_hash = pyargon2.hash(password, salt)
     user = User.create(
@@ -201,7 +200,6 @@ class Comment(BaseModel):
 
 class TicketUpdateMessage(BaseModel):
     ticket = CharField()
-    
     title = CharField()
     icon = CharField()
     message = CharField()
@@ -254,13 +252,6 @@ class UserSettings(BaseModel):
     # Notification settings as JSON
     notification_settings = TextField(default='{}')
     
-    # GitHub integration settings as JSON
-    github_settings = TextField(default='{}')
-    
-    # Webhook secrets
-    webhook_secret = CharField(null=True)
-    github_webhook_secret = CharField(null=True)
-
 
 class Webhook(BaseModel):
     """Outgoing webhooks configuration"""
