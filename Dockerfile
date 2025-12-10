@@ -7,18 +7,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY scripts ./scripts
 COPY run.py ./run.py
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 # Create directory for data and give ownership to app user
 RUN useradd --create-home app && \
     mkdir -p /data && \
-    chown -R app:app /data
+    chown -R app:app /data && \
+    chmod +x docker-entrypoint.sh
 
 USER app
 
 EXPOSE 8080
 ENV DATA_PATH=/data
 
-# Migrate the database on startup
-RUN python scripts/migrate.py
-
-CMD ["gunicorn", "run:app", "--bind", "0.0.0.0:8080"]
+# Run migration and then start the server
+CMD ["./docker-entrypoint.sh"]
