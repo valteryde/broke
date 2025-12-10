@@ -4,7 +4,7 @@ WORKDIR /usr/local/app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server .
+COPY app .
 
 # Create directory for data and give ownership to app user
 RUN useradd --create-home app && \
