@@ -164,6 +164,48 @@ def create_app(config=None):
         storage_uri=redis_url
     )
     
+    # Sidebar Data Context Processor
+    from .sidebar_data import get_sidebar_data
+
+    @app.context_processor
+    def inject_sidebar_news():
+        # Cache key based on user if logged in, or global default
+        # But context_processor runs before we might have 'current_user' easy access in some auth setups,
+        # however flask_login or similar usually makes it available. 
+        # Here we assume 'g.user' or similar might be available if using our own auth.
+        # Let's check how 'user' is passed to templates. It seems passed explicitly in views.
+        # But we can try to get it from g or session if available.
+        # For now, let's just use a simple caching strategy or no caching if user not easily accessible here without risk.
+        # Wait, the views pass 'user' to render_template. Context processors add to that.
+        # We can't easily access the 'user' variable being passed to render_template from within the context processor function itself 
+        # unless it's in g.user or session.
+        
+        # Let's try to fetch it safely.
+        # Based on view files, 'user' object is passed explicitly.
+        # We might need to make get_sidebar_data a helper available in template, rather than a variable.
+        # That way we can pass 'user' to it from the template: {{ sidebar_news(user) }}
+        
+        @cache.memoize(timeout=60)
+        def cached_sidebar_data(user_username):
+             # We pass username to cache key, but need user object for logic. 
+             # Actually get_sidebar_data uses User models, but queries by user.
+             # Let's re-retrieve user or just pass username if possible.
+             # get_sidebar_data takes 'user' object.
+             # Let's just wrapper it.
+             from ..utils.models import User
+             u = User.get_or_none(User.username == user_username)
+             if u:
+                 return get_sidebar_data(u)
+             return None
+
+        def get_news(user):
+            if not user or not hasattr(user, 'username'):
+                return None
+            return cached_sidebar_data(user.username)
+
+        return dict(sidebar_news=get_news)
+
+    
     # Register blueprints
     from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp, anon_bp
     
