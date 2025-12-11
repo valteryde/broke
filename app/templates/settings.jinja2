@@ -55,10 +55,13 @@
             <a href="/settings/team" class="settings-nav-item {% if section == 'team' %}active{% endif %}">
                 <i class="ph ph-users-three"></i>
                 <span>Team Members</span>
-            </a>
             <a href="/settings/labels" class="settings-nav-item {% if section == 'labels' %}active{% endif %}">
                 <i class="ph ph-tag"></i>
                 <span>Labels</span>
+            </a>
+            <a href="/settings/anonymous" class="settings-nav-item {% if section == 'anonymous' %}active{% endif %}">
+                <i class="ph ph-mask-happy"></i>
+                <span>Anonymous Access</span>
             </a>
         </div>
 
@@ -523,6 +526,103 @@
                         <div class="empty-state">
                             <i class="ph ph-tag"></i>
                             <p>No labels yet. Create labels to organize your tickets.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'anonymous' %}
+        <!-- Anonymous Access Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Anonymous Access</h1>
+                <p class="section-description">Allow users to submit tickets without an account</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Configuration</h3>
+                    <p class="card-description">Control how anonymous tickets are handled</p>
+                    
+                    <form id="anonymous-form" class="settings-form">
+                        <div class="preference-group">
+                            <div class="preference-item">
+                                <div class="preference-info">
+                                    <span class="preference-label">Enable Anonymous Tickets</span>
+                                    <span class="preference-description">Allow anyone to submit tickets via the public link</span>
+                                </div>
+                                <div class="preference-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="enabled" id="anon-enabled" {% if anon_settings.get('enabled') %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 2rem;">
+                            <label for="welcome-message">Welcome Message</label>
+                            <textarea id="welcome-message" name="message" class="form-input" rows="3" style="resize:vertical" placeholder="Enter a welcome message for anonymous users...">{{ anon_settings.get('message', '') }}</textarea>
+                            <span class="form-hint">Displayed at the top of the submission wizard</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Allowed Projects</label>
+                            <p class="form-hint" style="margin-bottom: 1rem;">Select which projects anonymous users can submit tickets to</p>
+                            <div class="preference-group">
+                                {% for project in projects %}
+                                <div class="preference-item">
+                                    <div class="preference-info">
+                                        <span class="preference-label">
+                                            <i class="{{ project.icon }}" style="color: {{ project.color }}; margin-right: 0.5rem;"></i>
+                                            {{ project.name }}
+                                        </span>
+                                        <span class="preference-description">Allow submissions to {{ project.name }}</span>
+                                    </div>
+                                    <div class="preference-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" name="projects" value="{{ project.id }}" {% if project.id in anon_settings.get('projects', []) %}checked{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+             <div class="settings-card">
+                <div class="card-section">
+                    <h3>Public Link</h3>
+                    <p class="card-description">Share this link to allow users to submit tickets</p>
+                    
+                    <div class="webhook-url-section">
+                        <div class="dsn-url-wrapper">
+                            <code class="dsn-url">{{ request.host_url }}anon</code>
+                            <button type="button" class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ request.host_url }}anon">
+                                <i class="ph ph-copy"></i>
+                            </button>
+                            <a href="/anon" target="_blank" class="btn-icon">
+                                <i class="ph ph-arrow-square-out"></i>
+                            </a>
+                        </div>
+                        {% for project_id in anon_settings.get('projects', []) %}
+                        <div class="dsn-url-wrapper" style="margin-top:10px">
+                            <code class="dsn-url">{{ request.host_url }}anon/{{ project_id }}</code>
+                            <button type="button" class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ request.host_url }}anon/{{ project_id }}">
+                                <i class="ph ph-copy"></i>
+                            </button>
+                            <a href="/anon/{{ project_id }}" target="_blank" class="btn-icon">
+                                <i class="ph ph-arrow-square-out"></i>
+                            </a>
                         </div>
                         {% endfor %}
                     </div>

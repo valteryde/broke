@@ -79,6 +79,27 @@ function initForms() {
             }
         });
     }
+    const anonymousForm = document.getElementById('anonymous-form');
+    if (anonymousForm) {
+        anonymousForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(anonymousForm);
+
+            // Handle checkboxes for project list
+            const projects = [];
+            anonymousForm.querySelectorAll('input[name="projects"]:checked').forEach(cb => {
+                projects.push(cb.value);
+            });
+
+            const data = {
+                enabled: formData.get('enabled') === 'on',
+                message: formData.get('message'),
+                projects: projects
+            };
+
+            await submitSettings('anonymous', data);
+        });
+    }
 }
 
 /**

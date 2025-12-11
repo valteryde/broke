@@ -48,7 +48,7 @@ def create_app(config=None):
             return str(epoch)
     
     # Register blueprints
-    from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp
+    from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp, anon_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(tickets_bp)
@@ -56,6 +56,7 @@ def create_app(config=None):
     app.register_blueprint(settings_bp)
     app.register_blueprint(news_bp)
     app.register_blueprint(webhooks_bp)
+    app.register_blueprint(anon_bp)
     
     # Register core routes
     @app.route('/favicon.ico')

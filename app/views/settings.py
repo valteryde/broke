@@ -47,6 +47,7 @@ def settings_section_view(user: User, section: str):
         'webhooks': 'Webhooks',
         'sentry': 'Sentry Integration',
         'trash': 'Trash',
+        'anonymous': 'Anonymous Access',
         'danger': 'Danger Zone'
     }
     
@@ -116,6 +117,18 @@ def settings_section_view(user: User, section: str):
     elif section == 'trash':
         # Fetch deleted tickets
         context['deleted_tickets'] = list(Ticket.select().where(Ticket.active == 0).order_by(Ticket.created_at.desc()))
+        
+    elif section == 'anonymous':
+        try:
+            setting = GlobalSetting.get(GlobalSetting.key == 'anonymous_settings')
+            context['anon_settings'] = json.loads(setting.value)
+        except DoesNotExist:
+             context['anon_settings'] = {
+                 'enabled': False, 
+                 'message': 'Welcome! Please submit your ticket below.', 
+                 'projects': []
+             }
+        context['projects'] = list(Project.select().order_by(Project.name))
     
     return render_template('settings.jinja2', **context)
 
@@ -203,6 +216,31 @@ def api_update_notifications():
     notification_prefs.update(data)
     settings.notification_settings = json.dumps(notification_prefs)
     settings.save()
+    
+    return json.dumps({'success': True}), 200
+
+
+@settings_bp.route('/api/settings/anonymous', methods=['POST'])
+@secureroute
+def api_update_anonymous(user:User):
+    """Update anonymous access settings"""
+    
+    data = request.get_json()
+    
+    # Validate and structure data
+    settings = {
+        'enabled': bool(data.get('enabled', False)),
+        'message': data.get('message', '').strip(),
+        'projects': data.get('projects', []) 
+    }
+    
+    # Save to GlobalSetting
+    try:
+        setting = GlobalSetting.get(GlobalSetting.key == 'anonymous_settings')
+        setting.value = json.dumps(settings)
+        setting.save()
+    except DoesNotExist:
+        GlobalSetting.create(key='anonymous_settings', value=json.dumps(settings))
     
     return json.dumps({'success': True}), 200
 
@@ -434,7 +472,6 @@ def welcome_new_member(token:str):
 
 
 # ============ API Token Endpoints ============
-
 @secureroute('/api/settings/tokens', methods=['POST'])
 def api_create_token(user:User):
     """Create a new API token"""

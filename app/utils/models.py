@@ -174,6 +174,8 @@ class Ticket(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
     active = IntegerField(default=1)
 
+    anonymous_secret = CharField(null=True, unique=True)
+
 
 class UserTicketJoin(BaseModel):
     user = CharField()
@@ -300,6 +302,13 @@ class DSNToken(BaseModel):
     last_used = IntegerField(null=True)
 
 
+
+class GlobalSetting(BaseModel):
+    """Generic key-value store for global settings"""
+    key = CharField(primary_key=True)
+    value = TextField()  # JSON content
+
+
 MODELS = [
     User,
     Ticket,
@@ -322,7 +331,8 @@ MODELS = [
     Webhook,
     WebhookDelivery,
     APIToken,
-    DSNToken
+    DSNToken,
+    GlobalSetting
 ]
 
 def initialize_db():

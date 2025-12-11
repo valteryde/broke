@@ -1,0 +1,453 @@
+{% extends "standalone.jinja2" %}
+
+{% block head %}
+    <meta name="description" content="Submit an anonymous ticket to {{ site_name }}.">
+    <link rel="stylesheet" href="/static/css/anon.css">
+    <!-- Quill.js -->
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+{% endblock %}
+
+{% block title %}Submit Anonymous Ticket - {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="anon-container">
+    {% if step == 'project_selection' %}
+        <div class="anon-card">
+            <h1 class="anon-title">Submit a Ticket</h1>
+
+            <div id="anon-history-section" style="display: none; margin-bottom: 30px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0; font-size: 1.1rem;">Your Tickets</h3>
+                    <button id="clear-history-btn" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;">Clear History</button>
+                </div>
+                <div id="anon-history-list" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            {% if welcome_message %}
+                <div class="anon-welcome">
+                    {{ welcome_message }}
+                </div>
+            {% endif %}
+
+            <p class="anon-subtitle">Select a project to continue</p>
+
+            <div class="anon-projects">
+                {% for p in projects %}
+                    <a href="/anon/{{ p.id }}" class="anon-project-card">
+                        <i class="{{ p.icon }}" style="color: {{ p.color }}"></i>
+                        <span>{{ p.name }}</span>
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+
+    {% elif step == 'form' %}
+        <div class="anon-card">
+            <div class="anon-header">
+                <a href="/anon" class="anon-back"><i class="ph ph-arrow-left"></i> Back</a>
+            </div>
+
+            <h1 class="anon-title">Submit to {{ project.name }}</h1>
+
+            {% if welcome_message %}
+                <div class="anon-welcome">
+                    {{ welcome_message }}
+                </div>
+            {% endif %}
+
+            <form id="anon-form" class="anon-form">
+                <input type="hidden" name="project" value="{{ project.id }}">
+
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" name="title" required placeholder="Brief summary of the issue">
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <div id="description-editor" class="anon-editor"></div>
+                    <input type="hidden" name="description" id="description-input" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select name="priority">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                    </select>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ph ph-paper-plane-tilt"></i>
+                        Submit Ticket
+                    </button>
+                </div>
+            </form>
+        </div>
+
+    {% endif %}
+</div>
+
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script>
+    let descriptionQuill;
+
+    // Initialize Quill editor if on the form step
+    if (document.getElementById('description-editor')) {
+        descriptionQuill = new Quill('#description-editor', {
+            theme: 'snow',
+            placeholder: 'Detailed description...',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['blockquote', 'code-block'],
+                    [{ 'header': 1 }, { 'header': 2 }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'script': 'sub'}, { 'script': 'super' }],
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            }
+        });
+
+        // Image upload handler
+        const toolbar = descriptionQuill.getModule('toolbar');
+        toolbar.addHandler('image', function() {
+            const input = document.createElement('input');
+            input.setAttribute('type', 'file');
+            input.setAttribute('accept', 'image/*');
+            input.click();
+
+            input.onchange = async () => {
+                const file = input.files[0];
+                if (file) {
+                    // Convert to base64
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const range = descriptionQuill.getSelection(true);
+                        descriptionQuill.insertEmbed(range.index, 'image', e.target.result);
+                        descriptionQuill.setSelection(range.index + 1);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        });
+    }
+
+    document.getElementById('anon-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const form = e.target;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+
+        // Get description from Quill editor
+        const descriptionHTML = descriptionQuill.root.innerHTML;
+        const descriptionInput = document.getElementById('description-input');
+        descriptionInput.value = descriptionHTML;
+
+        // Validate description is not empty
+        const descriptionText = descriptionQuill.getText().trim();
+        if (!descriptionText) {
+            alert('Please enter a description');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="ph ph-circle-notch ph-spin"></i> Submitting...';
+
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+            const response = await fetch('/api/anon/submit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // Save to localStorage
+                const ticketData = {
+                    id: result.ticket_id,
+                    secret: result.secret,
+                    title: data.title,
+                    timestamp: Math.floor(Date.now() / 1000)
+                };
+                
+                const tickets = JSON.parse(localStorage.getItem('broke_anon_tickets') || '[]');
+                tickets.unshift(ticketData);
+                if (tickets.length > 10) tickets.pop();
+                localStorage.setItem('broke_anon_tickets', JSON.stringify(tickets));
+
+                window.location.href = `/anon/track/${result.secret}`;
+            } else {
+                alert(result.error || 'Failed to submit ticket');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        } catch (error) {
+            console.error(error);
+            alert('An error occurred');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+
+    // ==========================================
+    // Local Storage Persistence Logic
+    // ==========================================
+    const STORAGE_KEY = 'broke_anon_tickets';
+
+    // 1. Save ticket on successful submission
+    // We override the success redirect to first save the ticket
+    function saveTicketToStorage(ticket) {
+        const tickets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        tickets.unshift(ticket);
+        // Keep only last 10 tickets
+        if (tickets.length > 10) tickets.pop();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+    }
+
+    // Capture success response in the form submit handler
+    const originalSubmitHandler = document.getElementById('anon-form')?.onsubmit; // Note: we attached via addEventListener so this won't work directly to override.
+    // Instead, we will modify the existing fetch success block using the fact that we are injecting this code into the same file.
+    // However, since I cannot easily modify the *inside* of the previous event listener without replacing it entirely, 
+    // I will rewrite the submit listener below to include persistence.
+    
+    // BUT, the safer way is to let the previous listener run? No, it redirects.
+    // I need to REPLACE the previous event listener logic.
+    // Since I'm editing the file, I should really assume the previous listener text I see in the file specific logic.
+    
+    // Actually, I can just replace the *entire* script block for the form listener in one go if I want to be safe, 
+    // or I can rely on the fact that I can see the code and just replace the success block.
+    
+    // New logic for "Your Tickets" display
+    if (document.getElementById('anon-history-section')) {
+        const tickets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        
+        if (tickets.length > 0) {
+            const container = document.getElementById('anon-history-list');
+            const section = document.getElementById('anon-history-section');
+            
+            tickets.forEach(t => {
+                const date = new Date(t.timestamp * 1000).toLocaleDateString();
+                const item = document.createElement('a');
+                item.href = `/anon/track/${t.secret}`;
+                item.className = 'anon-project-card'; // Reuse card style but simpler
+                item.style.flexDirection = 'row';
+                item.style.justifyContent = 'space-between';
+                item.style.padding = '15px';
+                item.style.textAlign = 'left';
+                
+                item.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <i class="ph ph-ticket" style="font-size: 1.2rem;"></i>
+                        <div>
+                            <div style="font-weight: 600;">${t.title}</div>
+                            <div style="font-size: 0.8rem; color: #666;">#${t.id.split('-').pop()}</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666;">${date}</div>
+                `;
+                container.appendChild(item);
+            });
+            
+            section.style.display = 'block';
+            
+            document.getElementById('clear-history-btn').addEventListener('click', () => {
+                if(confirm('Clear ticket history?')) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    location.reload();
+                }
+            });
+        }
+    }
+</script>
+
+<style>
+    /* Quill editor custom styling to match site aesthetic */
+    .anon-editor {
+        background: white;
+        border: solid 1px #ccc;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .anon-editor .ql-toolbar {
+        border: none;
+        border-bottom: solid 1px #ddd;
+        background: white;
+        padding: 12px 10px;
+        margin: 0;
+    }
+
+    .anon-editor .ql-container {
+        border: none;
+        font-family: 'Rubik Variable', sans-serif;
+        font-size: 1rem;
+        background: white;
+        margin: 0;
+    }
+
+    .anon-editor .ql-editor {
+        min-height: 300px;
+        padding: 16px;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    /* Remove default Quill margins that cause gaps */
+    .anon-editor .ql-toolbar.ql-snow {
+        margin: 0;
+        padding: 12px 10px;
+    }
+
+    .anon-editor .ql-container.ql-snow {
+        margin: 0;
+    }
+
+    .anon-editor .ql-editor.ql-blank::before {
+        color: #999;
+        font-style: normal;
+        left: 16px;
+    }
+
+    .anon-editor:focus-within {
+        border-color: var(--logo-blue);
+    }
+
+    /* Toolbar button styling - more spacious and native looking */
+    .anon-editor .ql-toolbar button {
+        width: 32px;
+        height: 32px;
+        padding: 5px;
+        border-radius: 4px;
+        transition: background 0.15s;
+    }
+
+    .anon-editor .ql-toolbar button:hover {
+        background: var(--bg-light-gray);
+    }
+
+    .anon-editor .ql-toolbar button.ql-active {
+        background: var(--bg-light-gray);
+    }
+
+    .anon-editor .ql-toolbar .ql-stroke {
+        stroke: #333;
+    }
+
+    .anon-editor .ql-toolbar button:hover .ql-stroke,
+    .anon-editor .ql-toolbar button.ql-active .ql-stroke {
+        stroke: var(--logo-blue);
+    }
+
+    .anon-editor .ql-toolbar .ql-fill {
+        fill: #333;
+    }
+
+    .anon-editor .ql-toolbar button:hover .ql-fill,
+    .anon-editor .ql-toolbar button.ql-active .ql-fill {
+        fill: var(--logo-blue);
+    }
+
+    .anon-editor .ql-toolbar .ql-picker-label {
+        border: none;
+        padding: 5px 8px;
+        border-radius: 4px;
+    }
+
+    .anon-editor .ql-toolbar .ql-picker-label:hover {
+        background: var(--bg-light-gray);
+    }
+
+    /* Content styling */
+    .anon-editor .ql-editor h1 {
+        font-family: 'Space Grotesk Variable', sans-serif;
+        font-size: 1.75rem;
+        margin: 1em 0 0.5em;
+    }
+
+    .anon-editor .ql-editor h2 {
+        font-family: 'Space Grotesk Variable', sans-serif;
+        font-size: 1.4rem;
+        margin: 1em 0 0.5em;
+    }
+
+    .anon-editor .ql-editor p {
+        margin-bottom: 0.75em;
+    }
+
+    .anon-editor .ql-editor ul,
+    .anon-editor .ql-editor ol {
+        padding-left: 1.5em;
+        margin-bottom: 0.75em;
+    }
+
+    .anon-editor .ql-editor li {
+        margin-bottom: 0.25em;
+    }
+
+    .anon-editor .ql-editor pre {
+        background: #f8f8f8;
+        border: solid 1px #e0e0e0;
+        border-radius: 5px;
+        padding: 12px 14px;
+        margin: 1em 0;
+        font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .anon-editor .ql-editor code {
+        background: #f5f5f5;
+        border: solid 1px #e5e5e5;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+        font-size: 0.9em;
+    }
+
+    .anon-editor .ql-editor blockquote {
+        border-left: 4px solid var(--logo-blue);
+        padding-left: 16px;
+        margin: 1em 0;
+        color: #555;
+        font-style: normal;
+    }
+
+    .anon-editor .ql-editor a {
+        color: var(--logo-blue);
+        text-decoration: underline;
+    }
+
+    .anon-editor .ql-editor img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 5px;
+        margin: 1em 0;
+        display: block;
+    }
+
+    /* Spinning icon for loading state */
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .ph-spin {
+        animation: spin 1s linear infinite;
+    }
+</style>
+{% endblock %}

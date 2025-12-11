@@ -1,0 +1,178 @@
+{% extends "standalone.jinja2" %}
+
+{% block title %}Error {{ error_code|default('') }} - Broke{% endblock %}
+
+{% block content %}
+<div class="error-message-container">
+    <div class="error-icon">
+        <i class="ph ph-warning-circle"></i>
+    </div>
+
+    {% if error_code %}
+    <div class="error-code">{{ error_code }}</div>
+    {% endif %}
+
+    <h1 class="error-title">{{ title|default('Something went wrong') }}</h1>
+
+    <div class="error-description">
+        <p>{{ error_message|default(message)|default('An unexpected error occurred. Please try again.') }}</p>
+    </div>
+
+    {% if details %}
+    <div class="error-details">
+        <p class="error-details-text">{{ details }}</p>
+    </div>
+    {% endif %}
+
+    <div class="error-actions">
+        {% if back_url %}
+        <a href="{{ back_url }}" class="btn btn-primary">
+            <i class="ph ph-arrow-left"></i>
+            Go Back
+        </a>
+        {% endif %}
+
+        <a href="/" class="btn btn-secondary">
+            <i class="ph ph-house"></i>
+            Return Home
+        </a>
+    </div>
+</div>
+
+<style>
+.error-message-container {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.error-icon {
+    margin-bottom: 1rem;
+}
+
+.error-icon i {
+    font-size: 5rem;
+    color: #ef4444;
+    opacity: 0.9;
+}
+
+.error-code {
+    font-size: 4rem;
+    font-weight: 700;
+    color: #ef4444;
+    margin-bottom: 1rem;
+    opacity: 0.8;
+}
+
+.error-title {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 1rem;
+}
+
+.error-description {
+    margin-bottom: 1.5rem;
+}
+
+.error-description p {
+    font-size: 1.125rem;
+    color: #6b7280;
+    line-height: 1.6;
+}
+
+.error-details {
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 2rem;
+}
+
+.error-details-text {
+    font-size: 0.875rem;
+    color: #991b1b;
+    margin: 0;
+    font-family: monospace;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+}
+
+.btn i {
+    font-size: 1.25rem;
+}
+
+.btn-primary {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #2563eb;
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background-color: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+    background-color: #e5e7eb;
+    transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+    .error-message-container {
+        padding: 2rem 1rem;
+    }
+
+    .error-icon i {
+        font-size: 4rem;
+    }
+
+    .error-code {
+        font-size: 3rem;
+    }
+
+    .error-title {
+        font-size: 1.5rem;
+    }
+
+    .error-description p {
+        font-size: 1rem;
+    }
+
+    .error-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}
