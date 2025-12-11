@@ -1,47 +1,24 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = [ "setuptools>=61.0", "wheel",]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "broke"
-version = "0.1.0"
+version = "0.1.1"
 description = "A bug tracking and project management system"
 readme = "readme.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
-authors = [
-    {name = "valteryde"}
-]
-keywords = ["bug-tracker", "project-management", "flask", "tickets"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Framework :: Flask",
-]
+keywords = [ "bug-tracker", "project-management", "flask", "tickets",]
+classifiers = [ "Development Status :: 3 - Alpha", "Intended Audience :: Developers", "License :: OSI Approved :: MIT License", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3.8", "Programming Language :: Python :: 3.9", "Programming Language :: Python :: 3.10", "Programming Language :: Python :: 3.11", "Programming Language :: Python :: 3.12", "Framework :: Flask",]
+dependencies = [ "flask", "pyargon2", "faker", "peewee", "sentry_sdk", "gunicorn", "python-dotenv", "requests",]
+[[project.authors]]
+name = "valteryde"
 
-dependencies = [
-    "flask",
-    "pyargon2",
-    "faker",
-    "peewee",
-    "sentry_sdk",
-    "gunicorn",
-    "python-dotenv",
-    "requests",
-]
+[project.license]
+text = "MIT"
 
 [project.optional-dependencies]
-test = [
-    "ward",
-    "playwright",
-]
+test = [ "ward", "playwright",]
 
 [project.scripts]
 broke = "server.cli:main"
@@ -52,31 +29,18 @@ Repository = "https://github.com/valteryde/broke"
 Issues = "https://github.com/valteryde/broke/issues"
 
 [tool.setuptools]
-packages = ["server", "server.utils", "server.views"]
+packages = [ "server", "server.utils", "server.views",]
 
 [tool.ward]
-path = ["tests"]
+path = [ "tests",]
 order = "standard"
 test-output-style = "test-per-line"
 
 [tool.black]
 line-length = 100
-target-version = ["py38", "py39", "py310", "py311"]
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-  | __pycache__
-)/
-'''
+target-version = [ "py38", "py39", "py310", "py311",]
+include = "\\.pyi?$"
+extend-exclude = "/(\n  # directories\n  \\.eggs\n  | \\.git\n  | \\.hg\n  | \\.mypy_cache\n  | \\.tox\n  | \\.venv\n  | build\n  | dist\n  | __pycache__\n)/\n"
 
 [tool.isort]
 profile = "black"
@@ -100,7 +64,6 @@ warn_unused_ignores = true
 warn_no_return = true
 follow_imports = "normal"
 ignore_missing_imports = true
-
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
