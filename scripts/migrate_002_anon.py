@@ -7,7 +7,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.models import Ticket, database, CharField
+from app.utils.models import Ticket, database, CharField, GlobalSetting
 
 def run_migration():
     print("Running migration 002: Add anonymous_secret to Ticket")
@@ -29,6 +29,9 @@ def run_migration():
         print("Column added.")
     else:
         print("Column anonymous_secret already exists.")
+
+    # Ensure global settings are updated if needed
+    GlobalSetting.create_table(safe=True)
 
 if __name__ == '__main__':
     run_migration()

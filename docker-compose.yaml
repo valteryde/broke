@@ -1,5 +1,12 @@
 # docker-compose.yml
 services:
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
   broke-server:
     restart: always
     build: .
@@ -9,6 +16,10 @@ services:
       - data:/data
     environment:
       - DATA_PATH=/data
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
 
 volumes:
   data:
+  redis_data:

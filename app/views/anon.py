@@ -7,6 +7,7 @@ import time
 import json
 import secrets
 from ..utils.path import data_path
+from ..utils.app import get_limiter
 from typing import Literal
 
 anon_bp = Blueprint('anon', __name__)
@@ -63,6 +64,7 @@ def anon_wizard(project_id: str):
     )
 
 @anon_bp.route('/api/anon/submit', methods=['POST'])
+@get_limiter().limit("5 per hour")
 def api_anon_submit():
     settings = get_anon_settings()
     if not settings.get('enabled'):

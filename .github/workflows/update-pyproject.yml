@@ -1,0 +1,70 @@
+name: Update pyproject.toml
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-pyproject:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install toml library
+        run: pip install toml
+
+      - name: Read and update pyproject.toml
+        run: |
+          python << 'EOF'
+          import toml
+          import os
+          from datetime import datetime
+
+          # Read pyproject.toml
+          with open('pyproject.toml', 'r') as f:
+              data = toml.load(f)
+
+          print("Current pyproject.toml content:")
+          print(toml.dumps(data))
+
+          # Example update: increment patch version
+          current_version = data['project']['version']
+          major, minor, patch = current_version.split('.')
+          new_version = f"{major}.{minor}.{int(patch) + 1}"
+          data['project']['version'] = new_version
+
+          print(f"\nUpdating version from {current_version} to {new_version}")
+
+          # Write updated pyproject.toml
+          with open('pyproject.toml', 'w') as f:
+              toml.dump(data, f)
+
+          print("\nUpdated pyproject.toml successfully")
+          EOF
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code pyproject.toml || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add pyproject.toml
+          git commit -m "chore: auto-update pyproject.toml [skip ci]"
+          git push

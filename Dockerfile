@@ -13,6 +13,7 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN useradd --create-home app && \
     mkdir -p /data && \
     chown -R app:app /data && \
+    chown -R app:app /usr/local/app && \
     chmod +x docker-entrypoint.sh
 
 USER app
