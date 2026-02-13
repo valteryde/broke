@@ -73,9 +73,12 @@
                 <span>Timeline</span>
             </div>
 
-            <div class="sb-element {% if page == 'settings' %}active{% endif %}" onclick="window.location.href = '/settings'">
+            <div class="sb-element {% if page == 'settings' %}active{% endif %}" onclick="window.location.href = '/settings'" style="position: relative;">
                 <i class="ph ph-gear-six"></i>
                 <span>Settings</span>
+                {% if update_info and update_info.available %}
+                <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;position:absolute;top:8px;right:8px;"></span>
+                {% endif %}
             </div>
 
         </div>

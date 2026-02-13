@@ -62,6 +62,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         "api": "API & Tokens",
         "webhooks": "Webhooks",
         "sentry": "Sentry Integration",
+        "updates": "Updates",
         "trash": "Trash",
         "anonymous": "Anonymous Access",
         "danger": "Danger Zone",
@@ -151,6 +152,12 @@ def settings_section_view(user: User, section: str):  # noqa: C901
                 "projects": [],
             }
         context["projects"] = list(Project.select().order_by(Project.name))
+
+    elif section == "updates":
+        from ..utils.updater import get_update_info, is_auto_check_enabled, get_sidecar_status
+        context["update_info"] = get_update_info()
+        context["auto_check_enabled"] = is_auto_check_enabled()
+        context["sidecar_status"] = get_sidecar_status()
 
     return render_template("settings.jinja2", **context)
 
@@ -823,3 +830,40 @@ def log_webhook_delivery(webhook: "Webhook", event: str, response_code: int, sta
         )
     except Exception:
         pass
+
+
+# ============ Updates API Endpoints ============
+
+
+@settings_bp.route("/api/settings/updates/check", methods=["POST"])
+@protected
+def api_check_update(user: User):
+    """Manually trigger an update check"""
+    from ..utils.updater import check_for_update
+
+    info = check_for_update()
+    return json.dumps(info or {"error": "Failed to check"}), 200
+
+
+@settings_bp.route("/api/settings/updates/apply", methods=["POST"])
+@protected
+def api_apply_update(user: User):
+    """Trigger the updater sidecar to pull and restart"""
+    from ..utils.updater import apply_update
+
+    result = apply_update()
+    if "error" in result:
+        return json.dumps(result), 500
+    return json.dumps(result), 200
+
+
+@settings_bp.route("/api/settings/updates/toggle", methods=["POST"])
+@protected
+def api_toggle_auto_check(user: User):
+    """Toggle automatic update checking"""
+    from ..utils.updater import set_auto_check_enabled, is_auto_check_enabled
+
+    data = request.get_json()
+    enabled = data.get("enabled", not is_auto_check_enabled())
+    set_auto_check_enabled(enabled)
+    return json.dumps({"success": True, "enabled": enabled}), 200

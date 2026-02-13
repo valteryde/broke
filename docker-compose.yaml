@@ -9,7 +9,9 @@ services:
 
   broke-server:
     restart: always
-    build: .
+    image: ghcr.io/valteryde/broke:latest
+    # To build from source instead, comment out 'image' and uncomment 'build':
+    # build: .
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
@@ -17,8 +19,19 @@ services:
     environment:
       - DATA_PATH=/data
       - REDIS_URL=redis://redis:6379
+      - UPDATER_URL=http://broke-updater:9999
     depends_on:
       - redis
+
+  broke-updater:
+    build: ./updater
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - COMPOSE_PROJECT=broke
+      - TARGET_SERVICE=broke-server
+      - TARGET_IMAGE=ghcr.io/valteryde/broke:latest
 
 volumes:
   data:

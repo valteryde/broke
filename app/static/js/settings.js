@@ -674,3 +674,116 @@ async function hardDeleteTicket(ticketId) {
         showToast('Failed to delete ticket', 'error');
     }
 }
+
+
+// ============ Update Functions ============
+
+async function checkForUpdate() {
+    const btn = document.getElementById('check-update-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Checking...';
+    }
+
+    try {
+        const response = await fetch('/api/settings/updates/check', {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.available) {
+            showToast(`Update available: v${data.latest_version}`, 'success');
+        } else if (data.error) {
+            showToast(`Check failed: ${data.error}`, 'error');
+        } else {
+            showToast('You are on the latest version', 'success');
+        }
+
+        setTimeout(() => location.reload(), 1500);
+    } catch (error) {
+        showToast('Failed to check for updates', 'error');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-arrows-clockwise"></i> Check Now';
+        }
+    }
+}
+
+async function applyUpdate() {
+    if (!confirm('Are you sure you want to update and restart? The server will be briefly unavailable.')) {
+        return;
+    }
+
+    const btn = document.getElementById('apply-update-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Updating...';
+    }
+
+    showToast('Pulling latest image and restarting...', 'info');
+
+    try {
+        const response = await fetch('/api/settings/updates/apply', {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            showToast('Update applied! Server is restarting...', 'success');
+            // Poll until the server comes back
+            waitForRestart();
+        } else {
+            const data = await response.json();
+            showToast(`Update failed: ${data.error || 'Unknown error'}`, 'error');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="ph ph-rocket-launch"></i> Update & Restart';
+            }
+        }
+    } catch (error) {
+        // Connection lost means server is restarting — this is expected
+        showToast('Server is restarting...', 'info');
+        waitForRestart();
+    }
+}
+
+function waitForRestart() {
+    let attempts = 0;
+    const maxAttempts = 60; // Wait up to 2 minutes
+
+    const interval = setInterval(async () => {
+        attempts++;
+        try {
+            const response = await fetch('/settings/updates', { method: 'HEAD' });
+            if (response.ok) {
+                clearInterval(interval);
+                showToast('Server is back! Reloading...', 'success');
+                setTimeout(() => location.reload(), 1000);
+            }
+        } catch (e) {
+            // Still restarting
+        }
+
+        if (attempts >= maxAttempts) {
+            clearInterval(interval);
+            showToast('Server is taking longer than expected. Please refresh manually.', 'warning');
+        }
+    }, 2000);
+}
+
+async function toggleAutoCheck(enabled) {
+    try {
+        const response = await fetch('/api/settings/updates/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
+
+        if (response.ok) {
+            showToast(`Automatic update checks ${enabled ? 'enabled' : 'disabled'}`, 'success');
+        } else {
+            showToast('Failed to update setting', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to update setting', 'error');
+    }
+}

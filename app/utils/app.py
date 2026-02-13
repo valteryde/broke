@@ -246,6 +246,15 @@ def create_app():  # noqa: C901
     app.register_blueprint(webhooks_bp)
     app.register_blueprint(anon_bp)
 
+    # Start background update checker
+    if os.environ.get("FLASK_ENV") != "testing":
+        from .updater import start_update_checker, get_update_info
+        start_update_checker()
+
+        @app.context_processor
+        def inject_update_info():
+            return {"update_info": get_update_info()}
+
     # Register core routes
     @app.route("/favicon.ico")
     def favicon():

@@ -92,6 +92,13 @@
 
         <div class="settings-nav-section">
             <h3 class="nav-section-title">Maintenance</h3>
+            <a href="/settings/updates" class="settings-nav-item {% if section == 'updates' %}active{% endif %}">
+                <i class="ph ph-arrows-clockwise"></i>
+                <span>Updates</span>
+                {% if update_info and update_info.available %}
+                <span class="update-dot"></span>
+                {% endif %}
+            </a>
             <a href="/settings/trash" class="settings-nav-item {% if section == 'trash' %}active{% endif %}">
                 <i class="ph ph-trash"></i>
                 <span>Trash</span>
@@ -966,6 +973,110 @@ sentry_sdk.init(
     dsn="YOUR_DSN_URL_HERE",
     traces_sample_rate=1.0,
 )</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif section == 'updates' %}
+        <!-- Updates Section -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Updates</h1>
+                <p class="section-description">Check for new versions and update your Broke instance</p>
+            </div>
+
+            <!-- Current Version -->
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Version Info</h3>
+
+                    <div class="version-info-grid">
+                        <div class="version-item">
+                            <span class="version-label">Current Version</span>
+                            <span class="version-value">{{ app_version() }} {{ app_codename() }}</span>
+                        </div>
+                        {% if update_info %}
+                        <div class="version-item">
+                            <span class="version-label">Latest Version</span>
+                            <span class="version-value {% if update_info.available %}update-available{% endif %}">
+                                {{ update_info.latest_version }}
+                                {% if update_info.available %}
+                                <span class="badge badge-new">New</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="version-item">
+                            <span class="version-label">Last Checked</span>
+                            <span class="version-value">{{ update_info.checked_at | timestamp_to_date }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <button class="btn btn-secondary" style="margin-top: 16px;" onclick="checkForUpdate()" id="check-update-btn">
+                        <i class="ph ph-arrows-clockwise"></i> Check Now
+                    </button>
+                </div>
+            </div>
+
+            {% if update_info and update_info.available %}
+            <!-- Update Available -->
+            <div class="settings-card update-card">
+                <div class="card-section">
+                    <h3><i class="ph ph-download-simple"></i> Update Available</h3>
+                    <p class="card-description">Version {{ update_info.latest_version }} is ready to install</p>
+
+                    {% if update_info.release_notes %}
+                    <div class="release-notes">
+                        <h4>Release Notes</h4>
+                        <div class="release-notes-content">
+                            {{ update_info.release_notes }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if update_info.release_url %}
+                    <a href="{{ update_info.release_url }}" target="_blank" class="release-link">
+                        <i class="ph ph-github-logo"></i> View on GitHub
+                    </a>
+                    {% endif %}
+
+                    <!-- Sidecar Status -->
+                    {% if sidecar_status and sidecar_status.ok %}
+                    <div class="update-action-area">
+                        <button class="btn btn-primary" onclick="applyUpdate()" id="apply-update-btn">
+                            <i class="ph ph-rocket-launch"></i> Update & Restart
+                        </button>
+                        <p class="update-warning">This will pull the latest image and restart the server. You will lose connection briefly.</p>
+                    </div>
+                    {% else %}
+                    <div class="update-action-area">
+                        <div class="sidecar-warning">
+                            <i class="ph ph-warning"></i>
+                            <span>Auto-update sidecar is not running. Update manually with:</span>
+                        </div>
+                        <div class="code-example">
+                            <pre><code>docker compose pull broke-server
+docker compose up -d broke-server</code></pre>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Auto-Check Settings -->
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Automatic Checking</h3>
+                    <p class="card-description">Periodically check GitHub for new releases (every 6 hours)</p>
+
+                    <div class="toggle-setting">
+                        <label class="toggle">
+                            <input type="checkbox" id="auto-check-toggle" {% if auto_check_enabled %}checked{% endif %} onchange="toggleAutoCheck(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span>Enable automatic update checks</span>
                     </div>
                 </div>
             </div>
