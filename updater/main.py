@@ -29,7 +29,14 @@ app = Flask(__name__)
 
 def get_docker_client():
     """Connect to the Docker daemon via the mounted socket."""
-    return docker.from_env()
+    try:
+        return docker.from_env()
+    except PermissionError as e:
+        logger.error("Permission denied accessing Docker socket. Solutions:")
+        logger.error("1. Run container as root: add 'user: root' in docker-compose.yml")
+        logger.error("2. Mount socket with proper permissions: /var/run/docker.sock:/var/run/docker.sock:rw")
+        logger.error("3. Add container user to docker group")
+        raise RuntimeError(f"Cannot access Docker socket: {e}") from e
 
 
 def pull_and_restart(image=None):
@@ -74,9 +81,9 @@ def pull_and_restart(image=None):
     # Collect connected networks
     networks = {}
     for net_name, net_config in attrs["NetworkSettings"]["Networks"].items():
-        networks[net_name] = docker.types.EndpointConfig(
-            aliases=net_config.get("Aliases"),
-        )
+        networks[net_name] = {
+            "Aliases": net_config.get("Aliases", []),
+        }
 
     # Stop and remove old container
     logger.info(f"Stopping container: {container_name}")
@@ -102,7 +109,7 @@ def pull_and_restart(image=None):
     for net_name, endpoint_config in networks.items():
         try:
             network = client.networks.get(net_name)
-            network.connect(new_container, aliases=endpoint_config.get("Aliases"))
+            network.connect(new_container, aliases=endpoint_config.get("Aliases", []))
         except Exception as e:
             logger.warning(f"Could not connect to network {net_name}: {e}")
 
