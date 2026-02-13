@@ -5,6 +5,15 @@
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+
+    <script>
+
+        const API_URLS = {
+            invite_member: "{{ url_for('api.invite_team_member') }}",
+        }
+
+    </script>
+
 {% endblock %}
 
 {% block path %}

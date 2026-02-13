@@ -332,7 +332,7 @@ window.showCreateProjectModal = (data = {}) => {
 
 window.showInviteModal = () => {
     Modal.show('Invite Team Member', `
-        <form id="invite-form" action="/api/settings/team/invite" method="POST" autocomplete="off">
+        <form id="invite-form" action="${API_URLS.invite_member}" method="POST" autocomplete="off">
             <div class="form-group">
                 <label for="invite-name">Name</label>
                 <input type="text" id="invite-name" name="name" class="form-input" placeholder="Colleague Name" required>

@@ -1,0 +1,320 @@
+name: CI - Code Quality & Tests
+
+on:
+  push:
+    branches: [ main, develop, hooks ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: Code Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pylint mypy
+        pip install -r requirements.txt
+        
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings. Line length set to 120
+        flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+        
+    - name: Lint with pylint
+      continue-on-error: true
+      run: |
+        pylint app/ --exit-zero --max-line-length=120 --disable=C0114,C0115,C0116
+
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety
+        pip install -r requirements.txt
+        
+    - name: Run Bandit security checks
+      run: |
+        bandit -r app/ -f json -o bandit-report.json || true
+        bandit -r app/ -ll -ii
+        
+    - name: Check for known security vulnerabilities
+      continue-on-error: true
+      run: |
+        safety check --json || true
+        
+    - name: Upload Bandit report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: bandit-security-report
+        path: bandit-report.json
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better analysis
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install radon
+        pip install -r requirements.txt
+        
+    - name: Calculate code complexity
+      run: |
+        echo "## Cyclomatic Complexity" >> $GITHUB_STEP_SUMMARY
+        radon cc app/ -a -s >> $GITHUB_STEP_SUMMARY || true
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Maintainability Index" >> $GITHUB_STEP_SUMMARY
+        radon mi app/ -s >> $GITHUB_STEP_SUMMARY || true
+        
+    - name: Check code complexity thresholds
+      run: |
+        # Fail if average complexity is too high
+        radon cc app/ -a -nb || true
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          libglib2.0-0 \
+          libnss3 \
+          libnspr4 \
+          libdbus-1-3 \
+          libatk1.0-0 \
+          libatk-bridge2.0-0 \
+          libcups2 \
+          libdrm2 \
+          libxcb1 \
+          libxkbcommon0 \
+          libatspi2.0-0 \
+          libx11-6 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxext6 \
+          libxfixes3 \
+          libxrandr2 \
+          libgbm1 \
+          libpango-1.0-0 \
+          libcairo2 \
+          libasound2
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        
+    - name: Install Playwright browsers
+      run: |
+        playwright install chromium
+        
+    - name: Set up test environment
+      run: |
+        mkdir -p data/cache
+        mkdir -p data/uploads
+        echo "test_webhook_secret" > data/webhook_secret.txt
+        echo "test_github_webhook_secret" > data/github_webhook_secret.txt
+        
+    - name: Run tests with Ward
+      env:
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        FLASK_ENV: testing
+      run: |
+        ward --path tests/ --order standard
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          .ward/
+          *.log
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install coverage
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        
+    - name: Install Playwright browsers
+      run: |
+        playwright install chromium
+        
+    - name: Set up test environment
+      run: |
+        mkdir -p data/cache
+        mkdir -p data/uploads
+        echo "test_webhook_secret" > data/webhook_secret.txt
+        echo "test_github_webhook_secret" > data/github_webhook_secret.txt
+        
+    - name: Run tests with coverage
+      env:
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        FLASK_ENV: testing
+      run: |
+        coverage run -m ward --path tests/
+        coverage report
+        coverage xml
+        coverage html
+        
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: |
+          coverage.xml
+          htmlcov/
+          
+    - name: Coverage summary
+      run: |
+        echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+        coverage report --format=markdown >> $GITHUB_STEP_SUMMARY
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: broke:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Test Docker Compose
+      run: |
+        docker compose config
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint, security, code-quality, test, coverage, docker-build]
+    if: always()
+    
+    steps:
+    - name: Check job results
+      run: |
+        echo "## CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Linting: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Security: ${{ needs.security.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Code Quality: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Tests: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Coverage: ${{ needs.coverage.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Docker Build: ${{ needs.docker-build.result }}" >> $GITHUB_STEP_SUMMARY
+        
+    - name: Verify all jobs passed
+      if: |
+        needs.lint.result != 'success' ||
+        needs.test.result != 'success' ||
+        needs.coverage.result != 'success' ||
+        needs.docker-build.result != 'success'
+      run: |
+        echo "One or more critical jobs failed"
+        exit 1

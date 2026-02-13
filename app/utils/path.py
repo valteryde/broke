@@ -9,11 +9,13 @@ if hasattr(args, 'data_path') and args.data_path:
 else:
     DATA_BASE_DIR = BASE_DIR.joinpath('..', 'data')
 
+
 def path(*subpaths: str) -> pathlib.Path:
     """
     Construct an absolute path by joining BASE_DIR with subpaths.
     """
     return BASE_DIR.joinpath(*subpaths)
+
 
 def data_path(*subpaths: str) -> pathlib.Path:
     """

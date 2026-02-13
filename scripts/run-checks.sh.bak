@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# Local CI/CD checks - Run this before pushing to ensure CI passes
+
+# Don't exit on error - we want to run all checks and report at the end
+set +e
+
+echo "Running Local CI Checks..."
+echo ""
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Track failures
+FAILED=0
+
+# Function to print status
+print_status() {
+    if [ $1 -eq 0 ]; then
+        echo -e "${GREEN}[PASS]${NC} $2"
+    else
+        echo -e "${RED}[FAIL]${NC} $2"
+        FAILED=1
+    fi
+}
+
+# Check if we're in the right directory
+if [ ! -f "pyproject.toml" ]; then
+    echo -e "${RED}Error: Must run from project root${NC}"
+    exit 1
+fi
+
+# 1. Linting
+echo "Running Flake8..."
+flake8 app/ > /tmp/flake8.log 2>&1
+FLAKE8_EXIT=$?
+if [ $FLAKE8_EXIT -eq 0 ]; then
+    print_status 0 "Flake8 passed"
+else
+    print_status 1 "Flake8 failed - see /tmp/flake8.log"
+    echo "  Preview of issues:"
+    head -10 /tmp/flake8.log | sed 's/^/    /'
+fi
+echo ""
+
+# 2. Security check
+echo "Running Bandit security scan..."
+bandit -r app/ -ll -ii > /tmp/bandit.log 2>&1
+BANDIT_EXIT=$?
+    FAILED=1
+fi
+echo ""
+
+# 3. Check for debug statements
+echo "Checking for debug statements..."
+DEBUG_FOUND=0
+if grep -r "print(" app/ --include="*.py" | grep -v "# noqa" | grep -v "logger" > /tmp/debug.log 2>&1; then
+    echo -e "${YELLOW}Warning: print() statements found:${NC}"
+    cat /tmp/debug.log
+    DEBUG_FOUND=1
+fi
+
+if grep -r "breakpoint()\|import pdb\|pdb.set_trace()" app/ --include="*.py" > /tmp/breakpoints.log 2>&1; then
+    echo -e "${YELLOW}Warning: Breakpoints found:${NC}"
+    cat /tmp/breakpoints.log
+    DEBUG_FOUND=1
+fi
+
+if [ $DEBUG_FOUND -eq 0 ]; then
+    print_status 0 "No debug statements"
+fi
+echo ""
+
+# 4. Code complexity
+if command -v radon &> /dev/null; then
+    echo "Checking code complexity..."
+    echo "Cyclomatic Complexity:"
+    radon cc app/ -a -nb || true
+    echo ""
+    echo "Maintainability Index:"
+    radon mi app/ -nb || true
+    echo ""
+else
+    echo -e "${YELLOW}radon not installed, skipping complexity checks${NC}"
+    echo "Install with: pip install radon"
+    echo ""
+fi
+
+# 5. Run tests
+echo "Running tests..."
+if ward --path tests/ 2>&1 | tee /tmp/tests.log; then
+    print_status 0 "Tests passed"
+else
+    print_status 1 "Tests failed - see /tmp/tests.log"
+    FAILED=1
+fi
+echo ""
+
+# 6. Coverage check
+echo "Checking code coverage..."
+if coverage run -m ward --path tests/ > /dev/null 2>&1; then
+    coverage report
+    COVERAGE=$(coverage report | tail -1 | awk '{print $NF}' | sed 's/%//')
+    if [ $(echo "$COVERAGE < 70" | bc) -eq 1 ]; then
+        echo -e "${YELLOW}Warning: Coverage is below 70% ($COVERAGE%)${NC}"
+    else
+        print_status 0 "Coverage: $COVERAGE%"
+    fi
+else
+    print_status 1 "Coverage check failed"
+    FAILED=1
+fi
+echo ""
+
+# 7. Dependency security
+echo "Checking dependencies for vulnerabilities..."
+if command -v pip-audit &> /dev/null; then
+    if pip-audit --desc 2>&1 | tee /tmp/pip-audit.log; then
+        print_status 0 "No vulnerable dependencies"
+    else
+        print_status 1 "Vulnerable dependencies found - see /tmp/pip-audit.log"
+        FAILED=1
+    fi
+else
+    echo -e "${YELLOW}pip-audit not installed, skipping${NC}"
+    echo "Install with: pip install pip-audit"
+fi
+echo ""
+
+# Summary
+echo "================================================================"
+if [ -z "$FAILED" ]; then
+    echo -e "${GREEN}[PASS] All checks passed! Ready to push.${NC}"
+    exit 0
+else
+    echo -e "${RED}[FAIL] Some checks failed. Please fix before pushing.${NC}"
+    echo ""
+    echo "Logs saved to /tmp/:"
+    echo "  - flake8.log"
+    echo "  - bandit.log"
+    echo "  - tests.log"
+    echo "  - pip-audit.log"
+    exit 1
+fi

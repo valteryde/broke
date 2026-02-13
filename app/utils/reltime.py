@@ -2,11 +2,12 @@
 
 import time
 
+
 def time_ago(timestamp: int) -> str:
     """Convert Unix timestamp to human-readable time ago string"""
     now = int(time.time())
     diff = now - timestamp
-    
+
     if diff < 60:
         return "just now"
     elif diff < 3600:
@@ -21,5 +22,3 @@ def time_ago(timestamp: int) -> str:
     else:
         weeks = diff // 604800
         return f"{weeks}w ago"
-
-

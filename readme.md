@@ -5,6 +5,10 @@
 <em>A lightweight ticket and error management system for broke people</em>
 <a href="https://broke.dk">broke.dk</a>
 
+[![CI Status](https://github.com/valteryde/broke/actions/workflows/ci.yml/badge.svg)](https://github.com/valteryde/broke/actions/workflows/ci.yml)
+[![Security](https://github.com/valteryde/broke/actions/workflows/dependency-check.yml/badge.svg)](https://github.com/valteryde/broke/actions/workflows/dependency-check.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
@@ -135,6 +139,69 @@ sentry_sdk.init(
 - **Templating:** Jinja2
 - **Authentication:** Argon2 password hashing
 - **Container:** Docker
+- **Testing:** Ward + Playwright
+- **CI/CD:** GitHub Actions
+
+---
+
+## Development
+
+### Running Tests
+
+```bash
+# Install development dependencies
+make install-dev
+
+# Run tests
+make test
+
+# Run tests with coverage
+make coverage
+```
+
+### Code Quality
+
+```bash
+# Run linters
+make lint
+
+# Run security checks
+make security
+
+# Format code
+make format
+
+# Run all checks (recommended before committing)
+make checks
+```
+
+### Local Development
+
+```bash
+# Run development server
+make run-dev
+
+# Run with Docker
+make docker-up
+```
+
+See the [Makefile](Makefile) for all available commands.
+
+## Contributing
+
+We welcome contributions! Please follow these guidelines:
+
+1. **Fork the repository** and create your branch from `main`
+2. **Follow the code style** - run `make format` before committing
+3. **Write tests** for new features
+4. **Run checks** with `make checks` before pushing
+5. **Use conventional commits** for PR titles:
+   - `feat: add new feature`
+   - `fix: resolve bug`
+   - `docs: update documentation`
+   - `test: add tests`
+
+See [.github/workflows/README.md](.github/workflows/README.md) for detailed CI/CD documentation.
 
 ---
 

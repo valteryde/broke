@@ -7,21 +7,23 @@ import sys
 import random
 import faker
 
-sys.path.append('.')
+sys.path.append(".")
 
-from app.utils import app
-from app.utils.models import ProjectPart, Error
+from app.utils.models import ProjectPart  # noqa: E402
 
 fake = faker.Faker()
+
 
 def error_stack_1():
     error_stack_2()
 
+
 def error_stack_2():
     a = 10
     b = 5
-    c = a / b
+    a / b
     error_stack_3()
+
 
 def error_stack_3():
     return 1 / 0
@@ -30,19 +32,17 @@ def error_stack_3():
 
 def main():
     for part in ProjectPart.select():
-        dsn=f"http://secretkey@localhost:5000/ingest/{part.id}"
+        dsn = f"http://secretkey@localhost:5000/ingest/{part.id}"
         print(dsn)
 
         sentry_sdk.init(dsn)
-        
+
         for _ in range(random.randint(5, 20)):
             try:
                 error_stack_1()
-            except:
+            except Exception:
                 sentry_sdk.capture_exception()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
-
-
-

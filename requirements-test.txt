@@ -1,2 +1,10 @@
 ward
 playwright
+coverage
+flake8
+pylint
+bandit
+safety
+radon
+pip-audit
+pip-licenses

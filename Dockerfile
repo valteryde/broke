@@ -8,6 +8,8 @@ COPY app ./app
 COPY scripts ./scripts
 COPY run.py ./run.py
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
+# Copy the pyproject file 
+COPY pyproject.toml ./pyproject.toml
 
 # Create directory for data and give ownership to app user
 RUN useradd --create-home app && \

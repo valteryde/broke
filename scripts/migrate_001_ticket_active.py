@@ -1,5 +1,4 @@
 
-from peewee import SqliteDatabase
 from playhouse.migrate import migrate, SqliteMigrator, IntegerField
 import sys
 import os
@@ -8,7 +7,7 @@ import logging
 # Add parent directory to path to import utils
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.models import Ticket, database
+from app.utils.models import database
 
 def run_migration():
     logging.info("Running migration: Adding active column to Ticket table...")

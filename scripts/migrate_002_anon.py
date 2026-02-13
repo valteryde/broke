@@ -1,5 +1,4 @@
 
-from peewee import SqliteDatabase
 from playhouse.migrate import SqliteMigrator, migrate 
 import sys
 import os
@@ -7,7 +6,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.models import Ticket, database, CharField, GlobalSetting
+from app.utils.models import database, CharField, GlobalSetting
 
 def run_migration():
     print("Running migration 002: Add anonymous_secret to Ticket")
