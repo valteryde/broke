@@ -2,16 +2,13 @@
 Pull request webhook tests
 """
 
-
-from ward import test, fixture, Scope
-from app.utils.app import app
+from ward import test
 import hmac
 import hashlib
 import json
 from fixtures import client, test_ticket
 from app.views.webhooks import get_github_webhook_secret
-from app.utils.models import Project, Ticket, TicketUpdateMessage
-
+from app.utils.models import Ticket, TicketUpdateMessage
 
 
 @test("/api/webhooks/github/ Pull request merged event with valid signature", tags=["webhooks"])
@@ -20,7 +17,7 @@ def _(client=client, test_ticket=test_ticket):
     # ? Push a github pull request merged event with a valid signature and verify 200 response
     test_ticket.status = "todo"
     test_ticket.save()
-    
+
     github_secret = get_github_webhook_secret().encode()
     payload = {
         "action": "closed",
@@ -29,25 +26,23 @@ def _(client=client, test_ticket=test_ticket):
             "title": "Fix " + test_ticket.id,
             "body": "This PR fixes the issue.",
             "html_url": "https://github.com/test-repo/pull/42",
-            "merged": True
+            "merged": True,
         },
-        "repository": {
-            "name": "test-repo"
-        }
+        "repository": {"name": "test-repo"},
     }
     payload_bytes = json.dumps(payload).encode()
-    signature = 'sha256=' + hmac.new(github_secret, payload_bytes, hashlib.sha256).hexdigest()
+    signature = "sha256=" + hmac.new(github_secret, payload_bytes, hashlib.sha256).hexdigest()
     headers = {
-        'X-GitHub-Event': 'pull_request',
-        'X-Hub-Signature-256': signature,
-        'Content-Type': 'application/json'
+        "X-GitHub-Event": "pull_request",
+        "X-Hub-Signature-256": signature,
+        "Content-Type": "application/json",
     }
 
     response = client.post("/api/webhooks/github/", data=payload_bytes, headers=headers)
     assert response.status_code == 200
     data = response.get_json()
-    assert data['action'] == 'merged'
-    assert test_ticket.id in data['closed_tickets']
+    assert data["action"] == "merged"
+    assert test_ticket.id in data["closed_tickets"]
 
     # Verify that the ticket has been updated to closed
     ticket = Ticket.get(Ticket.id == test_ticket.id)
@@ -64,7 +59,7 @@ def _(client=client, test_ticket=test_ticket):
     # ? Push a github pull request opened event with a valid signature and verify 200 response
     test_ticket.status = "todo"
     test_ticket.save()
-    
+
     github_secret = get_github_webhook_secret().encode()
     payload = {
         "action": "opened",
@@ -74,22 +69,20 @@ def _(client=client, test_ticket=test_ticket):
             "body": "This PR implements the feature.",
             "html_url": "https://github.com/test-repo/pull/43",
         },
-        "repository": {
-            "name": "test-repo"
-        }
+        "repository": {"name": "test-repo"},
     }
     payload_bytes = json.dumps(payload).encode()
-    signature = 'sha256=' + hmac.new(github_secret, payload_bytes, hashlib.sha256).hexdigest()
+    signature = "sha256=" + hmac.new(github_secret, payload_bytes, hashlib.sha256).hexdigest()
     headers = {
-        'X-GitHub-Event': 'pull_request',
-        'X-Hub-Signature-256': signature,
-        'Content-Type': 'application/json'
+        "X-GitHub-Event": "pull_request",
+        "X-Hub-Signature-256": signature,
+        "Content-Type": "application/json",
     }
     response = client.post("/api/webhooks/github/", data=payload_bytes, headers=headers)
     assert response.status_code == 200
     data = response.get_json()
-    assert data['action'] == 'opened'
-    
+    assert data["action"] == "opened"
+
     # Verify that the ticket has been updated to in review
     ticket = Ticket.get(Ticket.id == test_ticket.id)
     print(ticket.status)

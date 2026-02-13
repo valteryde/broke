@@ -1,9 +1,14 @@
-
-from datetime import datetime
-from peewee import Model, CharField, IntegerField, SqliteDatabase, DateTimeField, ForeignKeyField, AutoField, TextField
-from .path import path, data_path
+from peewee import (
+    Model,
+    CharField,
+    IntegerField,
+    SqliteDatabase,
+    ForeignKeyField,
+    AutoField,
+    TextField,
+)
+from .path import data_path
 import time
-import sentry_sdk
 import logging
 import uuid
 import pyargon2
@@ -11,11 +16,13 @@ import pyargon2
 logger = logging.getLogger(__name__)
 logger.info(f"Database path: {data_path('app.db')}")
 
-database = SqliteDatabase(data_path('app.db'))
+database = SqliteDatabase(data_path("app.db"))
+
 
 class BaseModel(Model):
     class Meta:
         database = database
+
 
 class User(BaseModel):
     username = CharField(primary_key=True)
@@ -24,96 +31,92 @@ class User(BaseModel):
     email = CharField(unique=True)
     admin = IntegerField(default=0)
 
+
 def create_user(username: str, password, email: str, admin: int = 0):
-    
+
     User.create_table(safe=True)
 
     salt = uuid.uuid4().hex
     password_hash = pyargon2.hash(password, salt)
     user = User.create(
-        username=username,
-        password_hash=password_hash,
-        salt=salt,
-        email=email,
-        admin=admin
+        username=username, password_hash=password_hash, salt=salt, email=email, admin=admin
     )
     return user
 
-class UserCreateToken(BaseModel): # should be deleted after use
+
+class UserCreateToken(BaseModel):  # should be deleted after use
     token = CharField(primary_key=True)
     created_at = IntegerField(default=lambda: int(time.time()))
-    role = IntegerField(default=0) # For future use
-    name = CharField(null=True) # For friendly identification of the invite
-    
+    role = IntegerField(default=0)  # For future use
+    name = CharField(null=True)  # For friendly identification of the invite
+
 
 class Project(BaseModel):
     id = CharField(primary_key=True)
     name = CharField()
-    icon = CharField() # classes for icons (like ph ph-* or fa fa-*)
-    color = CharField() # i do not know if i will use this
-
+    icon = CharField()  # classes for icons (like ph ph-* or fa fa-*)
+    color = CharField()  # i do not know if i will use this
 
 
 class ProjectPart(BaseModel):
     id = AutoField(primary_key=True)
-    project = ForeignKeyField(Project, backref='parts')
+    project = ForeignKeyField(Project, backref="parts")
     name = CharField()
     description = CharField()
-    
-    class Meta: # type: ignore
-        indexes = (
-            (('project', 'name'), True),
-        )
+
+    class Meta:  # type: ignore
+        indexes = ((("project", "name"), True),)
 
 
 class ErrorGroup(BaseModel):
     """Groups similar errors together by fingerprint"""
+
     id = AutoField(primary_key=True)
-    part = ForeignKeyField(ProjectPart, backref='error_groups')
+    part = ForeignKeyField(ProjectPart, backref="error_groups")
     fingerprint = CharField(index=True)  # Hash of message + stacktrace for grouping
-    
+
     # Extracted fields for display/querying
     exception_type = CharField(null=True)  # e.g., "ValueError", "TypeError"
     exception_value = CharField(null=True)  # The error message
     culprit = CharField(null=True)  # File/function where error occurred
-    
+
     # Platform/environment info (from first occurrence)
     platform = CharField(null=True)  # e.g., "python", "javascript"
     environment = CharField(null=True)  # e.g., "production", "development"
     release = CharField(null=True)  # Version/release tag
-    
+
     # Full data storage
     stacktrace = CharField(null=True)  # Full stacktrace as JSON string
     contexts = CharField(null=True)  # OS, browser, device info as JSON
     tags = CharField(null=True)  # Tags as JSON
     extra = CharField(null=True)  # Extra data as JSON
-    
+
     # Aggregation
     event_count = IntegerField(default=1)
     first_seen = IntegerField(default=lambda: int(time.time()))
     last_seen = IntegerField(default=lambda: int(time.time()))
-    
+
     # Status for issue tracking
-    status = CharField(default='unresolved')  # unresolved, resolved, ignored
-    
+    status = CharField(default="unresolved")  # unresolved, resolved, ignored
+
     class Meta:  # type: ignore
-        indexes = (
-            (('part', 'fingerprint'), True),  # Unique per part
-        )
+        indexes = ((("part", "fingerprint"), True),)  # Unique per part
 
 
 class ErrorOccurrence(BaseModel):
     """Individual occurrence timestamps for an error group"""
+
     id = AutoField(primary_key=True)
-    error_group = ForeignKeyField(ErrorGroup, backref='occurrences')
+    error_group = ForeignKeyField(ErrorGroup, backref="occurrences")
     timestamp = IntegerField(default=lambda: int(time.time()))
     event_id = CharField(null=True)  # Sentry event_id if provided
 
 
 class Session(BaseModel):
     """Session data for crash-free rate tracking"""
+
     id = AutoField(primary_key=True)
-    part = ForeignKeyField(ProjectPart, backref='sessions')
+    part = ForeignKeyField(ProjectPart, backref="sessions")
     session_id = CharField(index=True)
     status = CharField()  # ok, crashed, errored, abnormal
     started = IntegerField()
@@ -121,17 +124,16 @@ class Session(BaseModel):
     errors = IntegerField(default=0)
     release = CharField(null=True)
     environment = CharField(null=True)
-    
+
     class Meta:  # type: ignore
-        indexes = (
-            (('part', 'session_id'), True),
-        )
+        indexes = ((("part", "session_id"), True),)
 
 
 class Transaction(BaseModel):
     """Performance transaction data"""
+
     id = AutoField(primary_key=True)
-    part = ForeignKeyField(ProjectPart, backref='transactions')
+    part = ForeignKeyField(ProjectPart, backref="transactions")
     transaction_id = CharField(index=True)
     name = CharField()  # Transaction name (e.g., route or function)
     op = CharField(null=True)  # Operation type (http, db, etc.)
@@ -143,8 +145,9 @@ class Transaction(BaseModel):
 
 class Attachment(BaseModel):
     """Attachments sent with events"""
+
     id = AutoField(primary_key=True)
-    error_group = ForeignKeyField(ErrorGroup, backref='attachments', null=True)
+    error_group = ForeignKeyField(ErrorGroup, backref="attachments", null=True)
     filename = CharField()
     content_type = CharField(null=True)
     data = CharField()  # Base64 encoded or path to file
@@ -153,7 +156,7 @@ class Attachment(BaseModel):
 
 # Legacy model - kept for backwards compatibility
 class Error(BaseModel):
-    part = ForeignKeyField(ProjectPart, backref='errors')
+    part = ForeignKeyField(ProjectPart, backref="errors")
     data = CharField()  # Json
     created_at = IntegerField(default=lambda: int(time.time()))
 
@@ -181,23 +184,19 @@ class UserTicketJoin(BaseModel):
     user = CharField()
     ticket = CharField()
 
-    class Meta: # type: ignore
-        indexes = (
-            (('user', 'ticket'), True),
-        )
+    class Meta:  # type: ignore
+        indexes = ((("user", "ticket"), True),)
 
 
 class Comment(BaseModel):
     id = AutoField(primary_key=True)
     ticket = CharField()
-    user = ForeignKeyField(User, backref='comments')
+    user = ForeignKeyField(User, backref="comments")
     body = CharField()
     created_at = IntegerField(default=lambda: int(time.time()))
 
-    class Meta: # type: ignore
-        indexes = (
-            (('ticket', 'user'), False),
-        )
+    class Meta:  # type: ignore
+        indexes = ((("ticket", "user"), False),)
 
 
 class TicketUpdateMessage(BaseModel):
@@ -208,10 +207,8 @@ class TicketUpdateMessage(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
     author = ForeignKeyField(User, null=True)
 
-    class Meta: # type: ignore
-        indexes = (
-            (('ticket', 'title'), False),
-        )
+    class Meta:  # type: ignore
+        indexes = ((("ticket", "title"), False),)
 
 
 class Label(BaseModel):
@@ -223,47 +220,48 @@ class TicketLabelJoin(BaseModel):
     ticket = CharField()
     label = CharField()
 
-    class Meta: # type: ignore
-        indexes = (
-            (('ticket', 'label'), True),
-        )
+    class Meta:  # type: ignore
+        indexes = ((("ticket", "label"), True),)
 
 
 # ============ Settings Models ============
 
+
 class UserSettings(BaseModel):
     """User preferences and settings"""
+
     user = CharField(primary_key=True)  # References User.username
-    
+
     # Appearance
-    theme = CharField(default='light')  # light, dark, system
+    theme = CharField(default="light")  # light, dark, system
     compact_mode = IntegerField(default=0)
     animations = IntegerField(default=1)
-    
+
     # Defaults
-    home_page = CharField(default='news')  # news, tickets, errors, timeline
-    default_ticket_view = CharField(default='list')  # list, board, table
-    
+    home_page = CharField(default="news")  # news, tickets, errors, timeline
+    default_ticket_view = CharField(default="list")  # list, board, table
+
     # Locale
-    timezone = CharField(default='UTC')
-    date_format = CharField(default='dmy')  # mdy, dmy, ymd
-    
+    timezone = CharField(default="UTC")
+    date_format = CharField(default="dmy")  # mdy, dmy, ymd
+
     # Profile
     display_name = CharField(null=True)
-    
+
     # Notification settings as JSON
-    notification_settings = TextField(default='{}')
-    
+    notification_settings = TextField(default="{}")
+
 
 class Webhook(BaseModel):
     """Outgoing webhooks configuration"""
+
     id = AutoField(primary_key=True)
     user = CharField()  # References User.username
-    
+
     url = CharField()
     events = TextField()  # JSON array of event types
     secret = CharField(null=True)  # For signing payloads
-    
+
     active = IntegerField(default=1)
     created_at = IntegerField(default=lambda: int(time.time()))
     last_triggered = IntegerField(null=True)
@@ -271,9 +269,10 @@ class Webhook(BaseModel):
 
 class WebhookDelivery(BaseModel):
     """Log of webhook delivery attempts"""
+
     id = AutoField(primary_key=True)
-    webhook = ForeignKeyField(Webhook, backref='deliveries')
-    
+    webhook = ForeignKeyField(Webhook, backref="deliveries")
+
     event = CharField()
     response_code = IntegerField()
     status = CharField()  # success, error
@@ -282,29 +281,31 @@ class WebhookDelivery(BaseModel):
 
 class APIToken(BaseModel):
     """API tokens for programmatic access"""
+
     id = AutoField(primary_key=True)
-    user = ForeignKeyField(User, backref='api_tokens')
-    
+    user = ForeignKeyField(User, backref="api_tokens")
+
     token_hash = CharField()  # SHA256 hash of the token
     token_preview = CharField()  # First 8 chars for display
-    
+
     last_used = IntegerField(null=True)
     created_at = IntegerField(default=lambda: int(time.time()))
 
 
 class DSNToken(BaseModel):
     """Single DSN token for Sentry SDK authentication - only one can exist at a time"""
+
     id = AutoField(primary_key=True)
-    
+
     token = CharField()  # Full token (visible)
-    
+
     created_at = IntegerField(default=lambda: int(time.time()))
     last_used = IntegerField(null=True)
 
 
-
 class GlobalSetting(BaseModel):
     """Generic key-value store for global settings"""
+
     key = CharField(primary_key=True)
     value = TextField()  # JSON content
 
@@ -332,8 +333,9 @@ MODELS = [
     WebhookDelivery,
     APIToken,
     DSNToken,
-    GlobalSetting
+    GlobalSetting,
 ]
+
 
 def initialize_db():
     database.connect()
@@ -341,13 +343,15 @@ def initialize_db():
     database.close()
 
 
-def setup_test_data():
+def setup_test_data():  # noqa: C901
     # Function to setup test data in the database
     import pyargon2
     from faker import Faker
     import random
 
-    random_time = lambda: int(time.time() - random.randint(0, 31536000))
+    def random_time():
+        """Generate a random timestamp within the past year"""
+        return int(time.time() - random.randint(0, 31536000))
 
     fake = Faker()
 
@@ -358,15 +362,20 @@ def setup_test_data():
     database.close()
 
     salt = "randomsalt"
-    
+
     # Create the main test user (always exists)
     try:
-        User.create(username='user', password_hash=pyargon2.hash('code', salt), salt=salt, email='user@test.com')
-    except:
+        User.create(
+            username="user",
+            password_hash=pyargon2.hash("code", salt),
+            salt=salt,
+            email="user@test.com",
+        )
+    except Exception:
         pass
 
     # Create additional fake users
-    usernames = ['user']
+    usernames = ["user"]
     for _ in range(5):
         username = fake.user_name()
         try:
@@ -374,31 +383,31 @@ def setup_test_data():
                 username=username,
                 password_hash=pyargon2.hash(fake.password(), salt),
                 salt=salt,
-                email=fake.unique.email()
+                email=fake.unique.email(),
             )
             usernames.append(username)
-        except:
+        except Exception:
             pass
 
     # Create projects
     project_data = [
-        {'id': 'FRO', 'name': 'Frontend', 'icon': 'ph ph-browser', 'color': 'blue'},
-        {'id': 'BAC', 'name': 'Backend', 'icon': 'ph ph-database', 'color': 'purple'},
-        {'id': 'MOB', 'name': 'Mobile', 'icon': 'ph ph-device-mobile', 'color': 'green'},
-        {'id': 'INF', 'name': 'Infrastructure', 'icon': 'ph ph-cloud', 'color': 'orange'},
-        {'id': 'DOC', 'name': 'Documentation', 'icon': 'ph ph-book-open', 'color': 'teal'},
+        {"id": "FRO", "name": "Frontend", "icon": "ph ph-browser", "color": "blue"},
+        {"id": "BAC", "name": "Backend", "icon": "ph ph-database", "color": "purple"},
+        {"id": "MOB", "name": "Mobile", "icon": "ph ph-device-mobile", "color": "green"},
+        {"id": "INF", "name": "Infrastructure", "icon": "ph ph-cloud", "color": "orange"},
+        {"id": "DOC", "name": "Documentation", "icon": "ph ph-book-open", "color": "teal"},
     ]
     project_ids = []
     for proj in project_data:
         try:
             Project.create(**proj)
-            project_ids.append(proj['id'])
-        except:
+            project_ids.append(proj["id"])
+        except Exception:
             pass
 
     # Create tickets
-    statuses = ['backlog', 'todo', 'in-progress', 'in-review', 'done', 'closed', 'duplicate']
-    priorities = ['low', 'medium', 'high', 'urgent']
+    statuses = ["backlog", "todo", "in-progress", "in-review", "done", "closed", "duplicate"]
+    priorities = ["low", "medium", "high", "urgent"]
     ticket_ids = []
 
     for i in range(20):
@@ -412,7 +421,7 @@ def setup_test_data():
                 status=random.choice(statuses),
                 priority=random.choice(priorities),
                 project=project_id,
-                created_at=random_time()
+                created_at=random_time(),
             )
             ticket_ids.append(ticket_id)
         except Exception as e:
@@ -425,7 +434,7 @@ def setup_test_data():
         for username in assigned_users:
             try:
                 UserTicketJoin.create(user=username, ticket=ticket_id)
-            except:
+            except Exception:
                 pass
 
     # Create comments on tickets
@@ -437,20 +446,20 @@ def setup_test_data():
                     ticket=ticket_id,
                     user=random.choice(usernames),
                     body=fake.paragraph(nb_sentences=random.randint(1, 3)),
-                    created_at=random_time()
+                    created_at=random_time(),
                 )
-            except:
+            except Exception:
                 pass
 
     # Create ticket update messages
     update_types = [
-        {'title': 'Status Changed', 'icon': 'ph ph-arrows-clockwise'},
-        {'title': 'Priority Updated', 'icon': 'ph ph-warning'},
-        {'title': 'Assignee Added', 'icon': 'ph ph-user-plus'},
-        {'title': 'Comment Added', 'icon': 'ph ph-chat-circle'},
-        {'title': 'Description Updated', 'icon': 'ph ph-pencil'},
+        {"title": "Status Changed", "icon": "ph ph-arrows-clockwise"},
+        {"title": "Priority Updated", "icon": "ph ph-warning"},
+        {"title": "Assignee Added", "icon": "ph ph-user-plus"},
+        {"title": "Comment Added", "icon": "ph ph-chat-circle"},
+        {"title": "Description Updated", "icon": "ph ph-pencil"},
     ]
-    
+
     for ticket_id in ticket_ids:
         # Add 0-3 update messages per ticket
         for _ in range(random.randint(0, 3)):
@@ -458,36 +467,30 @@ def setup_test_data():
             try:
                 TicketUpdateMessage.create(
                     ticket=ticket_id,
-                    title=update_type['title'],
-                    icon=update_type['icon'],
+                    title=update_type["title"],
+                    icon=update_type["icon"],
                     message=fake.sentence(nb_words=8),
-                    created_at=random_time()
+                    created_at=random_time(),
                 )
-            except:
+            except Exception:
                 pass
-    
+
     # Add labels
-    label_names = ['bug', 'feature', 'urgent', 'low-priority', 'documentation']
+    label_names = ["bug", "feature", "urgent", "low-priority", "documentation"]
     for label_name in label_names:
         try:
-            Label.create(
-                name=label_name,
-                color=fake.color_name().lower()
-            )
-        except:
+            Label.create(name=label_name, color=fake.color_name().lower())
+        except Exception:
             pass
-    
+
     # Assign labels to tickets
     for ticket_id in ticket_ids:
         # Assign 0-2 labels per ticket
         assigned_labels = random.sample(label_names, k=random.randint(0, min(2, len(label_names))))
         for label_name in assigned_labels:
             try:
-                TicketLabelJoin.create(
-                    ticket=ticket_id,
-                    label=label_name
-                )
-            except:
+                TicketLabelJoin.create(ticket=ticket_id, label=label_name)
+            except Exception:
                 pass
 
     # Create project parts

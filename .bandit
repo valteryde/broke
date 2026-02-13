@@ -1,0 +1,26 @@
+# Bandit security configuration
+[bandit]
+# Paths to exclude from scanning
+exclude_dirs = [
+    '/tests/',
+    '/scripts/migrate*.py',
+    '/__pycache__/',
+    '/.venv/',
+    '/venv/',
+    '/data/'
+]
+
+# Test IDs to skip
+skips = [
+    'B101',  # assert_used - asserts are okay in tests
+    'B601',  # paramiko_calls - if you're using paramiko
+]
+
+# Test IDs to include (leave empty to run all tests)
+tests = []
+
+# Severity level to report (LOW, MEDIUM, HIGH)
+level = 'LOW'
+
+# Confidence level to report (LOW, MEDIUM, HIGH)
+confidence = 'MEDIUM'

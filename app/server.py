@@ -1,7 +1,5 @@
 
-from .utils.app import create_app
 from .utils.models import initialize_db, setup_test_data
-from _thread import start_new_thread
 import subprocess
 import sentry_sdk
 from .config import dogfood_dsn, eat_your_own_dogfood
@@ -24,12 +22,12 @@ def run_test_app(app):
     # Initialize database
     initialize_db()
     setup_test_data()
-        
+
     # start_new_thread(run_error_populator, ())
 
     @app.route('/force-error')
     def force_error():
         raise Exception("This is a forced error for testing Sentry integration.")
-    
+
     # Run the app
     app.run(debug=True, port=5000)

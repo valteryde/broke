@@ -7,9 +7,11 @@ import logging
 
 dotenv.load_dotenv()
 
+
 class Args:
     def __init__(self):
         self.data_path = os.getenv('DATA_PATH')
+
 
 args = Args()
 logging.basicConfig(level=logging.INFO)

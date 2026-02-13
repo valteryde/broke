@@ -1,0 +1,83 @@
+[tool.pylint.main]
+# Python code to execute, usually for sys.path manipulation
+init-hook = "import sys; sys.path.append('.')"
+
+# Files or directories to be skipped
+ignore = ["CVS", ".git", "__pycache__", ".venv", "venv", "data", "scripts"]
+
+# Files or directories matching the regex patterns are skipped
+ignore-patterns = ["^\\.#", "test_.*\\.py$", ".*_test\\.py$"]
+
+# Use multiple processes to speed up Pylint
+jobs = 4
+
+# Pickle collected data for later comparisons
+persistent = true
+
+# Minimum Python version to use for version dependent checks
+py-version = "3.10"
+
+[tool.pylint.messages_control]
+# Disable the message, report, category or checker with the given id(s)
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "W0212",  # protected-access
+    "R0913",  # too-many-arguments
+    "R0914",  # too-many-locals
+    "R0915",  # too-many-statements
+    "C0103",  # invalid-name
+    "W0621",  # redefined-outer-name (common in fixtures)
+    "W0613",  # unused-argument
+]
+
+[tool.pylint.format]
+# Maximum number of characters on a single line
+max-line-length = 120
+
+# Maximum number of lines in a module
+max-module-lines = 1000
+
+[tool.pylint.basic]
+# Good variable names which should always be accepted
+good-names = ["i", "j", "k", "ex", "Run", "_", "id", "bp", "db", "app", "user"]
+
+# Regular expression matching correct variable names
+variable-rgx = "[a-z_][a-z0-9_]{1,30}$"
+
+[tool.pylint.design]
+# Maximum number of arguments for function / method
+max-args = 8
+
+# Maximum number of attributes for a class
+max-attributes = 15
+
+# Maximum number of boolean expressions in an if statement
+max-bool-expr = 5
+
+# Maximum number of branch for function / method body
+max-branches = 15
+
+# Maximum number of locals for function / method body
+max-locals = 20
+
+# Maximum number of return / yield for function / method body
+max-returns = 6
+
+# Maximum number of statements in function / method body
+max-statements = 60
+
+[tool.pylint.similarities]
+# Minimum lines number of a similarity
+min-similarity-lines = 4
+
+# Ignore comments when computing similarities
+ignore-comments = true
+
+# Ignore docstrings when computing similarities
+ignore-docstrings = true
+
+# Ignore imports when computing similarities
+ignore-imports = true

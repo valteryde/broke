@@ -78,7 +78,6 @@
                 <span>Settings</span>
             </div>
 
-
         </div>
 
          <div class="sb-bottom">
@@ -91,11 +90,23 @@
 
         <div class="sb-news">
             {% block news %}
-            <div class="sb-news-inner">
-                <h3>{{ app_version() }} {{ app_codename() }}</h3>
-                <p>Welcome to Broke!</p>
-                
-            </div>
+             {% set news_data = sidebar_news(user) %}
+             {% if news_data %}
+                <a href="{{ news_data.link }}" class="sb-news-inner" style="display: block; text-decoration: none; color: inherit;">
+                    <h3>
+                        {{ news_data.title }}
+                    </h3>
+                    <p>
+                        <i class="ph {{ news_data.icon }}"></i>
+                        <span>{{ news_data.text }}</span>
+                    </p>
+                </a>
+             {% else %}
+                <div class="sb-news-inner">
+                    <h3>{{ app_version() }} {{ app_codename() }}</h3>
+                    <p>Welcome to Broke!</p>
+                </div>
+             {% endif %}
             {% endblock %}
         </div>
 
@@ -112,6 +123,8 @@
         {% block content %}
             
         {% endblock %}
+
+        <small style="margin-bottom:10px;opacity:0.3;text-align:left">{{ app_version() }} {{ app_codename() }}</small>
     </div>
 
     <script src="{{ url_for('static', filename='js/shortcuts.js') }}"></script>

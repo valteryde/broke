@@ -22,7 +22,7 @@ def callback():
     """Process login form submission"""
     username = request.form['username']
     password = request.form['password']
-    
+
     # Authenticate user
     user = authenticate(username, password)
     if user:
