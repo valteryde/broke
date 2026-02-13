@@ -15,7 +15,7 @@ Thank you for your interest in contributing to Broke! This document provides gui
 
 ```bash
 # Fork the repository on GitHub, then:
-git clone https://github.com/YOUR_USERNAME/broke.git
+git clone https://github.com/valteryde/broke.git
 cd broke
 ```
 
