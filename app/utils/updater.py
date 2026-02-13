@@ -19,7 +19,8 @@ from .models import GlobalSetting
 logger = logging.getLogger(__name__)
 
 GITHUB_REPO = "valteryde/broke"
-GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_RAW_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/pyproject.toml"
+GITHUB_REPO_URL = f"https://github.com/{GITHUB_REPO}"
 CHECK_INTERVAL = 6 * 60 * 60  # 6 hours
 INITIAL_DELAY = 30  # seconds after startup before first check
 
@@ -32,9 +33,16 @@ def _get_current_version():
     return get_app_version_from_toml()
 
 
+def _parse_version_from_toml(text):
+    """Extract version string from raw pyproject.toml content."""
+    import re
+    match = re.search(r'version\s*=\s*"([^"]+)"', text)
+    return match.group(1) if match else None
+
+
 def check_for_update():
     """
-    Check GitHub Releases API for a newer version.
+    Check the latest pyproject.toml on GitHub main branch for a newer version.
     Stores result in GlobalSetting under key 'update_info'.
     Returns the update info dict.
     """
@@ -47,16 +55,16 @@ def check_for_update():
         return None
 
     try:
-        resp = requests.get(
-            GITHUB_API_URL,
-            headers={"Accept": "application/vnd.github.v3+json"},
-            timeout=15,
-        )
+        resp = requests.get(GITHUB_RAW_URL, timeout=15)
         resp.raise_for_status()
-        release = resp.json()
+        latest_version_str = _parse_version_from_toml(resp.text)
+
+        if not latest_version_str:
+            logger.warning("Could not parse version from remote pyproject.toml")
+            return None
+
     except Exception as e:
         logger.warning(f"Failed to check for updates: {e}")
-        # Store failure info so UI can show last check time
         info = {
             "available": False,
             "current_version": current_version_str,
@@ -67,23 +75,17 @@ def check_for_update():
         _save_update_info(info)
         return info
 
-    # Parse tag name (strip leading 'v' if present)
-    tag = release.get("tag_name", "")
-    latest_version_str = tag.lstrip("v")
-
     try:
         latest = Version(latest_version_str)
     except InvalidVersion:
-        logger.warning(f"Could not parse latest version tag: {tag}")
+        logger.warning(f"Could not parse remote version: {latest_version_str}")
         return None
 
     info = {
         "available": latest > current,
         "current_version": current_version_str,
         "latest_version": latest_version_str,
-        "release_url": release.get("html_url", ""),
-        "release_notes": release.get("body", ""),
-        "published_at": release.get("published_at", ""),
+        "release_url": GITHUB_REPO_URL,
         "checked_at": int(time.time()),
     }
 

@@ -14,12 +14,7 @@ def _():
     """Test that check_for_update correctly identifies a newer version"""
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "tag_name": "v99.0.0",
-        "html_url": "https://github.com/valteryde/broke/releases/tag/v99.0.0",
-        "body": "Test release notes",
-        "published_at": "2026-01-01T00:00:00Z",
-    }
+    mock_response.text = '[project]\nversion = "99.0.0"\n'
     mock_response.raise_for_status = MagicMock()
 
     with patch("app.utils.updater.requests.get", return_value=mock_response):
@@ -36,12 +31,7 @@ def _():
     """Test that check_for_update correctly reports no update needed"""
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "tag_name": "v0.0.1",
-        "html_url": "https://github.com/valteryde/broke/releases/tag/v0.0.1",
-        "body": "Old version",
-        "published_at": "2024-01-01T00:00:00Z",
-    }
+    mock_response.text = '[project]\nversion = "0.0.1"\n'
     mock_response.raise_for_status = MagicMock()
 
     with patch("app.utils.updater.requests.get", return_value=mock_response):
@@ -110,12 +100,7 @@ def _(c=auth_client):
     """Test manual update check endpoint"""
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {
-        "tag_name": "v0.1.5",
-        "html_url": "https://github.com/valteryde/broke/releases/tag/v0.1.5",
-        "body": "Current version",
-        "published_at": "2026-01-01T00:00:00Z",
-    }
+    mock_response.text = '[project]\nversion = "0.1.5"\n'
     mock_response.raise_for_status = MagicMock()
 
     with patch("app.utils.updater.requests.get", return_value=mock_response):
