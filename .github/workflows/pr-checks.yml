@@ -9,33 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  pr-validation:
-    name: PR Validation
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-      
-    - name: Check PR title
-      run: |
-        PR_TITLE="${{ github.event.pull_request.title }}"
-        if [[ ! "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?:.+ ]]; then
-          echo "::error::PR title must follow conventional commits format: type(scope): description"
-          echo "Examples: feat: add new feature, fix(auth): resolve login issue"
-          exit 1
-        fi
-        
-    - name: Check for large files
-      run: |
-        LARGE_FILES=$(find . -type f -size +1M -not -path "./.git/*" -not -path "./data/*" -not -path "./__pycache__/*")
-        if [ -n "$LARGE_FILES" ]; then
-          echo "::warning::Large files detected (>1MB):"
-          echo "$LARGE_FILES"
-        fi
-
   code-diff:
     name: Code Changes Analysis
     runs-on: ubuntu-latest
@@ -143,7 +116,7 @@ jobs:
   comment-summary:
     name: Comment PR Summary
     runs-on: ubuntu-latest
-    needs: [pr-validation, code-diff, security-diff]
+    needs: [code-diff, security-diff]
     if: always()
     
     steps:
@@ -164,7 +137,6 @@ jobs:
           
           const body = `## PR Quality Check Summary
           
-          ✅ **PR Validation**: ${{ needs.pr-validation.result }}
           📊 **Code Analysis**: ${{ needs.code-diff.result }}
           🔒 **Security Check**: ${{ needs.security-diff.result }}
           

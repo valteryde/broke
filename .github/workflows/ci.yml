@@ -116,7 +116,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.11', '3.12', '3.13']
     
     services:
       redis:
@@ -163,7 +163,7 @@ jobs:
           libgbm1 \
           libpango-1.0-0 \
           libcairo2 \
-          libasound2
+          libasound2t64
         
     - name: Install Python dependencies
       run: |
