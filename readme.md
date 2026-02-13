@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="server/static/images/logo-blue-chopped.png" alt="Broke Logo" width="300">
+  <img src="app/static/images/logo-blue-chopped.png" alt="Broke Logo" width="300">
 </p>
 
 <em>A lightweight ticket and error management system for broke people</em>
@@ -15,11 +15,11 @@
 ## Preview
 
 <p align="center">
-  <img src="server/static/images/preview_tickets.png" alt="Tickets Overview" width="800">
+  <img src="app/static/images/preview_tickets.png" alt="Tickets Overview" width="800">
 </p>
 
 <p align="center">
-  <img src="server/static/images/preview_ticket_editor.png" alt="Ticket Editor" width="800">
+  <img src="app/static/images/preview_ticket_editor.png" alt="Ticket Editor" width="800">
 </p>
 
 ---
