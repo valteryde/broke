@@ -51,3 +51,16 @@ htmlcov/
 **/.DS_Store
 /.DS_Store
 .DS_Store
+dump.rdb
+*.rdb
+*.bak
+*.backup
+*.tmp
+*.temp
+*.log
+*.log.*
+logs/
+logs/*
+*.log
+*.pot
+*.mo

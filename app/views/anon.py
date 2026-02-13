@@ -104,7 +104,7 @@ def anon_wizard(project_id: str):
 
 
 @anon_bp.route("/api/anon/submit", methods=["POST"])
-@limiter.limit("5 per hour")
+@limiter.limit("100 per hour")
 def api_anon_submit():
     settings = get_anon_settings()
     if not settings.get("enabled"):
