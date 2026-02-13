@@ -161,7 +161,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
 @settings_bp.route("/api/settings/profile", methods=["POST"])
 def api_update_profile():
     """Update user profile settings"""
-    from utils.security import get_current_user
+    from app.utils.security import get_current_user
 
     user = get_current_user()
     if not user:
@@ -195,7 +195,7 @@ def api_update_profile():
 @settings_bp.route("/api/settings/preferences", methods=["POST"])
 def api_update_preferences():
     """Update user preferences"""
-    from utils.security import get_current_user
+    from app.utils.security import get_current_user
 
     user = get_current_user()
     if not user:
@@ -228,7 +228,7 @@ def api_update_preferences():
 @settings_bp.route("/api/settings/notifications", methods=["POST"])
 def api_update_notifications():
     """Update notification settings"""
-    from utils.security import get_current_user
+    from app.utils.security import get_current_user
 
     user = get_current_user()
     if not user:
@@ -274,7 +274,7 @@ def api_update_anonymous(user: User):
 @settings_bp.route("/api/settings/security/password", methods=["POST"])
 def api_change_password():
     """Change user password"""
-    from utils.security import get_current_user
+    from app.utils.security import get_current_user
     import pyargon2
 
     user = get_current_user()
@@ -306,7 +306,7 @@ def api_change_password():
 @settings_bp.route("/api/settings/webhooks/regenerate-secret", methods=["POST"])
 def api_regenerate_webhook_secret():
     """Regenerate webhook secret"""
-    from utils.security import get_current_user
+    from app.utils.security import get_current_user
 
     user = get_current_user()
     if not user:
@@ -330,7 +330,7 @@ def api_regenerate_webhook_secret():
 @settings_bp.route("/api/settings/webhooks/outgoing", methods=["POST"])
 def api_create_outgoing_webhook():
     """Create a new outgoing webhook"""
-    from utils.security import get_current_user
+    from ..utils.security import get_current_user
 
     user = get_current_user()
     if not user:
@@ -363,7 +363,7 @@ def api_create_outgoing_webhook():
 @settings_bp.route("/api/settings/webhooks/<int:webhook_id>", methods=["DELETE"])
 def api_delete_webhook(webhook_id: int):
     """Delete an outgoing webhook"""
-    from utils.security import get_current_user
+    from app.utils.security import get_current_user
 
     user = get_current_user()
     if not user:
@@ -380,7 +380,7 @@ def api_delete_webhook(webhook_id: int):
 @settings_bp.route("/api/settings/webhooks/<int:webhook_id>/test", methods=["POST"])
 def api_test_webhook(webhook_id: int):
     """Send a test event to a webhook"""
-    from utils.security import get_current_user
+    from app.utils.security import get_current_user
     import requests
 
     user = get_current_user()
@@ -715,7 +715,7 @@ def api_delete_label(user: User, label_name: str):
 @settings_bp.route("/api/settings/danger/delete-account", methods=["POST"])
 def api_delete_account():
     """Delete user account"""
-    from utils.security import get_current_user
+    from app.utils.security import get_current_user
     import pyargon2
 
     user = get_current_user()
