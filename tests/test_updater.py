@@ -12,12 +12,7 @@ from app.utils.models import GlobalSetting
 @test("check_for_update detects newer version")
 def _():
     """Test that check_for_update correctly identifies a newer version"""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.text = '[project]\nversion = "99.0.0"\n'
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("app.utils.updater.requests.get", return_value=mock_response):
+    with patch("app.utils.updater._get_ghcr_tags", return_value=["latest", "0.1.5", "99.0.0"]):
         info = check_for_update()
 
     assert info is not None
@@ -29,12 +24,7 @@ def _():
 @test("check_for_update reports no update when on latest")
 def _():
     """Test that check_for_update correctly reports no update needed"""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.text = '[project]\nversion = "0.0.1"\n'
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("app.utils.updater.requests.get", return_value=mock_response):
+    with patch("app.utils.updater._get_ghcr_tags", return_value=["latest", "0.0.1"]):
         info = check_for_update()
 
     assert info is not None
@@ -43,8 +33,8 @@ def _():
 
 @test("check_for_update handles API failure gracefully")
 def _():
-    """Test graceful handling when GitHub API is unreachable"""
-    with patch("app.utils.updater.requests.get", side_effect=ConnectionError("Network unreachable")):
+    """Test graceful handling when GHCR is unreachable"""
+    with patch("app.utils.updater._get_ghcr_tags", side_effect=ConnectionError("Network unreachable")):
         info = check_for_update()
 
     assert info is not None
@@ -52,10 +42,19 @@ def _():
     assert "error" in info
 
 
+@test("check_for_update handles no version tags")
+def _():
+    """Test when only 'latest' tag exists"""
+    with patch("app.utils.updater._get_ghcr_tags", return_value=["latest"]):
+        info = check_for_update()
+
+    assert info is not None
+    assert info["available"] is False
+
+
 @test("get_update_info returns None when no data cached")
 def _():
     """Test get_update_info returns None when nothing is cached"""
-    # Clear any existing update info
     GlobalSetting.delete().where(GlobalSetting.key == "update_info").execute()
     info = get_update_info()
     assert info is None
@@ -98,12 +97,7 @@ def _(c=auth_client):
 @test("/api/settings/updates/check POST triggers check")
 def _(c=auth_client):
     """Test manual update check endpoint"""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.text = '[project]\nversion = "0.1.5"\n'
-    mock_response.raise_for_status = MagicMock()
-
-    with patch("app.utils.updater.requests.get", return_value=mock_response):
+    with patch("app.utils.updater._get_ghcr_tags", return_value=["latest", "0.1.5"]):
         response = c.post("/api/settings/updates/check")
 
     assert response.status_code == 200

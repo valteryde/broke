@@ -19,8 +19,9 @@ from .models import GlobalSetting
 logger = logging.getLogger(__name__)
 
 GITHUB_REPO = "valteryde/broke"
-GITHUB_RAW_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/pyproject.toml"
-GITHUB_REPO_URL = f"https://github.com/{GITHUB_REPO}"
+GHCR_TOKEN_URL = f"https://ghcr.io/token?scope=repository:{GITHUB_REPO}:pull"
+GHCR_TAGS_URL = f"https://ghcr.io/v2/{GITHUB_REPO}/tags/list"
+GITHUB_PACKAGE_URL = f"https://github.com/{GITHUB_REPO}/pkgs/container/broke"
 CHECK_INTERVAL = 6 * 60 * 60  # 6 hours
 INITIAL_DELAY = 30  # seconds after startup before first check
 
@@ -33,16 +34,37 @@ def _get_current_version():
     return get_app_version_from_toml()
 
 
-def _parse_version_from_toml(text):
-    """Extract version string from raw pyproject.toml content."""
-    import re
-    match = re.search(r'version\s*=\s*"([^"]+)"', text)
-    return match.group(1) if match else None
+def _get_ghcr_tags():
+    """Fetch available tags from GHCR using an anonymous OCI token."""
+    token_resp = requests.get(GHCR_TOKEN_URL, timeout=10)
+    token_resp.raise_for_status()
+    token = token_resp.json()["token"]
+
+    tags_resp = requests.get(
+        GHCR_TAGS_URL,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=10,
+    )
+    tags_resp.raise_for_status()
+    return tags_resp.json().get("tags", [])
+
+
+def _find_latest_version(tags):
+    """Find the highest semver tag from a list of GHCR tags."""
+    versions = []
+    for tag in tags:
+        if tag == "latest":
+            continue
+        try:
+            versions.append(Version(tag))
+        except InvalidVersion:
+            continue
+    return max(versions) if versions else None
 
 
 def check_for_update():
     """
-    Check the latest pyproject.toml on GitHub main branch for a newer version.
+    Check GHCR for a newer published Docker image version.
     Stores result in GlobalSetting under key 'update_info'.
     Returns the update info dict.
     """
@@ -55,13 +77,19 @@ def check_for_update():
         return None
 
     try:
-        resp = requests.get(GITHUB_RAW_URL, timeout=15)
-        resp.raise_for_status()
-        latest_version_str = _parse_version_from_toml(resp.text)
+        tags = _get_ghcr_tags()
+        latest = _find_latest_version(tags)
 
-        if not latest_version_str:
-            logger.warning("Could not parse version from remote pyproject.toml")
-            return None
+        if latest is None:
+            logger.info("No version tags found on GHCR")
+            info = {
+                "available": False,
+                "current_version": current_version_str,
+                "latest_version": current_version_str,
+                "checked_at": int(time.time()),
+            }
+            _save_update_info(info)
+            return info
 
     except Exception as e:
         logger.warning(f"Failed to check for updates: {e}")
@@ -75,17 +103,13 @@ def check_for_update():
         _save_update_info(info)
         return info
 
-    try:
-        latest = Version(latest_version_str)
-    except InvalidVersion:
-        logger.warning(f"Could not parse remote version: {latest_version_str}")
-        return None
+    latest_version_str = str(latest)
 
     info = {
         "available": latest > current,
         "current_version": current_version_str,
         "latest_version": latest_version_str,
-        "release_url": GITHUB_REPO_URL,
+        "release_url": GITHUB_PACKAGE_URL,
         "checked_at": int(time.time()),
     }
 
