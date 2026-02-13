@@ -70,6 +70,12 @@ def create_app():  # noqa: C901
         Configured Flask application instance
     """
     global _app
+    import os
+
+    # Initialize database tables on app creation (but not during tests)
+    if os.environ.get("FLASK_ENV") != "testing":
+        from .models import initialize_db
+        initialize_db()
 
     app = flask.Flask("Broke")
     app.secret_key = "supersecretkey-i-swear-it-not-hardcoded-at-all-pls-dont-hack-me"
