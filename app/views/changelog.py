@@ -8,8 +8,8 @@ from ..utils.models import (
     User,
     Ticket,
     ChangelogRelease,
-    GlobalSetting,
     TicketLabelJoin,
+    UserTicketJoin,
     Label,
     Comment,
 )
@@ -94,6 +94,18 @@ def changelog_view():
     parsed_releases = []
     for release in releases:
         parsed = _parse_release_content(release)
+        
+        # Fetch contributors for each entry individually
+        for entry in parsed["entries"]:
+            ticket_id = entry.get("ticket_id")
+            if ticket_id:
+                query = (UserTicketJoin
+                         .select(UserTicketJoin.user)
+                         .where(UserTicketJoin.ticket == ticket_id))
+                entry["contributors"] = [row.user for row in query]
+            else:
+                entry["contributors"] = []
+
         parsed_releases.append({
             "id": release.id,
             "version": release.version,
