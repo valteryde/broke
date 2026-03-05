@@ -1,0 +1,387 @@
+/* 
+    Changelog CSS 
+    Project variables: --bg-gray, --bg-white, --logo-blue, 
+    --bg-light-gray, --secondary-color, --danger-red 
+*/
+
+/* =========================================================================
+   1. PUBLIC STANDALONE LAYOUT
+   ========================================================================= */
+
+.changelog-public-layout {
+    min-height: 100vh;
+    color: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+}
+
+.changelog-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    width: 100%;
+}
+
+.changelog-header-area {
+    background-color: transparent;
+    margin-bottom: 3rem;
+}
+
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.back-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--secondary-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.back-link:hover {
+    color: #1a1a1a;
+}
+
+.changelog-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
+    color: #1a1a1a;
+}
+
+.changelog-subtitle {
+    font-size: 1.1rem;
+    color: var(--secondary-color);
+    max-width: 600px;
+}
+
+/* =========================================================================
+   2. TIMELINE & RELEASE BLOCKS
+   ========================================================================= */
+
+.changelog-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+    padding-bottom: 4rem;
+}
+
+.release-block {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    transition: opacity 0.3s ease;
+}
+
+@media (min-width: 768px) {
+    .release-block {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 2rem;
+    }
+}
+
+.release-meta {
+    flex: 0 0 160px;
+    position: sticky;
+    top: 2rem;
+}
+
+.release-version {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--logo-blue);
+    margin-bottom: 0.25rem;
+}
+
+.release-date {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--secondary-color);
+    font-size: 0.9rem;
+}
+
+/* Entry-level contributors */
+.entry-contributors {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.25rem;
+}
+
+.entry-contributor {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.entry-contributor svg {
+    border-radius: 50%;
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.release-content-card {
+    flex: 1;
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+.release-card-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+}
+
+.release-card-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+    color: #1a1a1a;
+}
+
+/* =========================================================================
+   3. CATEGORY GROUPS
+   ========================================================================= */
+
+.release-category {
+    margin-bottom: 1.5rem;
+}
+
+.release-category:last-of-type {
+    margin-bottom: 0;
+}
+
+.release-category-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid transparent;
+}
+
+.release-category-header i {
+    font-size: 1rem;
+}
+
+/* Category colors */
+.release-category-header.cat-new {
+    color: #22c55e;
+    border-bottom-color: rgba(34, 197, 94, 0.2);
+}
+
+.release-category-header.cat-changed {
+    color: #3b82f6;
+    border-bottom-color: rgba(59, 130, 246, 0.2);
+}
+
+.release-category-header.cat-fixed {
+    color: #ef4444;
+    border-bottom-color: rgba(239, 68, 68, 0.2);
+}
+
+/* Entry list */
+.release-entry-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.release-entry-list li.entry-item {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #333;
+    padding-left: 1.25rem;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.release-entry-list li.entry-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.6em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--bg-gray);
+}
+
+.entry-text {
+    flex: 1;
+}
+
+/* Notes section */
+.release-notes-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bg-light-gray);
+}
+
+.release-notes-section p {
+    font-size: 0.9rem;
+    color: var(--secondary-color);
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--secondary-color);
+}
+
+.empty-state i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+.empty-state h3 {
+    margin-bottom: 0.5rem;
+    color: #1a1a1a;
+}
+
+/* =========================================================================
+   4. ADMIN MANAGE PAGE (Dashboard)
+   ========================================================================= */
+
+.changelog-manage-layout {
+    padding: 0;
+}
+
+.manage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.manage-header .page-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.manage-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.manage-releases-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.manage-release-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    background-color: #fff;
+    border: 1px solid var(--bg-light-gray);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.manage-release-row:hover {
+    border-color: var(--logo-blue);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.release-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.release-row-title {
+    font-weight: 600;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #1a1a1a;
+}
+
+.release-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--secondary-color);
+}
+
+.version-tag {
+    font-family: monospace;
+    background-color: var(--bg-light-gray);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.release-row-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-draft {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
+.status-published {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+}
+
+/* Animations */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ph-spin {
+    animation: spin 1s linear infinite;
+}

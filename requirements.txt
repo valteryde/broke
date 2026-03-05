@@ -10,3 +10,4 @@ gunicorn
 python-dotenv
 requests
 packaging
+openai

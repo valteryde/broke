@@ -5,5 +5,7 @@ from .news import news_bp
 from .webhooks import webhooks_bp
 from .auth import auth_bp
 from .anon import anon_bp
+from .changelog import changelog_bp
 
-__all__ = ['tickets_bp', 'bug_bp', 'settings_bp', 'news_bp', 'webhooks_bp', 'auth_bp', 'anon_bp']
+__all__ = ['tickets_bp', 'bug_bp', 'settings_bp', 'news_bp', 'webhooks_bp', 'auth_bp', 'anon_bp', 'changelog_bp']
+

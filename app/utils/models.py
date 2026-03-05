@@ -310,6 +310,20 @@ class GlobalSetting(BaseModel):
     value = TextField()  # JSON content
 
 
+# ============ Changelog Models ============
+
+
+class ChangelogRelease(BaseModel):
+    """A versioned or date-based changelog release containing Markdown content"""
+
+    id = AutoField(primary_key=True)
+    version = CharField(unique=True, null=True)  # e.g. "1.4.0", optional
+    title = CharField(null=True)  # Optional release title
+    content = TextField()  # The raw Markdown content for the release
+    status = CharField(default="draft")  # draft or published
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
 MODELS = [
     User,
     Ticket,
@@ -334,6 +348,8 @@ MODELS = [
     APIToken,
     DSNToken,
     GlobalSetting,
+    # Changelog models
+    ChangelogRelease,
 ]
 
 

@@ -31,9 +31,11 @@
     </header>
 
     <main class="standalone-main">
+        {% block main_content %}
         <div class="standalone-container">
             {% block content %}{% endblock %}
         </div>
+        {% endblock %}
     </main>
 
     <footer class="standalone-footer">

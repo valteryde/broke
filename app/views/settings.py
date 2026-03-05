@@ -66,6 +66,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         "trash": "Trash",
         "anonymous": "Anonymous Access",
         "danger": "Danger Zone",
+        "ai": "AI Integration",
     }
 
     section_title = section_titles.get(section, section.title())
@@ -152,6 +153,18 @@ def settings_section_view(user: User, section: str):  # noqa: C901
                 "projects": [],
             }
         context["projects"] = list(Project.select().order_by(Project.name))
+
+    elif section == "ai":
+        try:
+            setting = GlobalSetting.get(GlobalSetting.key == "ai_settings")
+            context["ai_settings"] = json.loads(setting.value)
+        except DoesNotExist:
+            context["ai_settings"] = {
+                "api_key": "",
+                "base_url": "https://api.openai.com/v1",
+                "model": "gpt-4o-mini",
+                "language": "English",
+            }
 
     elif section == "updates":
         from ..utils.updater import get_update_info, is_auto_check_enabled, get_sidecar_status
@@ -276,6 +289,41 @@ def api_update_anonymous(user: User):
         GlobalSetting.create(key="anonymous_settings", value=json.dumps(settings))
 
     return json.dumps({"success": True}), 200
+
+
+@settings_bp.route("/api/settings/ai", methods=["POST"])
+@protected
+def api_update_ai(user: User):
+    """Update AI configuration (admin only usually, but let's assume they have access to settings)"""
+
+    data = request.get_json()
+
+    # Validate and structure data
+    settings = {
+        "api_key": data.get("api_key", "").strip(),
+        "base_url": data.get("base_url", "https://api.openai.com/v1").strip(),
+        "model": data.get("model", "gpt-4o-mini").strip(),
+        "language": data.get("language", "English").strip(),
+    }
+
+    # If empty API key, we remove it to disable AI
+    if not settings["api_key"]:
+        try:
+            setting = GlobalSetting.get(GlobalSetting.key == "ai_settings")
+            setting.delete_instance()
+        except DoesNotExist:
+            pass
+        return json.dumps({"success": True, "message": "AI Integration disabled"}), 200
+
+    # Save to GlobalSetting
+    try:
+        setting = GlobalSetting.get(GlobalSetting.key == "ai_settings")
+        setting.value = json.dumps(settings)
+        setting.save()
+    except DoesNotExist:
+        GlobalSetting.create(key="ai_settings", value=json.dumps(settings))
+
+    return json.dumps({"success": True, "message": "AI Integration settings saved"}), 200
 
 
 @settings_bp.route("/api/settings/security/password", methods=["POST"])
