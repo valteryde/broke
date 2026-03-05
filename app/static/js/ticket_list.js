@@ -4,6 +4,89 @@
  * Depends on: config.js (StatusConfig, PriorityConfig, etc.)
  */
 
+const TICKET_LIST_STATE_KEY = 'pref_ticket_list_state_v1';
+
+function loadTicketListState() {
+    try {
+        const raw = localStorage.getItem(TICKET_LIST_STATE_KEY);
+        if (!raw) {
+            return { groupBy: 'status', filters: {} };
+        }
+
+        const parsed = JSON.parse(raw);
+        const state = {
+            groupBy: parsed.groupBy || 'status',
+            filters: {}
+        };
+
+        const savedFilters = parsed.filters || {};
+        Object.keys(savedFilters).forEach(filterType => {
+            if (filterType === 'search') {
+                return;
+            }
+
+            if (!Object.prototype.hasOwnProperty.call(TicketListConfig.filters, filterType)) {
+                return;
+            }
+
+            const filterValue = savedFilters[filterType];
+            if (filterValue === null || filterValue === undefined || filterValue === '') {
+                return;
+            }
+
+            const filterConfig = TicketListConfig.filters[filterType];
+            if (filterConfig.getValueFromOption && typeof filterValue === 'string') {
+                const mappedValue = filterConfig.getValueFromOption(filterValue);
+                mappedValue.optionValue = filterValue;
+                mappedValue.optionLabel = filterValue;
+                state.filters[filterType] = mappedValue;
+                return;
+            }
+
+            state.filters[filterType] = filterValue;
+        });
+
+        return state;
+    } catch (error) {
+        console.warn('Failed to load ticket list state', error);
+        return { groupBy: 'status', filters: {} };
+    }
+}
+
+function saveTicketListState(state) {
+    try {
+        const serializedFilters = {};
+        Object.keys(state.filters || {}).forEach(filterType => {
+            if (filterType === 'search') {
+                return;
+            }
+
+            const value = state.filters[filterType];
+            if (value === null || value === undefined || value === '') {
+                return;
+            }
+
+            if (Array.isArray(value) && value.length === 0) {
+                return;
+            }
+
+            if (typeof value === 'object' && value.optionValue) {
+                serializedFilters[filterType] = value.optionValue;
+                return;
+            }
+
+            serializedFilters[filterType] = value;
+        });
+
+        localStorage.setItem(TICKET_LIST_STATE_KEY, JSON.stringify({
+            groupBy: state.groupBy || 'status',
+            filters: serializedFilters
+        }));
+    } catch (error) {
+        console.warn('Failed to save ticket list state', error);
+    }
+}
+
 const TicketListConfig = {
     // Filter definitions
     filters: {
@@ -139,7 +222,7 @@ const TicketListConfig = {
     },
 
     // Default grouping
-    defaultGroupBy: 'none',
+    defaultGroupBy: 'status',
 
     // Item renderer
     renderer: (element) => {

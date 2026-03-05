@@ -34,6 +34,9 @@ class List {
         this.activeFilters = {};
         this.activeFilterChips = {};
         this.currentGroupBy = options.defaultGroupBy || options.groupBy?.default || 'none';
+        this.syncUrlState = options.syncUrlState !== false;
+        this.getInitialState = typeof options.getInitialState === 'function' ? options.getInitialState : null;
+        this.onStateChange = typeof options.onStateChange === 'function' ? options.onStateChange : null;
         // Note: supporting old groupBy.default structure for backward compat if needed, but we are updating call sites.
 
         // Callbacks
@@ -63,31 +66,108 @@ class List {
 
         this.initShortcuts();
 
-        // Get initial filters from URL
+        this.hydrateInitialState();
+
+        this.applyFilters();
+    }
+
+    hydrateInitialState() {
+        const initialState = this.getInitialState ? this.getInitialState() : null;
+        const hasCustomState = Boolean(initialState && typeof initialState === 'object');
+
+        if (hasCustomState) {
+            if (initialState.groupBy && this.groupsConfig[initialState.groupBy]) {
+                this.currentGroupBy = initialState.groupBy;
+            }
+
+            if (initialState.filters && typeof initialState.filters === 'object') {
+                Object.keys(this.filtersConfig).forEach(filterType => {
+                    if (!Object.prototype.hasOwnProperty.call(initialState.filters, filterType)) {
+                        return;
+                    }
+
+                    const restoredValue = initialState.filters[filterType];
+                    if (restoredValue === null || restoredValue === undefined || restoredValue === '') {
+                        return;
+                    }
+
+                    this.activeFilters[filterType] = restoredValue;
+                    this.updateFilterChipFromValue(filterType, restoredValue);
+                });
+            }
+        }
+
+        if (!this.syncUrlState) {
+            return;
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         Object.keys(this.filtersConfig).forEach(filterType => {
             const paramKey = `filter_${filterType}`;
-            if (urlParams.has(paramKey)) {
-                const paramValue = urlParams.get(paramKey);
-                const config = this.filtersConfig[filterType];
-
-                // Check if getValueFromOption is present (single select)
-                if (config.getValueFromOption) {
-                    const value = config.getValueFromOption(paramValue);
-                    value.optionValue = paramValue;
-                    value.optionLabel = paramValue; // We don't have label info from URL, so use value
-                    this.activeFilters[filterType] = value;
-                    this.updateFilterChip(filterType, paramValue);
-                } else {
-                    // Multi-select (comma separated)
-                    const values = paramValue.split(',');
-                    this.activeFilters[filterType] = values;
-                    this.updateFilterChip(filterType, values.join(', '));
-                }
+            if (!urlParams.has(paramKey)) {
+                return;
             }
+
+            const paramValue = urlParams.get(paramKey);
+            const config = this.filtersConfig[filterType];
+
+            if (config.getValueFromOption) {
+                const value = config.getValueFromOption(paramValue);
+                value.optionValue = paramValue;
+                value.optionLabel = paramValue;
+                this.activeFilters[filterType] = value;
+                this.updateFilterChip(filterType, paramValue);
+                return;
+            }
+
+            if (filterType === 'search') {
+                this.activeFilters[filterType] = paramValue;
+                return;
+            }
+
+            const values = paramValue.split(',');
+            this.activeFilters[filterType] = values;
+            this.updateFilterChip(filterType, values.join(', '));
         });
 
-        this.applyFilters();
+        if (urlParams.has('group')) {
+            const urlGroupBy = urlParams.get('group');
+            if (urlGroupBy && this.groupsConfig[urlGroupBy]) {
+                this.currentGroupBy = urlGroupBy;
+            }
+        }
+    }
+
+    updateFilterChipFromValue(filterType, value) {
+        const config = this.filtersConfig[filterType];
+        if (!config || filterType === 'search') {
+            return;
+        }
+
+        if (Array.isArray(value)) {
+            if (value.length > 0) {
+                this.updateFilterChip(filterType, value.join(', '));
+            }
+            return;
+        }
+
+        if (typeof value === 'object' && value.optionLabel) {
+            this.updateFilterChip(filterType, value.optionLabel);
+            return;
+        }
+
+        this.updateFilterChip(filterType, String(value));
+    }
+
+    emitStateChange() {
+        if (!this.onStateChange) {
+            return;
+        }
+
+        this.onStateChange({
+            groupBy: this.currentGroupBy,
+            filters: this.activeFilters
+        }, this);
     }
 
     defaultRenderer(element) {
@@ -260,6 +340,7 @@ class List {
             searchInput.type = 'text';
             searchInput.className = 'list-search-input';
             searchInput.placeholder = this.filtersConfig.search.placeholder || 'Search...';
+            searchInput.value = this.activeFilters.search || '';
 
             searchInput.addEventListener('input', () => {
                 this.activeFilters.search = searchInput.value;
@@ -508,14 +589,17 @@ class List {
         this.updateGroupByButtonLabel();
         this.render();
 
-        // Update URL
-        const url = new URL(window.location);
-        if (groupType === 'none') {
-            url.searchParams.delete('group');
-        } else {
-            url.searchParams.set('group', groupType);
+        if (this.syncUrlState) {
+            const url = new URL(window.location);
+            if (groupType === 'none') {
+                url.searchParams.delete('group');
+            } else {
+                url.searchParams.set('group', groupType);
+            }
+            window.history.replaceState({}, '', url);
         }
-        window.history.replaceState({}, '', url);
+
+        this.emitStateChange();
 
     }
 
@@ -581,36 +665,38 @@ class List {
 
         this.render();
 
-        // Add filters to URL
-        Object.keys(this.activeFilters).forEach((key) => {
-            const value = this.activeFilters[key];
-            const paramKey = `filter_${key}`;
-            let paramValue = '';
+        if (this.syncUrlState) {
+            Object.keys(this.activeFilters).forEach((key) => {
+                const value = this.activeFilters[key];
+                const paramKey = `filter_${key}`;
+                let paramValue = '';
 
-            if (Array.isArray(value)) {
-                paramValue = value.join(',');
-            } else if (typeof value === 'object' && value.optionValue) {
-                paramValue = value.optionValue;
-            } else {
-                paramValue = value;
-            }
-
-            const url = new URL(window.location);
-            url.searchParams.set(paramKey, paramValue);
-            window.history.replaceState({}, '', url);
-        });
-
-        // Remove cleared filters from URL
-        Object.keys(this.filtersConfig).forEach(filterType => {
-            if (!this.activeFilters[filterType]) {
-                const paramKey = `filter_${filterType}`;
-                const url = new URL(window.location);
-                if (url.searchParams.has(paramKey)) {
-                    url.searchParams.delete(paramKey);
-                    window.history.replaceState({}, '', url);
+                if (Array.isArray(value)) {
+                    paramValue = value.join(',');
+                } else if (typeof value === 'object' && value.optionValue) {
+                    paramValue = value.optionValue;
+                } else {
+                    paramValue = value;
                 }
-            }
-        });
+
+                const url = new URL(window.location);
+                url.searchParams.set(paramKey, paramValue);
+                window.history.replaceState({}, '', url);
+            });
+
+            Object.keys(this.filtersConfig).forEach(filterType => {
+                if (!this.activeFilters[filterType]) {
+                    const paramKey = `filter_${filterType}`;
+                    const url = new URL(window.location);
+                    if (url.searchParams.has(paramKey)) {
+                        url.searchParams.delete(paramKey);
+                        window.history.replaceState({}, '', url);
+                    }
+                }
+            });
+        }
+
+        this.emitStateChange();
 
     }
 

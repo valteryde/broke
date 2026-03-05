@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block path %}
-    <a href="#" onclick="openUrlWithArgs('/tickets'); return false;"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i> <a href="#" onclick="openUrlWithArgs('/tickets/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a>  <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a> 
+    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>  <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a> 
 {% endblock %}
 
 {% block content %}
