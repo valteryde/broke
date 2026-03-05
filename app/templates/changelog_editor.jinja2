@@ -1,0 +1,548 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}{% if release %}Edit Release{% else %}New Release{% endif %} | Broke{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/changelog_editor.css') }}">
+{% endblock %}
+
+{% block path %}
+<span><i class="ph ph-house"></i> Home</span> <i class="ph ph-caret-right"></i> <span onclick="window.location.href='/changelog/manage'" style="cursor:pointer;"><i class="ph ph-scroll"></i> Changelog</span> <i class="ph ph-caret-right"></i> <span>{% if release %}Edit{% else %}New Release{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="cl-workspace">
+
+    {# ── Left Main Panel (The Editor) ── #}
+    <div class="cl-main">
+        
+        {# Top Action Bar #}
+        <div class="cl-action-bar">
+            <div class="cl-action-left">
+                {% if release %}
+                <span class="cl-status-badge {% if release.status == 'published' %}is-published{% else %}is-draft{% endif %}">
+                    <i class="ph {% if release.status == 'published' %}ph-globe{% else %}ph-lock-key{% endif %}"></i>
+                    {{ release.status | capitalize }}
+                </span>
+                {% else %}
+                <span class="cl-status-badge is-new">
+                    <i class="ph ph-sparkle"></i> New Draft
+                </span>
+                {% endif %}
+            </div>
+            
+            <div class="cl-action-right">
+                {% if ai_enabled %}
+                <button id="generateBtn" class="btn btn-ai" onclick="generateChangelog()" title="Generate summaries for all selected tickets">
+                    <i class="ph-fill ph-magic-wand"></i> Generate with AI
+                </button>
+                {% endif %}
+                <button id="saveDraftBtn" class="btn btn-secondary" onclick="saveRelease('draft')">
+                    <i class="ph ph-floppy-disk"></i> Save Draft
+                </button>
+                <button id="publishBtn" class="btn btn-primary" onclick="saveRelease('published')">
+                    <i class="ph ph-paper-plane-tilt"></i> Publish
+                </button>
+            </div>
+        </div>
+
+        {# The Paper Card #}
+        <div class="cl-paper">
+            <div class="cl-paper-header">
+                <input 
+                    type="text" 
+                    id="releaseTitle" 
+                    class="cl-title-input" 
+                    placeholder="Release title (e.g. March Update)" 
+                    value="{{ release.title if release and release.title else '' }}"
+                >
+                <div class="cl-version-row">
+                    <div class="cl-version-icon"><i class="ph ph-tag"></i></div>
+                    <input type="text" id="releaseVersion" class="cl-version-input" placeholder="Version tag (optional, e.g. v1.4.0)" value="{{ release.version if release and release.version else '' }}">
+                </div>
+            </div>
+
+            <div class="cl-paper-body">
+                <div class="cl-section">
+                    <div class="cl-section-header">
+                        <h3><i class="ph ph-list-plus"></i> Included Changes</h3>
+                        <button class="cl-btn-text" onclick="addManualEntry()"><i class="ph ph-plus"></i> Manual entry</button>
+                    </div>
+
+                    <div id="includedEntries" class="cl-entries-container">
+                        {# JS populates this #}
+                    </div>
+
+                    <div id="emptyEntriesState" class="cl-empty-state">
+                        <div class="cl-empty-icon"><i class="ph ph-ghost"></i></div>
+                        <h4>No changes listed yet</h4>
+                        <p>Select tickets from the sidebar to automatically add them here, or add a manual entry.</p>
+                    </div>
+                </div>
+
+                <div class="cl-section cl-notes-section">
+                    <div class="cl-section-header">
+                        <h3><i class="ph ph-note-pencil"></i> Release Notes <span class="text-muted">(Optional)</span></h3>
+                    </div>
+                    <textarea id="releaseNotes" class="cl-notes-textarea" placeholder="Add any additional announcements, migration steps, or context for this release..." rows="3"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Right Sidebar (Ticket Pool) ── #}
+    <div class="cl-sidebar">
+        <div class="cl-sidebar-header">
+            <div class="cl-sidebar-title-row">
+                <h3><i class="ph ph-ticket"></i> Tickets pool</h3>
+                <label class="cl-toggle">
+                    <input type="checkbox" id="showAllTicketsToggle" onchange="toggleTicketPool()">
+                    <span class="cl-toggle-slider"></span>
+                    <span class="cl-toggle-label">Show all</span>
+                </label>
+            </div>
+            <p id="poolSubtitle">Completed since last release</p>
+        </div>
+
+        <div class="cl-ticket-list" id="ticketPoolList">
+            {% if available_tickets %}
+                {% for t in available_tickets %}
+                <div class="cl-ticket-card" id="ticket-{{ t.id }}" data-id="{{ t.id }}" data-title="{{ t.title }}" onclick="toggleTicket(this)">
+                    <div class="cl-ticket-checkbox">
+                        <i class="ph ph-check"></i>
+                    </div>
+                    <div class="cl-ticket-content">
+                        <div class="cl-ticket-tag">{{ t.id }}</div>
+                        <div class="cl-ticket-desc">{{ t.title }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="cl-sidebar-empty">
+                    <i class="ph ph-confetti"></i>
+                    <p>You're all caught up!</p>
+                    <small>No unreleased tickets.</small>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    const isEdit = {{ 'true' if release else 'false' }};
+    const releaseId = {{ release.id if release else 'null' }};
+    const aiEnabled = {{ 'true' if ai_enabled else 'false' }};
+    const selectedTickets = {};  // id -> {title, category, element}
+    let manualEntryCount = 0;
+
+    const CATEGORIES = [
+        { value: 'new', label: 'New', icon: 'ph-rocket-launch', color: '#22c55e' },
+        { value: 'changed', label: 'Changed', icon: 'ph-arrow-circle-up', color: '#3b82f6' },
+        { value: 'fixed', label: 'Fixed', icon: 'ph-bug', color: '#ef4444' },
+    ];
+
+    // ── Load existing content on edit ──
+    document.addEventListener('DOMContentLoaded', () => {
+        {% if release and release.content %}
+        try {
+            const data = JSON.parse({{ release.content | tojson }});
+            if (data.entries && data.entries.length > 0) {
+                data.entries.forEach(entry => {
+                    addEntryToList(entry.text || '', entry.ticket_id || null, entry.category || 'changed');
+                    // Mark ticket as selected in pool
+                    if (entry.ticket_id) {
+                        const ticketEl = document.getElementById(`ticket-${entry.ticket_id}`);
+                        if (ticketEl) ticketEl.classList.add('selected');
+                        selectedTickets[entry.ticket_id] = { title: entry.text, category: entry.category || 'changed' };
+                    }
+                });
+            }
+            if (data.notes) {
+                document.getElementById('releaseNotes').value = data.notes;
+            }
+        } catch (e) {
+            // Fallback
+        }
+        {% endif %}
+        
+        checkEmptyState();
+    });
+
+    function checkEmptyState() {
+        const container = document.getElementById('includedEntries');
+        const emptyState = document.getElementById('emptyEntriesState');
+        if (container.children.length === 0) {
+            emptyState.style.display = 'flex';
+        } else {
+            emptyState.style.display = 'none';
+        }
+    }
+
+    // ── Toggle ticket selection ──
+    function toggleTicket(el) {
+        const id = el.dataset.id;
+        const title = el.dataset.title;
+        
+        if (el.classList.contains('selected')) {
+            el.classList.remove('selected');
+            removeEntryRow(`entry-${id}`, null);
+            delete selectedTickets[id];
+        } else {
+            el.classList.add('selected');
+            selectedTickets[id] = { title, category: 'changed' };
+            addEntryToList(title, id, 'changed');
+        }
+    }
+
+    // ── Build category dropdown HTML ──
+    function buildCategorySelect(currentCategory) {
+        let optionsHtml = '';
+        CATEGORIES.forEach(cat => {
+            const selected = cat.value === currentCategory ? 'selected' : '';
+            optionsHtml += `<option value="${cat.value}" ${selected}>${cat.label}</option>`;
+        });
+        
+        // Use color for dot based on category
+        const selectedCat = CATEGORIES.find(c => c.value === currentCategory) || CATEGORIES[1];
+        
+        return `
+            <div class="cl-category-wrapper" style="--cat-color: ${selectedCat.color}">
+                <select class="cl-category-select" onchange="updateEntryCategory(this)">
+                    ${optionsHtml}
+                </select>
+            </div>
+        `;
+    }
+
+    // ── Add an entry row ──
+    function addEntryToList(text, ticketId, category = 'changed') {
+        const container = document.getElementById('includedEntries');
+        const entryId = ticketId ? `entry-${ticketId}` : `entry-manual-${++manualEntryCount}`;
+        
+        const row = document.createElement('div');
+        row.className = 'cl-entry-row';
+        row.id = entryId;
+        row.dataset.ticketId = ticketId || '';
+        row.dataset.category = category;
+
+        const badgeHtml = ticketId 
+            ? `<div class="cl-entry-badge">${escapeHtml(ticketId)}</div>` 
+            : `<div class="cl-entry-badge manual">Manual</div>`;
+
+        row.innerHTML = `
+            <div class="cl-entry-order">
+                <button type="button" class="cl-order-btn" onclick="moveEntryUp(this)" title="Move up"><i class="ph ph-caret-up"></i></button>
+                <button type="button" class="cl-order-btn" onclick="moveEntryDown(this)" title="Move down"><i class="ph ph-caret-down"></i></button>
+            </div>
+            ${badgeHtml}
+            <div class="cl-entry-content">
+                ${buildCategorySelect(category)}
+                <input type="text" class="cl-entry-input" value="${escapeHtml(text)}" placeholder="Describe what changed...">
+            </div>
+            <button class="cl-entry-delete" onclick="removeEntryRow('${entryId}', '${ticketId || ''}')" title="Remove entry">
+                <i class="ph ph-trash"></i>
+            </button>
+        `;
+        
+        // Animation in
+        row.style.opacity = '0';
+        row.style.transform = 'translateY(10px)';
+        container.appendChild(row);
+        
+        // Trigger reflow
+        void row.offsetWidth;
+        
+        row.style.opacity = '1';
+        row.style.transform = 'translateY(0)';
+        
+        checkEmptyState();
+        
+        // Focus if manual
+        if (!ticketId) {
+            setTimeout(() => row.querySelector('.cl-entry-input').focus(), 50);
+        }
+    }
+
+    // ── Order Logic ──
+    function moveEntryUp(btn) {
+        const row = btn.closest('.cl-entry-row');
+        if (row.previousElementSibling) {
+            row.parentNode.insertBefore(row, row.previousElementSibling);
+        }
+    }
+
+    function moveEntryDown(btn) {
+        const row = btn.closest('.cl-entry-row');
+        if (row.nextElementSibling) {
+            row.parentNode.insertBefore(row.nextElementSibling, row);
+        }
+    }
+
+    // ── Fetch Tickets ──
+    async function toggleTicketPool() {
+        const toggle = document.getElementById('showAllTicketsToggle');
+        const showAll = toggle.checked;
+        const listDiv = document.getElementById('ticketPoolList');
+        const subtitle = document.getElementById('poolSubtitle');
+        
+        // Update UI
+        subtitle.innerText = showAll ? "All completed tickets" : "Completed since last release";
+        listDiv.style.opacity = '0.5';
+
+        try {
+            const res = await fetch(`/api/changelog/tickets?all=${showAll}`, {
+                method: 'GET',
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+                renderTicketPool(data.tickets);
+            } else {
+                showToast(data.error || 'Failed to fetch tickets', 'error');
+            }
+        } catch (e) {
+            showToast('Network error while fetching tickets', 'error');
+        } finally {
+            listDiv.style.opacity = '1';
+        }
+    }
+
+    function renderTicketPool(tickets) {
+        const listDiv = document.getElementById('ticketPoolList');
+        listDiv.innerHTML = ''; // clear
+
+        if (tickets.length === 0) {
+            listDiv.innerHTML = `
+                <div class="cl-sidebar-empty">
+                    <i class="ph ph-confetti"></i>
+                    <p>You're all caught up!</p>
+                    <small>No unreleased tickets.</small>
+                </div>
+            `;
+            return;
+        }
+
+        tickets.forEach(t => {
+            const isSelected = selectedTickets[t.id] ? 'selected' : '';
+            const html = `
+                <div class="cl-ticket-card ${isSelected}" id="ticket-${t.id}" data-id="${t.id}" data-title="${escapeHtml(t.title)}" onclick="toggleTicket(this)">
+                    <div class="cl-ticket-checkbox">
+                        <i class="ph ph-check"></i>
+                    </div>
+                    <div class="cl-ticket-content">
+                        <div class="cl-ticket-tag">${escapeHtml(t.id)}</div>
+                        <div class="cl-ticket-desc">${escapeHtml(t.title)}</div>
+                    </div>
+                </div>
+            `;
+            // Append
+            const temp = document.createElement('div');
+            temp.innerHTML = html.trim();
+            listDiv.appendChild(temp.firstChild);
+        });
+    }
+
+    // ── Update category on an entry ──
+    function updateEntryCategory(selectEl) {
+        const row = selectEl.closest('.cl-entry-row');
+        row.dataset.category = selectEl.value;
+        const ticketId = row.dataset.ticketId;
+        if (ticketId && selectedTickets[ticketId]) {
+            selectedTickets[ticketId].category = selectEl.value;
+        }
+        
+        // Update color dot
+        const selectedCat = CATEGORIES.find(c => c.value === selectEl.value);
+        if (selectedCat) {
+            const wrapper = selectEl.closest('.cl-category-wrapper');
+            wrapper.style.setProperty('--cat-color', selectedCat.color);
+        }
+    }
+
+    // ── Add a manual entry ──
+    function addManualEntry() {
+        addEntryToList('', null, 'changed');
+    }
+
+    // ── Remove entry ──
+    function removeEntryRow(entryId, ticketId) {
+        const el = document.getElementById(entryId);
+        if (el) {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(-10px)';
+            el.style.marginBottom = `-${el.offsetHeight}px`; // collapse space
+            setTimeout(() => {
+                el.remove();
+                checkEmptyState();
+            }, 250);
+        }
+        if (ticketId) {
+            const ticketEl = document.getElementById(`ticket-${ticketId}`);
+            if (ticketEl) {
+                ticketEl.classList.remove('selected');
+            }
+            if (selectedTickets[ticketId]) {
+                delete selectedTickets[ticketId];
+            }
+        }
+    }
+
+    // ── AI: Generate full changelog ──
+    async function generateChangelog() {
+        const btn = document.getElementById('generateBtn');
+        const entries = document.querySelectorAll('.cl-entry-row');
+        
+        if (entries.length === 0) {
+            showToast('Select some tickets from the sidebar first.', 'warning');
+            return;
+        }
+
+        const tickets = [];
+        entries.forEach(row => {
+            const ticketId = row.dataset.ticketId;
+            if (ticketId) {
+                tickets.push({
+                    ticket_id: ticketId,
+                    category: row.dataset.category || 'changed',
+                });
+            }
+        });
+
+        if (tickets.length === 0) {
+            showToast('Add some actual tickets (not just manual entries) to generate.', 'warning');
+            return;
+        }
+
+        const ogText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Analyzing tickets...';
+        
+        // Visual loading state on entries
+        entries.forEach(row => {
+            if (row.dataset.ticketId) {
+                const input = row.querySelector('.cl-entry-input');
+                input.style.opacity = '0.5';
+            }
+        });
+
+        try {
+            const res = await fetch('/api/changelog/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tickets })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                // Update title
+                const titleInput = document.getElementById('releaseTitle');
+                if (!titleInput.value.trim() && data.title) {
+                    titleInput.value = data.title;
+                    // Flash effect
+                    titleInput.style.backgroundColor = '#f0fdf4';
+                    setTimeout(() => titleInput.style.backgroundColor = 'transparent', 1000);
+                }
+
+                // Update entry texts
+                if (data.entries) {
+                    data.entries.forEach(aiEntry => {
+                        const entryEl = document.getElementById(`entry-${aiEntry.ticket_id}`);
+                        if (entryEl) {
+                            const input = entryEl.querySelector('.cl-entry-input');
+                            if (input) {
+                                input.value = aiEntry.text;
+                                input.style.backgroundColor = '#f0fdf4';
+                                setTimeout(() => input.style.backgroundColor = 'transparent', 1000);
+                            }
+
+                            const select = entryEl.querySelector('.cl-category-select');
+                            if (select && aiEntry.category) {
+                                select.value = aiEntry.category;
+                                updateEntryCategory(select);
+                            }
+                        }
+                    });
+                }
+                showToast('Changelog generated magically! ✨', 'success');
+            } else {
+                showToast(data.error || 'Failed to generate changelog.', 'error');
+            }
+        } catch (e) {
+            showToast('Network error while generating.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = ogText;
+            entries.forEach(row => {
+                const input = row.querySelector('.cl-entry-input');
+                if (input) input.style.opacity = '1';
+            });
+        }
+    }
+
+    // ── Save / Publish ──
+    async function saveRelease(status) {
+        const publishBtn = document.getElementById('publishBtn');
+        const draftBtn = document.getElementById('saveDraftBtn');
+        const title = document.getElementById('releaseTitle').value.trim();
+        const version = document.getElementById('releaseVersion').value.trim();
+        const notes = document.getElementById('releaseNotes').value.trim();
+
+        const entries = [];
+        document.querySelectorAll('.cl-entry-row').forEach(row => {
+            const input = row.querySelector('.cl-entry-input');
+            const text = input ? input.value.trim() : '';
+            if (!text) return;
+
+            entries.push({
+                text: text,
+                category: row.dataset.category || 'changed',
+                ticket_id: row.dataset.ticketId || null,
+            });
+        });
+
+        if (entries.length === 0 && !notes) {
+            showToast('Add at least one change or note before saving.', 'warning');
+            return;
+        }
+
+        const content = JSON.stringify({ entries, notes });
+
+        publishBtn.disabled = true;
+        draftBtn.disabled = true;
+
+        const endpoint = isEdit ? `/api/changelog/releases/${releaseId}` : '/api/changelog/releases';
+        const method = isEdit ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(endpoint, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ version, title, content, status })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                window.location.href = '/changelog/manage';
+            } else {
+                showToast(data.error || 'Failed to save', 'error');
+                publishBtn.disabled = false;
+                draftBtn.disabled = false;
+            }
+        } catch (e) {
+            showToast('Network error', 'error');
+            publishBtn.disabled = false;
+            draftBtn.disabled = false;
+        }
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML.replace(/"/g, '&quot;');
+    }
+</script>
+{% endblock %}

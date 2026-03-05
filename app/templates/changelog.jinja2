@@ -1,0 +1,127 @@
+{% extends 'standalone.jinja2' %}
+
+{% block title %}Changelog | Broke{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/changelog.css') }}">
+{% endblock %}
+
+{% block header %}
+{# Hide default header to make it fully standalone #}
+{% endblock %}
+
+{% block main_content %}
+<div class="standalone-container wide-container">
+    <div class="changelog-public-layout">
+        <div class="changelog-header-area">
+            <div class="changelog-container">
+                <div class="header-top">
+                    <a href="/" class="back-link">
+                        <i class="ph ph-arrow-left"></i> Back to start
+                    </a>
+                </div>
+                
+                <h1 class="changelog-title">What's New</h1>
+                <p class="changelog-subtitle">Stay up to date with the latest improvements, fixes, and features.</p>
+            </div>
+        </div>
+
+        <div class="changelog-container">
+        <div class="changelog-timeline">
+            {% if releases %}
+                {% for release in releases %}
+                <div class="release-block" id="release-{{ release.id }}">
+                    
+                    <div class="release-meta">
+                        {% if release.version %}
+                        <div class="release-version">{{ release.version }}</div>
+                        {% endif %}
+                        <div class="release-date">
+                            <i class="ph ph-calendar-blank"></i> 
+                            {{ release.created_at | timestamp_to_date }}
+                        </div>
+                    </div>
+
+                    <div class="release-content-card">
+                        <div class="release-card-header">
+                            {% if release.title %}
+                            <h2 class="release-card-title">{{ release.title }}</h2>
+                            {% elif release.version %}
+                            <h2 class="release-card-title">Release {{ release.version }}</h2>
+                            {% else %}
+                            <h2 class="release-card-title">Updates</h2>
+                            {% endif %}
+                        </div>
+
+                        {# ── New ── #}
+                        {% if release.grouped.new %}
+                        <div class="release-category">
+                            <div class="release-category-header cat-new">
+                                <i class="ph ph-rocket-launch"></i>
+                                <span>New</span>
+                            </div>
+                            <ul class="release-entry-list">
+                                {% for entry in release.grouped.new %}
+                                <li>{{ entry.text }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {# ── Changed ── #}
+                        {% if release.grouped.changed %}
+                        <div class="release-category">
+                            <div class="release-category-header cat-changed">
+                                <i class="ph ph-arrow-circle-up"></i>
+                                <span>Changed</span>
+                            </div>
+                            <ul class="release-entry-list">
+                                {% for entry in release.grouped.changed %}
+                                <li>{{ entry.text }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {# ── Fixed ── #}
+                        {% if release.grouped.fixed %}
+                        <div class="release-category">
+                            <div class="release-category-header cat-fixed">
+                                <i class="ph ph-bug"></i>
+                                <span>Fixed</span>
+                            </div>
+                            <ul class="release-entry-list">
+                                {% for entry in release.grouped.fixed %}
+                                <li>{{ entry.text }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+
+                        {# ── Notes ── #}
+                        {% if release.notes %}
+                        <div class="release-notes-section">
+                            <p>{{ release.notes }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="ph ph-scroll"></i>
+                    <h3>No releases yet</h3>
+                    <p>When updates are published, they will appear here.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% endblock %}

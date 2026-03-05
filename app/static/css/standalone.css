@@ -45,14 +45,26 @@
 .standalone-main {
     flex: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
     padding: 10px;
 }
 
 .standalone-container {
     width: 100%;
+    margin: 0 auto;
     max-width: 440px;
+    /* Default narrow width for login/signup */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1;
+}
+
+/* Allow pages to override main container width */
+.standalone-container.wide-container {
+    max-width: 1100px;
+    justify-content: flex-start;
+    padding-top: 2rem;
 }
 
 /* Card Style */
@@ -254,27 +266,27 @@
 
 /* Responsive */
 @media (max-width: 640px) {
+
     .standalone-header,
     .standalone-footer {
         padding: 1rem;
     }
-    
+
     .standalone-main {
         padding: 1rem;
     }
-    
+
     .standalone-card-header,
     .standalone-card-body {
         padding: 1.5rem;
     }
-    
+
     .standalone-card-header {
         padding-bottom: 0;
     }
-    
+
     .standalone-footer-inner {
         flex-direction: column;
         text-align: center;
     }
 }
-

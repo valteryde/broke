@@ -1,0 +1,103 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}Changelog | Broke{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/changelog.css') }}">
+{% endblock %}
+
+{% block path %}
+<span><i class="ph ph-house"></i> Home</span> <i class="ph ph-caret-right"></i> <span><i class="ph ph-scroll"></i> Changelog</span>
+{% endblock %}
+
+{% block content %}
+<div class="changelog-manage-layout">
+
+    <div class="manage-header">
+        <h1 class="page-title">Changelog</h1>
+        <div class="manage-header-actions">
+            <a href="{{ url_for('changelog.changelog_view') }}" class="btn btn-secondary btn-sm" target="_blank">
+                <i class="ph ph-arrow-square-out"></i> View Public Page
+            </a>
+            <a href="{{ url_for('changelog.changelog_new_view') }}" class="btn btn-primary btn-sm">
+                <i class="ph ph-plus"></i> New Release
+            </a>
+        </div>
+    </div>
+
+    <div class="manage-releases-list">
+        {% if releases %}
+            {% for release in releases %}
+            <div class="manage-release-row" id="release-{{ release.id }}">
+                <div class="release-row-info">
+                    <div class="release-row-title">
+                        {% if release.status == 'draft' %}
+                        <span class="status-badge status-draft">Draft</span>
+                        {% else %}
+                        <span class="status-badge status-published">Published</span>
+                        {% endif %}
+
+                        {% if release.title %}
+                            {{ release.title }}
+                        {% elif release.version %}
+                            Release {{ release.version }}
+                        {% else %}
+                            Untitled Update
+                        {% endif %}
+                    </div>
+                    <div class="release-row-meta">
+                        {% if release.version %}<span class="version-tag">{{ release.version }}</span>{% endif %}
+                        <span class="release-row-date">{{ release.created_at | timestamp_to_date }}</span>
+                    </div>
+                </div>
+                <div class="release-row-actions">
+                    <a href="{{ url_for('changelog.changelog_edit_view', release_id=release.id) }}" class="btn btn-icon btn-sm" title="Edit">
+                        <i class="ph ph-pencil-simple"></i>
+                    </a>
+                    <button class="btn btn-icon btn-sm btn-danger-text" title="Delete" onclick="deleteRelease({{ release.id }})">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="ph ph-scroll"></i>
+                <h3>No releases yet</h3>
+                <p>Click "New Release" above to write your first changelog entry.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    async function deleteRelease(releaseId) {
+        if (!confirm('Are you sure you want to delete this release? This cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/changelog/${releaseId}`, {
+                method: 'DELETE',
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+                const row = document.getElementById(`release-${releaseId}`);
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(-20px)';
+                row.style.transition = 'all 0.3s ease';
+                setTimeout(() => row.remove(), 300);
+            } else {
+                alert(data.error || 'Failed to delete release');
+            }
+        } catch (e) {
+            alert('Network error');
+        }
+    }
+</script>
+{% endblock %}

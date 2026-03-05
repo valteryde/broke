@@ -88,6 +88,10 @@
                 <i class="ph ph-bug"></i>
                 <span>Sentry DSN</span>
             </a>
+            <a href="/settings/ai" class="settings-nav-item {% if section == 'ai' %}active{% endif %}">
+                <i class="ph ph-sparkle"></i>
+                <span>AI Integration</span>
+            </a>
         </div>
 
         <div class="settings-nav-section">
@@ -703,6 +707,138 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        {% elif section == 'ai' %}
+        <!-- AI Integration Settings -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>AI Integration</h1>
+                <p class="section-description">Configure an external LLM for automatic changelog generation</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>LLM Provider Settings</h3>
+                    <p class="card-description">Broke supports any OpenAI-compatible API (OpenAI, Anthropic proxy, Local Ollama, etc.)</p>
+                    
+                    <form id="ai-form" class="settings-form">
+                        <div class="form-group">
+                            <label for="ai-preset">Provider Preset</label>
+                            <select id="ai-preset" class="form-select" onchange="applyAIPreset()">
+                                <option value="custom">Custom / Manual</option>
+                                <option value="openrouter" selected>OpenRouter (Recommended)</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="ollama">Ollama (Local)</option>
+                                <option value="anthropic">Anthropic</option>
+                            </select>
+                            <span class="form-hint">Choose a provider to quickly fill in the connection details</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ai-api-key">API Key</label>
+                            <input type="password" id="ai-api-key" name="api_key" value="{{ ai_settings.get('api_key', '') }}" class="form-input" placeholder="sk-...">
+                            <span class="form-hint">Leave blank to disable AI features completely</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ai-base-url">Base URL</label>
+                            <input type="text" id="ai-base-url" name="base_url" value="{{ ai_settings.get('base_url', 'https://openrouter.ai/api/v1') }}" class="form-input" placeholder="https://openrouter.ai/api/v1" oninput="document.getElementById('ai-preset').value='custom'">
+                            <span class="form-hint">Must end with /v1 to be OpenAI compatible</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ai-model">Model Name</label>
+                            <input type="text" id="ai-model" name="model" value="{{ ai_settings.get('model', 'google/gemini-2.5-flash') }}" class="form-input" placeholder="google/gemini-2.5-flash" oninput="document.getElementById('ai-preset').value='custom'">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ai-language">Output Language</label>
+                            <input type="text" id="ai-language" name="language" value="{{ ai_settings.get('language', 'English') }}" class="form-input" placeholder="e.g. English, Danish, Spanish">
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <script>
+            function applyAIPreset() {
+                const preset = document.getElementById('ai-preset').value;
+                const baseUrlEl = document.getElementById('ai-base-url');
+                const modelEl = document.getElementById('ai-model');
+                
+                if (preset === 'openrouter') {
+                    baseUrlEl.value = 'https://openrouter.ai/api/v1';
+                    modelEl.value = 'google/gemini-2.5-flash';
+                } else if (preset === 'openai') {
+                    baseUrlEl.value = 'https://api.openai.com/v1';
+                    modelEl.value = 'gpt-4o-mini';
+                } else if (preset === 'ollama') {
+                    baseUrlEl.value = 'http://localhost:11434/v1';
+                    modelEl.value = 'llama3';
+                } else if (preset === 'anthropic') {
+                    baseUrlEl.value = 'https://api.anthropic.com/v1';
+                    modelEl.value = 'claude-3-5-sonnet-20241022';
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                const baseUrlEl = document.getElementById('ai-base-url');
+                const presetEl = document.getElementById('ai-preset');
+                
+                // Set initial dropdown based on saved URL
+                if (baseUrlEl.value.includes('openrouter.ai')) {
+                    presetEl.value = 'openrouter';
+                } else if (baseUrlEl.value.includes('api.openai.com')) {
+                    presetEl.value = 'openai';
+                } else if (baseUrlEl.value.includes('localhost:11434')) {
+                    presetEl.value = 'ollama';
+                } else if (baseUrlEl.value.includes('api.anthropic.com')) {
+                    presetEl.value = 'anthropic';
+                } else {
+                    presetEl.value = 'custom';
+                }
+
+                const form = document.getElementById('ai-form');
+                if (form) {
+                    form.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        const btn = form.querySelector('button[type="submit"]');
+                        btn.disabled = true;
+                        
+                        const data = {
+                            api_key: document.getElementById('ai-api-key').value,
+                            base_url: document.getElementById('ai-base-url').value,
+                            model: document.getElementById('ai-model').value,
+                            language: document.getElementById('ai-language').value
+                        };
+                        
+                        fetch('/api/settings/ai', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        })
+                        .then(resp => resp.json())
+                        .then(res => {
+                            btn.disabled = false;
+                            if (res.success) {
+                                showToast(res.message, 'success');
+                                setTimeout(() => window.location.reload(), 1000);
+                            } else {
+                                showToast(res.error || 'Failed to save settings', 'error');
+                            }
+                        })
+                        .catch(() => {
+                            btn.disabled = false;
+                            showToast('Network error', 'error');
+                        });
+                    });
+                }
+            });
+            </script>
         </div>
 
         {% elif section == 'webhooks' %}

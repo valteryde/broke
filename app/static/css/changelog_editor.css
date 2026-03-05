@@ -1,0 +1,756 @@
+/*
+ * Changelog Editor Styles (Redesigned)
+ * Two-column layout: Main Paper Card & Ticket Pool Sidebar
+ */
+
+.cl-workspace {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-bottom: 4rem;
+}
+
+/* ── Left Main Panel ── */
+.cl-main {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Top Action Bar */
+.cl-action-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.cl-action-left {
+    display: flex;
+    align-items: center;
+}
+
+.cl-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.35rem 0.8rem;
+    border-radius: 20px;
+}
+
+.cl-status-badge.is-new {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+
+.cl-status-badge.is-draft {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
+.cl-status-badge.is-published {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #6ee7b7;
+}
+
+.cl-action-right {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.btn-ai {
+    position: relative;
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    z-index: 1;
+}
+
+.btn-ai::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    background: linear-gradient(45deg, #3b82f6, #8b5cf6, #ec4899, #f43f5e, #f59e0b, #10b981);
+    background-size: 400%;
+    z-index: -1;
+    border-radius: 9px;
+    animation: gradient-spin 4s linear infinite;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.btn-ai::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    background: #0f172a;
+    border-radius: 7px;
+    z-index: -1;
+    transition: background 0.2s ease;
+}
+
+@keyframes gradient-spin {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+.btn-ai:hover:not(:disabled) {
+    color: #ffffff;
+    border-color: transparent;
+}
+
+.btn-ai:hover:not(:disabled)::before {
+    opacity: 1;
+}
+
+.btn-ai:hover:not(:disabled)::after {
+    background: #1e293b;
+}
+
+.btn-ai i {
+    color: #a78bfa;
+    transition: color 0.2s ease;
+}
+
+.btn-ai:hover:not(:disabled) i {
+    color: #e879f9;
+}
+
+@keyframes ai-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+.btn-ai:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.btn-ai:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #334155;
+    color: #94a3b8;
+    border-color: transparent;
+}
+
+.btn-ai:disabled::after {
+    background: #334155;
+}
+
+.btn-ai:disabled i {
+    color: #94a3b8;
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* The Paper Card */
+.cl-paper {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.cl-paper-header {
+    padding: 2.5rem 2.5rem 1.5rem;
+    border-bottom: 1px dashed #e2e8f0;
+    background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
+}
+
+.cl-title-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-size: 2rem;
+    font-weight: 700;
+    font-family: 'Space Grotesk Variable', sans-serif;
+    color: #0f172a;
+    outline: none;
+    padding: 0;
+    margin-bottom: 0.75rem;
+    transition: color 0.2s;
+}
+
+.cl-title-input::placeholder {
+    color: #cbd5e1;
+}
+
+.cl-title-input:focus {
+    color: #106ecc;
+    /* var(--logo-blue) */
+}
+
+.cl-version-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cl-version-icon {
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+}
+
+.cl-version-input {
+    border: none;
+    background: transparent;
+    font-size: 0.95rem;
+    color: #475569;
+    outline: none;
+    padding: 0;
+    font-family: monospace;
+    width: 200px;
+}
+
+.cl-version-input::placeholder {
+    color: #cbd5e1;
+}
+
+.cl-paper-body {
+    padding: 2.5rem;
+}
+
+/* Sections inside card */
+.cl-section {
+    margin-bottom: 3rem;
+}
+
+.cl-section:last-child {
+    margin-bottom: 0;
+}
+
+.cl-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.cl-section-header h3 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.cl-section-header h3 i {
+    color: #64748b;
+    font-size: 1.1rem;
+}
+
+.text-muted {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #94a3b8;
+}
+
+.cl-btn-text {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.cl-btn-text:hover {
+    color: var(--logo-blue, #106ecc);
+    background: rgba(16, 110, 204, 0.05);
+}
+
+/* Entries */
+.cl-entries-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.cl-entry-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.cl-entry-row:focus-within,
+.cl-entry-row:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.cl-entry-order {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cl-order-btn {
+    background: transparent;
+    border: none;
+    color: #cbd5e1;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.cl-order-btn:hover {
+    color: #94a3b8;
+}
+
+.cl-entry-badge {
+    font-family: monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #f1f5f9;
+    color: #475569;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.cl-entry-badge.manual {
+    background: #f8fafc;
+    color: #94a3b8;
+    border: 1px dashed #cbd5e1;
+}
+
+.cl-entry-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+/* Category Select with Color Dot trick */
+.cl-category-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.cl-category-wrapper::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--cat-color, #3b82f6);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.cl-category-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: #f8fafc;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 0.35rem 1.5rem 0.35rem 1.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cl-category-select:hover,
+.cl-category-select:focus {
+    background: #e2e8f0;
+}
+
+.cl-entry-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 0.95rem;
+    color: #1e293b;
+    outline: none;
+    padding: 0.5rem 0;
+    min-width: 0;
+    transition: background-color 0.3s ease;
+}
+
+.cl-entry-input::placeholder {
+    color: #94a3b8;
+}
+
+.cl-entry-delete {
+    background: transparent;
+    border: none;
+    color: #cbd5e1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.cl-entry-row:hover .cl-entry-delete {
+    color: #94a3b8;
+}
+
+.cl-entry-delete:hover {
+    background: #fee2e2;
+    color: #ef4444 !important;
+}
+
+/* Empty State */
+.cl-empty-state {
+    display: none;
+    /* toggled by JS */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    background: #f8fafc;
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.cl-empty-icon {
+    font-size: 2.5rem;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+}
+
+.cl-empty-state h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+    color: #475569;
+}
+
+.cl-empty-state p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #94a3b8;
+    max-width: 300px;
+}
+
+/* Notes Section */
+.cl-notes-textarea {
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    font-size: 0.95rem;
+    color: #334155;
+    background: #f8fafc;
+    resize: vertical;
+    outline: none;
+    transition: all 0.2s;
+    line-height: 1.5;
+}
+
+.cl-notes-textarea:focus {
+    background: #ffffff;
+    border-color: var(--logo-blue, #106ecc);
+    box-shadow: 0 0 0 3px rgba(16, 110, 204, 0.1);
+}
+
+.cl-notes-textarea::placeholder {
+    color: #94a3b8;
+}
+
+
+/* ── Right Sidebar (Ticket Pool) ── */
+.cl-sidebar {
+    width: 340px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 2rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 4rem);
+    overflow: hidden;
+}
+
+.cl-sidebar-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.cl-sidebar-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+/* Toggle Switch Styles */
+.cl-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.cl-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.cl-toggle-slider {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    background-color: #cbd5e1;
+    border-radius: 9999px;
+    transition: 0.3s;
+}
+
+.cl-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.3s;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.cl-toggle input:checked+.cl-toggle-slider {
+    background-color: var(--logo-blue, #106ecc);
+}
+
+.cl-toggle input:checked+.cl-toggle-slider:before {
+    transform: translateX(14px);
+}
+
+.cl-toggle-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: color 0.2s;
+}
+
+.cl-toggle input:checked~.cl-toggle-label {
+    color: var(--logo-blue, #106ecc);
+}
+
+.cl-sidebar-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #0f172a;
+}
+
+.cl-sidebar-header p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.cl-ticket-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Ticket Cards in Pool */
+.cl-ticket-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.85rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.cl-ticket-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+}
+
+.cl-ticket-checkbox {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #cbd5e1;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+    transition: all 0.2s;
+    color: transparent;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.cl-ticket-card.selected {
+    border-color: var(--logo-blue, #106ecc);
+    background: #f0f7ff;
+}
+
+.cl-ticket-card.selected .cl-ticket-checkbox {
+    background: var(--logo-blue, #106ecc);
+    border-color: var(--logo-blue, #106ecc);
+    color: #ffffff;
+}
+
+.cl-ticket-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.cl-ticket-tag {
+    font-family: monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 0.25rem;
+}
+
+.cl-ticket-card.selected .cl-ticket-tag {
+    color: var(--logo-blue, #106ecc);
+}
+
+.cl-ticket-desc {
+    font-size: 0.9rem;
+    color: #334155;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cl-sidebar-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #94a3b8;
+}
+
+.cl-sidebar-empty i {
+    font-size: 3rem;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+}
+
+.cl-sidebar-empty p {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.ph-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 900px) {
+    .cl-workspace {
+        flex-direction: column;
+    }
+
+    .cl-sidebar {
+        width: 100%;
+        position: static;
+        max-height: 400px;
+    }
+}

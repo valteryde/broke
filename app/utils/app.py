@@ -236,7 +236,7 @@ def create_app():  # noqa: C901
         return dict(sidebar_news=get_news)
 
     # Register blueprints
-    from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp, anon_bp
+    from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp, anon_bp, changelog_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(tickets_bp)
@@ -245,6 +245,7 @@ def create_app():  # noqa: C901
     app.register_blueprint(news_bp)
     app.register_blueprint(webhooks_bp)
     app.register_blueprint(anon_bp)
+    app.register_blueprint(changelog_bp)
 
     # Start background update checker
     if os.environ.get("FLASK_ENV") != "testing":
