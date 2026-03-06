@@ -233,7 +233,7 @@ class List {
         }
     }
 
-    setSelection(index) {
+    setSelection(index, scrollToItem = true) {
         if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]) {
             this.renderedItems[this.selectedIndex].domNode.classList.remove('selected');
         }
@@ -243,7 +243,9 @@ class List {
         if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]) {
             const node = this.renderedItems[this.selectedIndex].domNode;
             node.classList.add('selected');
-            node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            if (scrollToItem) {
+                node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
         }
     }
 
@@ -306,7 +308,7 @@ class List {
         this.applyFilters();
 
         const newIndex = this.renderedItems.findIndex(i => i.element.id === selectionId);
-        if (newIndex > -1) this.setSelection(newIndex);
+        if (newIndex > -1) this.setSelection(newIndex, false);
 
         this.onUpdate(item, field, value, isToggle);
     }
