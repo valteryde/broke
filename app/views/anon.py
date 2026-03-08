@@ -1,5 +1,5 @@
 from werkzeug import Response
-from ..utils.models import GlobalSetting, Project, Ticket, TicketUpdateMessage, Label
+from ..utils.models import GlobalSetting, Project, Ticket, TicketUpdateMessage
 from flask import Blueprint, render_template, request, redirect, jsonify
 import time
 import json
@@ -39,7 +39,6 @@ def get_anon_settings():
         return {
             "enabled": False,
             "message": "Welcome! Please submit your ticket below.",
-            "projects": [],
         }
 
 
@@ -57,71 +56,17 @@ def anon_index() -> tuple[str, Literal[403]] | tuple[str, Literal[500]] | Respon
             403,
         )
 
-    allowed_projects = settings.get("projects", [])
-    if not allowed_projects:
-        return (
-            render_template(
-                "error_message.jinja2",
-                error_code=500,
-                error_message="No projects configured for anonymous submission.",
-            ),
-            500,
-        )
-    projects = Project.select().where(Project.id.in_(settings.get("projects", [])))
-
-    # If only one project, redirect directly to it
-    if len(projects) == 1:
-        return redirect(f"/anon/{projects[0].id}")
-
     return render_template(
         "anon_wizard.jinja2",
-        step="project_selection",
-        projects=projects,
+        step="form",
         welcome_message=settings.get("message", ""),
     )
 
 
 @anon_bp.route("/anon/<project_id>")
 def anon_wizard(project_id: str):
-    settings = get_anon_settings()
-    if not settings.get("enabled"):
-        return (
-            render_template(
-                "error_message.jinja2",
-                error_code=403,
-                error_message="Anonymous tickets are currently disabled.",
-            ),
-            403,
-        )
-
-    allowed_projects = settings.get("projects", [])
-    if project_id not in allowed_projects:
-        return (
-            render_template(
-                "error_message.jinja2",
-                error_code=404,
-                error_message="Project not found or not allowed.",
-            ),
-            404,
-        )
-    project = Project.get_or_none(Project.id == project_id)
-    if not project:
-        return (
-            render_template(
-                "error_message.jinja2", error_code=404, error_message="Project not found."
-            ),
-            404,
-        )
-
-    labels = Label.select()
-
-    return render_template(
-        "anon_wizard.jinja2",
-        step="form",
-        project=project,
-        labels=labels,
-        welcome_message=settings.get("message", ""),
-    )
+    # Legacy compatibility: route all project-specific anon URLs to unified form.
+    return redirect("/anon")
 
 
 @anon_bp.route("/api/anon/submit", methods=["POST"])
@@ -131,11 +76,15 @@ def api_anon_submit():
     if not settings.get("enabled"):
         return jsonify({"error": "Anonymous tickets disabled"}), 403
 
-    data = request.get_json()
-    source_project_id = data.get("project")
+    data = request.get_json(silent=True) or {}
 
-    if source_project_id not in settings.get("projects", []):
-        return jsonify({"error": "Invalid project"}), 400
+    title = str(data.get("title", "Anonymous Ticket")).strip() or "Anonymous Ticket"
+    description = str(data.get("description", "")).strip()
+
+    from .tickets import _find_possible_duplicate_tickets, _has_blocking_duplicate
+
+    possible_duplicates = _find_possible_duplicate_tickets(title, description)
+    has_duplicate_match = _has_blocking_duplicate(possible_duplicates)
 
     project_id = "TRIAGE"
 
@@ -162,8 +111,8 @@ def api_anon_submit():
 
     Ticket.create(
         id=ticket_id,
-        title=data.get("title", "Anonymous Ticket"),
-        description=data.get("description", ""),
+        title=title,
+        description=description,
         status="triage",  # Anonymous submissions always go through triage.
         priority=data.get("priority", "medium"),
         project=project_id,
@@ -171,22 +120,30 @@ def api_anon_submit():
         anonymous_secret=secret,
     )
 
+    duplicate_note = ""
+    if has_duplicate_match:
+        duplicate_ids = ", ".join(
+            [str(match.get("id", "")).strip() for match in possible_duplicates[:3] if match.get("id")]
+        )
+        if duplicate_ids:
+            duplicate_note = f" Potential duplicate candidates: {duplicate_ids}."
+
     TicketUpdateMessage.create(
         ticket=ticket_id,
         title="Anonymous Ticket Created",
         icon="ph ph-mask-happy",
-        message=f"A user submitted this ticket anonymously to triage (source project: {source_project_id}).",
+        message=f"A user submitted this ticket anonymously to triage.{duplicate_note}",
         created_at=int(time.time()),
     )
 
     bus.emit(
         EventTypes.ANON_TICKET_SUBMITTED,
         ticket_id=ticket_id,
-        ticket_title=data.get("title", "Anonymous Ticket"),
-        project=source_project_id,
+        ticket_title=title,
+        project=project_id,
         status="triage",
         actor="anonymous",
-        details=f"Anonymous ticket entered triage inbox from source project {source_project_id}",
+        details="Anonymous ticket entered triage inbox",
     )
 
     return jsonify({"success": True, "secret": secret, "ticket_id": ticket_id}), 201

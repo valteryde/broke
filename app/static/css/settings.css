@@ -141,6 +141,28 @@
     margin-bottom: 20px;
 }
 
+.settings-source-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 9px 11px;
+    border: 1px solid #d7dde6;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #445066;
+    font-size: 0.8rem;
+}
+
+.settings-source-note i {
+    color: #60708a;
+    font-size: 0.9rem;
+}
+
+.settings-source-note code {
+    font-size: 0.78rem;
+}
+
 /* Avatar Section */
 .avatar-section {
     display: flex;

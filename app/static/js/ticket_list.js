@@ -6,6 +6,21 @@
 
 const TICKET_LIST_STATE_KEY = 'pref_ticket_list_state_v1';
 
+function isTriageContext() {
+    return (window.ticketPageContext || 'tickets') === 'triage';
+}
+
+function getStatusKeysForPage() {
+    if (isTriageContext()) {
+        return ['triage'];
+    }
+    return StatusOrder.filter((key) => key !== 'triage');
+}
+
+function getStatusEntriesForPage() {
+    return getStatusKeysForPage().map((key) => [key, StatusConfig[key]]).filter(([, value]) => Boolean(value));
+}
+
 function loadTicketListState() {
     try {
         const raw = localStorage.getItem(TICKET_LIST_STATE_KEY);
@@ -105,7 +120,7 @@ const TicketListConfig = {
                 if (!values || values.length === 0) return true;
                 return values.includes(element.status);
             },
-            getOptions: () => Object.entries(StatusConfig).map(([value, config]) => ({
+            getOptions: () => getStatusEntriesForPage().map(([value, config]) => ({
                 value,
                 label: config.label,
                 icon: config.icon
@@ -198,7 +213,7 @@ const TicketListConfig = {
             icon: 'ph-circle-half',
             getGroupKey: (element) => element.status || 'backlog',
             getGroupLabel: (key) => StatusConfig[key]?.label || key,
-            order: StatusOrder
+            order: getStatusKeysForPage()
         },
         urgency: {
             label: 'Urgency',
@@ -269,6 +284,19 @@ const TicketListConfig = {
                 ${(element.assignees || []).map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${assignee}</span>`).join('')}
             </span>
         `;
+
+        if (isTriageContext() && typeof window.openSendTicketModal === 'function') {
+            const sendButton = document.createElement('button');
+            sendButton.type = 'button';
+            sendButton.className = 'list-send-ticket-btn';
+            sendButton.innerHTML = '<i class="ph ph-paper-plane-tilt"></i> Send';
+            sendButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                window.openSendTicketModal(element.id);
+            });
+            inner.appendChild(sendButton);
+        }
+
         return inner;
     },
 
@@ -279,7 +307,7 @@ const TicketListConfig = {
             handler: (listInstance, item) => {
                 new ListModal({
                     title: 'Set Status',
-                    items: Object.values(StatusConfig).map(s => ({
+                    items: getStatusEntriesForPage().map(([, s]) => ({
                         label: s.label,
                         value: s.value,
                         icon: s.icon,

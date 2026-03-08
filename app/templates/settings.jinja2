@@ -140,7 +140,7 @@
                     <h3>Avatar</h3>
                     <p class="card-description">Upload a custom profile picture</p>
                     <div class="avatar-section">
-                        <img src="/avatar/{{ user.username }}" onerror="this.onerror=null; this.outerHTML='<svg width=\'80\' height=\'80\' data-jdenticon-value=\'{{ user.username }}\' class=\'avatar-preview\'></svg>'; if(window.jdenticon) jdenticon.update();" class="avatar-preview" width="80" height="80" style="border-radius: 50%; object-fit: cover;">
+                        <img src="/avatar/{{ user.username }}" onerror="this.onerror=null; this.insertAdjacentHTML('afterend','<svg width=\'80\' height=\'80\' data-jdenticon-value=\'{{ user.username }}\' class=\'avatar-preview\'></svg>'); var fallback=this.nextElementSibling; this.remove(); if(window.jdenticon && fallback){ jdenticon.update(fallback); }" class="avatar-preview" width="80" height="80" style="border-radius: 50%; object-fit: cover;">
                         <div class="avatar-info">
                             <span class="avatar-username">{{ user.username }}</span>
                             <div style="margin-top: 5px; display: flex; gap: 8px; flex-wrap: wrap;">
@@ -831,31 +831,12 @@
                         <div class="form-group" style="margin-top: 2rem;">
                             <label for="welcome-message">Welcome Message</label>
                             <textarea id="welcome-message" name="message" class="form-input" rows="3" style="resize:vertical" placeholder="Enter a welcome message for anonymous users...">{{ anon_settings.get('message', '') }}</textarea>
-                            <span class="form-hint">Displayed at the top of the submission wizard</span>
+                            <span class="form-hint">Displayed at the top of the anonymous triage form</span>
                         </div>
 
                         <div class="form-group">
-                            <label>Allowed Projects</label>
-                            <p class="form-hint" style="margin-bottom: 1rem;">Select which projects anonymous users can submit tickets to</p>
-                            <div class="preference-group">
-                                {% for project in projects %}
-                                <div class="preference-item">
-                                    <div class="preference-info">
-                                        <span class="preference-label">
-                                            <i class="{{ project.icon }}" style="color: {{ project.color }}; margin-right: 0.5rem;"></i>
-                                            {{ project.name }}
-                                        </span>
-                                        <span class="preference-description">Allow submissions to {{ project.name }}</span>
-                                    </div>
-                                    <div class="preference-control">
-                                        <label class="toggle-switch">
-                                            <input type="checkbox" name="projects" value="{{ project.id }}" {% if project.id in anon_settings.get('projects', []) %}checked{% endif %}>
-                                            <span class="toggle-slider"></span>
-                                        </label>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
+                            <label>Routing Policy</label>
+                            <p class="form-hint">Anonymous submissions are always created in <strong>TRIAGE</strong> for review before entering backlog.</p>
                         </div>
 
                         <div class="form-actions">
@@ -880,17 +861,6 @@
                                 <i class="ph ph-arrow-square-out"></i>
                             </a>
                         </div>
-                        {% for project_id in anon_settings.get('projects', []) %}
-                        <div class="dsn-url-wrapper" style="margin-top:10px">
-                            <code class="dsn-url">{{ request.host_url }}anon/{{ project_id }}</code>
-                            <button type="button" class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ request.host_url }}anon/{{ project_id }}">
-                                <i class="ph ph-copy"></i>
-                            </button>
-                            <a href="/anon/{{ project_id }}" target="_blank" class="btn-icon">
-                                <i class="ph ph-arrow-square-out"></i>
-                            </a>
-                        </div>
-                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -967,6 +937,19 @@
                 <div class="card-section">
                     <h3>LLM Provider Settings</h3>
                     <p class="card-description">Broke supports any OpenAI-compatible API (OpenAI, Anthropic proxy, Local Ollama, etc.)</p>
+
+                    <div class="settings-source-note">
+                        {% if ai_settings_source == 'environment' %}
+                        <i class="ph ph-info"></i>
+                        <span>Loaded from environment variables. Runtime uses <code>.env</code>/<code>os.environ</code>.</span>
+                        {% elif ai_settings_source == 'database' %}
+                        <i class="ph ph-database"></i>
+                        <span>Loaded from saved settings.</span>
+                        {% else %}
+                        <i class="ph ph-warning-circle"></i>
+                        <span>AI is not configured yet.</span>
+                        {% endif %}
+                    </div>
                     
                     <form id="ai-form" class="settings-form">
                         <div class="form-group">
@@ -984,7 +967,13 @@
                         <div class="form-group">
                             <label for="ai-api-key">API Key</label>
                             <input type="password" id="ai-api-key" name="api_key" value="{{ ai_settings.get('api_key', '') }}" class="form-input" placeholder="sk-...">
+                            {% if ai_settings_source == 'environment' and ai_settings_api_key_present %}
+                            <span class="form-hint">Environment key detected. Leave blank to keep using <code>.env</code>; enter a key here to save one in settings.</span>
+                            {% elif ai_settings_source == 'database' and ai_settings_api_key_present %}
+                            <span class="form-hint">A saved API key is configured.</span>
+                            {% else %}
                             <span class="form-hint">Leave blank to disable AI features completely</span>
+                            {% endif %}
                         </div>
 
                         <div class="form-group">

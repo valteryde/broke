@@ -53,19 +53,14 @@
                 <span>News</span>
             </div>
 
-            {# <div class="sb-element">
-                <i class="ph ph-house"></i>
-                <span>Home</span>
-            </div> #}
+            <div class="sb-element {% if page == 'triage' %}active{% endif %}" onclick="window.location.href = '/triage'">
+                <i class="ph ph-tray"></i>
+                <span>Triage</span>
+            </div>
 
             <div class="sb-element {% if page == 'tickets' %}active{% endif %}" onclick="window.location.href = '/tickets'">
                 <i class="ph ph-ticket"></i>
                 <span>Tickets</span>
-            </div>
-
-            <div class="sb-element {% if page == 'triage' %}active{% endif %}" onclick="window.location.href = '/triage'">
-                <i class="ph ph-tray"></i>
-                <span>Triage</span>
             </div>
 
             <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="openUrlWithArgs('/errors')">
@@ -94,7 +89,7 @@
         </div>
 
          <div class="sb-bottom">
-            <img src="/avatar/{{ user.username }}" onerror="this.onerror=null; this.outerHTML='<svg width=\'40\' height=\'40\' data-jdenticon-value=\'{{ user.username }}\'></svg>'; if(window.jdenticon) jdenticon.update();" width="40" height="40" style="border-radius: 50%; object-fit: cover;">
+            <img src="/avatar/{{ user.username }}" onerror="this.onerror=null; this.insertAdjacentHTML('afterend','<svg width=\'40\' height=\'40\' data-jdenticon-value=\'{{ user.username }}\'></svg>'); var fallback=this.nextElementSibling; this.remove(); if(window.jdenticon && fallback){ jdenticon.update(fallback); }" width="40" height="40" style="border-radius: 50%; object-fit: cover;">
             <span>{{ user.username }}</span>
             <a href="/logout" class="sb-logout" title="Sign out">
                 <i class="ph ph-sign-out"></i>

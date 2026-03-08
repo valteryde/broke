@@ -11,45 +11,14 @@
 
 {% block content %}
 <div class="anon-container">
-    {% if step == 'project_selection' %}
-        <div class="anon-card">
-            <h1 class="anon-title">Submit a Ticket</h1>
-
-            <div id="anon-history-section" style="display: none; margin-bottom: 30px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h3 style="margin: 0; font-size: 1.1rem;">Your Tickets</h3>
-                    <button id="clear-history-btn" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;">Clear History</button>
-                </div>
-                <div id="anon-history-list" style="display: flex; flex-direction: column; gap: 10px;">
-                    <!-- Populated by JS -->
-                </div>
-            </div>
-
-            {% if welcome_message %}
-                <div class="anon-welcome">
-                    {{ welcome_message }}
-                </div>
-            {% endif %}
-
-            <p class="anon-subtitle">Select a project to continue</p>
-
-            <div class="anon-projects">
-                {% for p in projects %}
-                    <a href="/anon/{{ p.id }}" class="anon-project-card">
-                        <i class="{{ p.icon }}" style="color: {{ p.color }}"></i>
-                        <span>{{ p.name }}</span>
-                    </a>
-                {% endfor %}
-            </div>
-        </div>
-
-    {% elif step == 'form' %}
+    {% if step == 'form' %}
         <div class="anon-card">
             <div class="anon-header">
-                <a href="/anon" class="anon-back"><i class="ph ph-arrow-left"></i> Back</a>
+                <a href="/anon" class="anon-back"><i class="ph ph-house"></i> Home</a>
             </div>
 
-            <h1 class="anon-title">Submit to {{ project.name }}</h1>
+            <h1 class="anon-title">Submit a Ticket</h1>
+            <p class="anon-subtitle" style="margin-bottom: 0.5rem;">All anonymous submissions are routed to triage for review.</p>
 
             {% if welcome_message %}
                 <div class="anon-welcome">
@@ -58,8 +27,6 @@
             {% endif %}
 
             <form id="anon-form" class="anon-form">
-                <input type="hidden" name="project" value="{{ project.id }}">
-
                 <div class="form-group">
                     <label>Title</label>
                     <input type="text" name="title" required placeholder="Brief summary of the issue">
@@ -204,75 +171,6 @@
         }
     });
 
-    // ==========================================
-    // Local Storage Persistence Logic
-    // ==========================================
-    const STORAGE_KEY = 'broke_anon_tickets';
-
-    // 1. Save ticket on successful submission
-    // We override the success redirect to first save the ticket
-    function saveTicketToStorage(ticket) {
-        const tickets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        tickets.unshift(ticket);
-        // Keep only last 10 tickets
-        if (tickets.length > 10) tickets.pop();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-    }
-
-    // Capture success response in the form submit handler
-    const originalSubmitHandler = document.getElementById('anon-form')?.onsubmit; // Note: we attached via addEventListener so this won't work directly to override.
-    // Instead, we will modify the existing fetch success block using the fact that we are injecting this code into the same file.
-    // However, since I cannot easily modify the *inside* of the previous event listener without replacing it entirely, 
-    // I will rewrite the submit listener below to include persistence.
-    
-    // BUT, the safer way is to let the previous listener run? No, it redirects.
-    // I need to REPLACE the previous event listener logic.
-    // Since I'm editing the file, I should really assume the previous listener text I see in the file specific logic.
-    
-    // Actually, I can just replace the *entire* script block for the form listener in one go if I want to be safe, 
-    // or I can rely on the fact that I can see the code and just replace the success block.
-    
-    // New logic for "Your Tickets" display
-    if (document.getElementById('anon-history-section')) {
-        const tickets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        
-        if (tickets.length > 0) {
-            const container = document.getElementById('anon-history-list');
-            const section = document.getElementById('anon-history-section');
-            
-            tickets.forEach(t => {
-                const date = new Date(t.timestamp * 1000).toLocaleDateString();
-                const item = document.createElement('a');
-                item.href = `/anon/track/${t.secret}`;
-                item.className = 'anon-project-card'; // Reuse card style but simpler
-                item.style.flexDirection = 'row';
-                item.style.justifyContent = 'space-between';
-                item.style.padding = '15px';
-                item.style.textAlign = 'left';
-                
-                item.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <i class="ph ph-ticket" style="font-size: 1.2rem;"></i>
-                        <div>
-                            <div style="font-weight: 600;">${t.title}</div>
-                            <div style="font-size: 0.8rem; color: #666;">#${t.id.split('-').pop()}</div>
-                        </div>
-                    </div>
-                    <div style="font-size: 0.8rem; color: #666;">${date}</div>
-                `;
-                container.appendChild(item);
-            });
-            
-            section.style.display = 'block';
-            
-            document.getElementById('clear-history-btn').addEventListener('click', () => {
-                if(confirm('Clear ticket history?')) {
-                    localStorage.removeItem(STORAGE_KEY);
-                    location.reload();
-                }
-            });
-        }
-    }
 </script>
 
 <style>

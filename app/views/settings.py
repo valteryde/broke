@@ -32,6 +32,7 @@ import re
 import uuid
 import pyargon2
 from ..utils import mail
+from ..utils.ai_changelog import get_ai_config
 from ..utils.notifications import (
     get_notification_engine_settings,
     save_notification_engine_settings,
@@ -203,16 +204,41 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         context["projects"] = list(Project.select().order_by(Project.name))
 
     elif section == "ai":
+        default_ai_settings = {
+            "api_key": "",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+            "language": "English",
+        }
+
+        context["ai_settings_source"] = "none"
+        context["ai_settings_api_key_present"] = False
+
         try:
             setting = GlobalSetting.get(GlobalSetting.key == "ai_settings")
-            context["ai_settings"] = json.loads(setting.value)
-        except DoesNotExist:
-            context["ai_settings"] = {
-                "api_key": "",
-                "base_url": "https://api.openai.com/v1",
-                "model": "gpt-4o-mini",
-                "language": "English",
-            }
+            saved = json.loads(setting.value)
+            if saved.get("api_key"):
+                context["ai_settings"] = {
+                    **default_ai_settings,
+                    **saved,
+                }
+                context["ai_settings_source"] = "database"
+                context["ai_settings_api_key_present"] = True
+            else:
+                raise DoesNotExist
+        except (DoesNotExist, json.JSONDecodeError):
+            active = get_ai_config()
+            if active:
+                context["ai_settings"] = {
+                    **default_ai_settings,
+                    **active,
+                    # Do not prefill secret from env into the input field.
+                    "api_key": "",
+                }
+                context["ai_settings_source"] = "environment"
+                context["ai_settings_api_key_present"] = True
+            else:
+                context["ai_settings"] = default_ai_settings
 
     elif section == "updates":
         from ..utils.updater import get_update_info, is_auto_check_enabled, get_sidecar_status
@@ -386,7 +412,7 @@ def api_update_anonymous(user: User):
     settings = {
         "enabled": bool(data.get("enabled", False)),
         "message": data.get("message", "").strip(),
-        "projects": data.get("projects", []),
+        "projects": [],
     }
 
     # Save to GlobalSetting

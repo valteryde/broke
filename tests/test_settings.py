@@ -123,6 +123,63 @@ def _(c=auth_client):
         assert b"Email Service" in response.data
 
 
+@test("/settings/ai shows environment-backed AI config when DB settings missing")
+def _(c=auth_client):
+    GlobalSetting.delete().where(GlobalSetting.key == "ai_settings").execute()
+
+    with patch.dict(
+        "os.environ",
+        {
+            "AI_API_KEY": "env-ai-key-123",
+            "AI_BASE_URL": "https://api.openai.com/v1",
+            "AI_MODEL": "gpt-4o-mini",
+        },
+        clear=False,
+    ):
+        response = c.get("/settings/ai")
+
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Loaded from environment variables" in response.data
+        assert b"https://api.openai.com/v1" in response.data
+        assert b"gpt-4o-mini" in response.data
+
+
+@test("/settings/ai prefers DB config over environment")
+def _(c=auth_client):
+    payload = json.dumps(
+        {
+            "api_key": "db-key-abc",
+            "base_url": "https://openrouter.ai/api/v1",
+            "model": "google/gemini-2.5-flash",
+            "language": "English",
+        }
+    )
+    existing = GlobalSetting.get_or_none(GlobalSetting.key == "ai_settings")
+    if existing:
+        existing.value = payload
+        existing.save()
+    else:
+        GlobalSetting.create(key="ai_settings", value=payload)
+
+    with patch.dict(
+        "os.environ",
+        {
+            "AI_API_KEY": "env-ai-key-456",
+            "AI_BASE_URL": "https://api.openai.com/v1",
+            "AI_MODEL": "gpt-4o-mini",
+        },
+        clear=False,
+    ):
+        response = c.get("/settings/ai")
+
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Loaded from saved settings" in response.data
+        assert b"https://openrouter.ai/api/v1" in response.data
+        assert b"google/gemini-2.5-flash" in response.data
+
+
 @test("Team page shows admin role badges")
 def _(c=auth_client):
     response = c.get("/settings/team")

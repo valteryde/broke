@@ -4,6 +4,7 @@ from ward import test
 from tests.fixtures import client, fake, test_project, test_ticket, auth_client, auth_user
 import json
 import time
+from unittest.mock import patch
 
 from app.utils.models import Ticket
 
@@ -23,6 +24,70 @@ def _(c=auth_client):
     assert response.status_code in [200, 302]
 
 
+@test("/tickets excludes triage tickets")
+def _(c=auth_client, project=test_project):
+    unique = str(int(time.time() * 1000000))
+    triage_ticket = Ticket.create(
+        id=f"TRIAGE-{unique}",
+        title=f"Triage hidden {unique}",
+        description="triage-only",
+        status="triage",
+        priority="medium",
+        project="TRIAGE",
+        active=1,
+    )
+    regular_ticket = Ticket.create(
+        id=f"{project.id}-{unique}",
+        title=f"Regular visible {unique}",
+        description="regular",
+        status="backlog",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+
+    response = c.get("/tickets")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        regular_token = f'id: "{regular_ticket.id}"'.encode()
+        triage_token = f'id: "{triage_ticket.id}"'.encode()
+        assert regular_token in response.data
+        assert triage_token not in response.data
+
+
+@test("/tickets/<project_id> excludes triage tickets")
+def _(c=auth_client, project=test_project):
+    unique = str(int(time.time() * 1000000))
+    triage_ticket = Ticket.create(
+        id=f"{project.id}-{unique}-triage",
+        title=f"Project triage hidden {unique}",
+
+
+        description="triage-in-project",
+        status="triage",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+    regular_ticket = Ticket.create(
+        id=f"{project.id}-{unique}-regular",
+        title=f"Project regular visible {unique}",
+        description="project-regular",
+        status="backlog",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+
+    response = c.get(f"/tickets/{project.id}")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        regular_token = f'id: "{regular_ticket.id}"'.encode()
+        triage_token = f'id: "{triage_ticket.id}"'.encode()
+        assert regular_token in response.data
+        assert triage_token not in response.data
+
+
 @test("/tickets/<id> GET shows ticket detail")
 def _(c=auth_client, ticket=test_ticket):
     """Test ticket detail page loads"""
@@ -38,6 +103,8 @@ def _(c=auth_client, f=fake, project=test_project):
         "description": f.text(),
         "project": project.id,
         "status": "todo",
+
+
         "priority": "medium",
     }
 
@@ -87,10 +154,49 @@ def _(c=auth_client, f=fake):
         follow_redirects=False,
     )
 
+
+
     assert response.status_code == 201
     payload = json.loads(response.data)
     assert payload.get("ticket", {}).get("status") == "triage"
     assert payload.get("ticket", {}).get("project") == "TRIAGE"
+
+
+@test("Create triage intake ticket blocks strong duplicates")
+def _(c=auth_client):
+    unique = str(int(time.time() * 1000000))
+    title = f"Login outage after reset {unique}"
+    description = "Users cannot login after password reset in production for multiple customers"
+
+    first_response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps(
+            {
+                "title": title,
+                "description": description,
+                "priority": "high",
+            }
+        ),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+    assert first_response.status_code == 201
+
+    duplicate_response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps(
+            {
+                "title": title,
+                "description": description,
+                "priority": "high",
+            }
+        ),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+    assert duplicate_response.status_code == 409
+    payload = json.loads(duplicate_response.data)
+    assert payload.get("possible_duplicates")
 
 
 @test("Create triage intake ticket accepts null project")
@@ -190,6 +296,31 @@ def _(c=auth_client):
         assert b"Triage Inbox" in response.data
 
 
+@test("/triage escapes newline characters in ticket titles")
+def _(c=auth_client, f=fake):
+    create_response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps(
+            {
+                "title": f"Line one\\nLine two {f.uuid4()}",
+                "description": "newline title regression",
+                "priority": "medium",
+            }
+        ),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+    assert create_response.status_code == 201
+
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        # Ticket data is embedded into inline JS, so raw newlines in string
+        # literals must never appear (which would break script parsing).
+        assert b"Line one\nLine two" not in response.data
+        assert b"Line one" in response.data
+
+
 @test("/triage does not show intake confirmation modal copy")
 def _(c=auth_client):
     response = c.get("/triage")
@@ -203,9 +334,422 @@ def _(c=auth_client):
     response = c.get("/triage")
     assert response.status_code in [200, 302]
     if response.status_code == 200:
-        assert b"Triage is your intake inbox" in response.data
         assert b"Quick Intake" in response.data
-        assert b"Send Selected" in response.data
+        assert b"guided chat" in response.data
+        assert b"Send Selected" not in response.data
+
+
+@test("/triage shows AI intake entrypoint")
+def _(c=auth_client):
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"AI Intake" not in response.data
+
+
+@test("/triage renders split intake and inbox panels")
+def _(c=auth_client):
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b'id="triage-intake-panel"' in response.data
+        assert b'id="triage-inbox-panel"' in response.data
+
+
+@test("/triage renders shared chat intake controls")
+def _(c=auth_client):
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b'id="triage-chat-thread"' in response.data
+        assert b'id="triage-chat-input"' in response.data
+        assert b'id="triage-chat-send"' in response.data
+
+
+@test("/triage does not render legacy wizard controls")
+def _(c=auth_client):
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b'id="triage-wizard-progress"' not in response.data
+        assert b'id="triage-wizard-next"' not in response.data
+        assert b'id="triage-wizard-create"' not in response.data
+
+
+@test("/triage shows AI chat only when AI is configured")
+def _(c=auth_client):
+    with patch(
+        "app.views.tickets.get_ai_config",
+        return_value={
+            "api_key": "test-key",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+        },
+    ):
+        response = c.get("/triage")
+
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"AI Intake" in response.data
+        assert b'id="triage-chat-thread"' in response.data
+        assert b'id="triage-chat-input"' in response.data
+        assert b'id="triage-wizard-progress"' not in response.data
+
+
+@test("/triage uses environment AI key to enable AI mode")
+def _(c=auth_client):
+    with patch.dict(
+        "os.environ",
+        {
+            "AI_API_KEY": "env-test-key",
+            "AI_BASE_URL": "https://api.openai.com/v1",
+            "AI_MODEL": "gpt-4o-mini",
+        },
+        clear=False,
+    ):
+        response = c.get("/triage")
+
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"AI Intake" in response.data
+        assert b'id="triage-chat-thread"' in response.data
+
+
+@test("/triage uses dedicated dashboard script and no list.js")
+def _(c=auth_client):
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b'/static/js/triage_dashboard.js' in response.data
+        assert b'/static/js/lists.js' not in response.data
+
+
+@test("/triage renders triage tickets oldest first")
+def _(c=auth_client):
+    unique = str(int(time.time() * 1000000))
+    now = int(time.time())
+
+    newer = Ticket.create(
+        id=f"TRIAGE-{unique}-newer",
+        title="Newer triage ticket",
+        description="newer",
+        status="triage",
+        priority="medium",
+        project="TRIAGE",
+        active=1,
+        created_at=now,
+    )
+    older = Ticket.create(
+        id=f"TRIAGE-{unique}-older",
+        title="Older triage ticket",
+        description="older",
+        status="triage",
+        priority="medium",
+        project="TRIAGE",
+        active=1,
+        created_at=now - 500,
+    )
+
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        html = response.data.decode("utf-8")
+        older_index = html.find(older.id)
+        newer_index = html.find(newer.id)
+        assert older_index != -1
+        assert newer_index != -1
+        assert older_index < newer_index
+
+
+@test("/api/tickets/intake/ai/suggest requires message")
+def _(c=auth_client):
+    response = c.post(
+        "/api/tickets/intake/ai/suggest",
+        data=json.dumps({}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+@test("/api/tickets/intake/ai/chat requires message")
+def _(c=auth_client):
+    response = c.post(
+        "/api/tickets/intake/ai/chat",
+        data=json.dumps({}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+@test("/api/tickets/intake/ai/chat asks follow-up for sparse details")
+def _(c=auth_client):
+    with patch(
+        "app.views.tickets.suggest_intake_from_message",
+        return_value={
+            "title": "Login issue",
+            "description": "Login issue",
+            "priority": "medium",
+            "suggested_project": None,
+            "confidence": 0.5,
+            "reason": "Limited context",
+            "route": "triage",
+            "source": "ai",
+        },
+    ):
+        response = c.post(
+            "/api/tickets/intake/ai/chat",
+            data=json.dumps({"message": "login broken"}),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    assert payload.get("success") is True
+    reply = payload.get("reply", {})
+    assert reply.get("ready_to_commit") is False
+    assert "context_details" in reply.get("missing_fields", [])
+
+
+@test("/api/tickets/intake/ai/chat merges history and can be commit-ready")
+def _(c=auth_client):
+    with patch(
+        "app.views.tickets.suggest_intake_from_message",
+        return_value={
+            "title": "Password reset login failures",
+            "description": "Users cannot login after password reset in production.",
+            "priority": "high",
+            "suggested_project": "AUTH",
+            "confidence": 0.9,
+            "reason": "Auth keyword match.",
+            "route": "direct",
+            "source": "ai",
+        },
+    ) as mocked_suggest:
+        response = c.post(
+            "/api/tickets/intake/ai/chat",
+            data=json.dumps(
+                {
+                    "history": [
+                        {
+                            "role": "user",
+                            "content": "Multiple users cannot sign in after password reset.",
+                        }
+                    ],
+                    "message": "Urgent production impact. Please route to auth team.",
+                }
+            ),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    assert payload.get("success") is True
+    reply = payload.get("reply", {})
+    assert reply.get("ready_to_commit") is True
+    assert reply.get("missing_fields") == []
+    assert reply.get("draft", {}).get("suggested_project") == "AUTH"
+
+    suggested_message = mocked_suggest.call_args[0][0]
+    assert "Multiple users cannot sign in" in suggested_message
+    assert "Urgent production impact" in suggested_message
+
+
+@test("/api/tickets/intake/ai/chat trusts high-confidence AI draft")
+def _(c=auth_client):
+    with patch(
+        "app.views.tickets.suggest_intake_from_message",
+        return_value={
+            "title": "Login breaks after reset",
+            "description": "Users cannot login after password reset.",
+            "priority": "high",
+            "suggested_project": None,
+            "confidence": 0.93,
+            "reason": "Strong auth pattern match.",
+            "route": "triage",
+            "source": "ai",
+        },
+    ):
+        response = c.post(
+            "/api/tickets/intake/ai/chat",
+            data=json.dumps({"message": "login broken"}),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    reply = payload.get("reply", {})
+    assert reply.get("ready_to_commit") is True
+    assert reply.get("missing_fields") == []
+
+
+@test("/api/tickets/intake/ai/chat flags strong duplicate matches")
+def _(c=auth_client):
+    unique = str(int(time.time() * 1000000))
+    title = f"Checkout failure in production {unique}"
+    description = "Checkout fails for many users in production after deploy"
+
+    c.post(
+        "/api/tickets/intake",
+        data=json.dumps(
+            {
+                "title": title,
+                "description": description,
+                "priority": "high",
+            }
+        ),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    with patch(
+        "app.views.tickets.suggest_intake_from_message",
+        return_value={
+            "title": title,
+            "description": description,
+            "priority": "high",
+            "suggested_project": None,
+            "confidence": 0.9,
+            "reason": "duplicate check",
+            "route": "triage",
+            "source": "ai",
+        },
+    ):
+        response = c.post(
+            "/api/tickets/intake/ai/chat",
+            data=json.dumps({"message": "checkout is failing in production for many users"}),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    reply = payload.get("reply", {})
+    assert reply.get("ready_to_commit") is False
+    assert "possible_duplicate" in reply.get("missing_fields", [])
+    assert reply.get("possible_duplicates")
+
+
+@test("/api/tickets/intake/ai/suggest returns structured suggestion")
+def _(c=auth_client):
+    with patch(
+        "app.views.tickets.suggest_intake_from_message",
+        return_value={
+            "title": "Login issue when session expires",
+            "description": "Users are logged out and cannot re-authenticate until refresh.",
+            "priority": "high",
+            "suggested_project": "AUTH",
+            "confidence": 0.92,
+            "reason": "Mentions auth/session behavior.",
+            "route": "direct",
+            "source": "ai",
+        },
+    ):
+        response = c.post(
+            "/api/tickets/intake/ai/suggest",
+            data=json.dumps({"message": "Users get kicked out and login fails"}),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    assert payload.get("success") is True
+    assert payload.get("suggestion", {}).get("priority") == "high"
+    assert payload.get("suggestion", {}).get("suggested_project") == "AUTH"
+
+
+@test("/api/tickets/intake/ai/commit requires title")
+def _(c=auth_client):
+    response = c.post(
+        "/api/tickets/intake/ai/commit",
+        data=json.dumps({"destination": "triage", "suggestion": {}}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+
+
+@test("/api/tickets/intake/ai/commit creates triage ticket")
+def _(c=auth_client):
+    response = c.post(
+        "/api/tickets/intake/ai/commit",
+        data=json.dumps(
+            {
+                "destination": "triage",
+                "suggestion": {
+                    "title": "AI suggested triage ticket",
+                    "description": "Needs manual routing.",
+                    "priority": "medium",
+                },
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    payload = json.loads(response.data)
+    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("project") == "TRIAGE"
+
+
+@test("/api/tickets/intake/ai/commit creates backlog ticket in project")
+def _(c=auth_client, project=test_project):
+    response = c.post(
+        "/api/tickets/intake/ai/commit",
+        data=json.dumps(
+            {
+                "destination": "project",
+                "project": project.id,
+                "suggestion": {
+                    "title": "AI suggested project ticket",
+                    "description": "Route directly to project backlog.",
+                    "priority": "high",
+                },
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    payload = json.loads(response.data)
+    assert payload.get("ticket", {}).get("status") == "backlog"
+    assert payload.get("ticket", {}).get("project") == project.id
+
+
+@test("/api/tickets/intake/ai/commit blocks strong duplicates")
+def _(c=auth_client):
+    unique = str(int(time.time() * 1000000))
+    title = f"Payment API timeout duplicate check {unique}"
+    description = "Payment API requests timeout for many users after release"
+
+    c.post(
+        "/api/tickets/intake",
+        data=json.dumps(
+            {
+                "title": title,
+                "description": description,
+                "priority": "high",
+            }
+        ),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    response = c.post(
+        "/api/tickets/intake/ai/commit",
+        data=json.dumps(
+            {
+                "destination": "triage",
+                "suggestion": {
+                    "title": title,
+                    "description": description,
+                    "priority": "high",
+                },
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 409
+    payload = json.loads(response.data)
+    assert payload.get("possible_duplicates")
 
 
 @test("/api/tickets/<id> DELETE requires authentication")

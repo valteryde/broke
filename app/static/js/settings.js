@@ -86,16 +86,10 @@ function initForms() {
             e.preventDefault();
             const formData = new FormData(anonymousForm);
 
-            // Handle checkboxes for project list
-            const projects = [];
-            anonymousForm.querySelectorAll('input[name="projects"]:checked').forEach(cb => {
-                projects.push(cb.value);
-            });
-
             const data = {
                 enabled: formData.get('enabled') === 'on',
                 message: formData.get('message'),
-                projects: projects
+                projects: []
             };
 
             await submitSettings('anonymous', data);

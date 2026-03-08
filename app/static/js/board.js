@@ -8,6 +8,14 @@ const TicketBoard = {
         { key: 'done', label: 'Done' }
     ],
 
+    getStatuses() {
+        const page = window.ticketPageContext || 'tickets';
+        if (page === 'triage') {
+            return this.statuses;
+        }
+        return this.statuses.filter((status) => status.key !== 'triage');
+    },
+
     init(containerId, tickets, options = {}) {
         const container = document.getElementById(containerId);
         if (!container) {
@@ -17,13 +25,15 @@ const TicketBoard = {
         const onMove = options.onMove || (async () => {});
         const onCardClick = options.onCardClick || (() => {});
 
+        const statuses = this.getStatuses();
+
         const normalizedTickets = (tickets || []).map((ticket) => ({
             ...ticket,
-            status: this.statuses.some((s) => s.key === ticket.status) ? ticket.status : 'backlog'
+            status: statuses.some((s) => s.key === ticket.status) ? ticket.status : 'backlog'
         }));
 
         const render = () => {
-            const columnsHtml = this.statuses.map((status) => {
+            const columnsHtml = statuses.map((status) => {
                 const items = normalizedTickets.filter((ticket) => ticket.status === status.key);
                 const cards = items.map((ticket) => this.renderCard(ticket)).join('');
                 return `

@@ -16,8 +16,11 @@ import os
 import base64
 import uuid
 import re
+from difflib import SequenceMatcher
 from ..utils.path import data_path
 from ..utils.events import bus, EventTypes
+from ..utils.ai_intake import suggest_intake_from_message
+from ..utils.ai_changelog import get_ai_config
 
 # Create blueprint
 tickets_bp = Blueprint("tickets", __name__)
@@ -62,7 +65,7 @@ def resolve_ticket_view(user: User) -> str:
 @tickets_bp.route("/tickets")
 @protected
 def tickets_view(user: User):
-    tickets = list(Ticket.select().where(Ticket.active == 1))
+    tickets = list(Ticket.select().where((Ticket.active == 1) & (Ticket.status != "triage")))
     populateTickets(tickets)
     ticket_view = resolve_ticket_view(user)
 
@@ -91,7 +94,11 @@ def tickets_view(user: User):
 @protected
 def project_tickets_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
-    tickets = list(Ticket.select().where((Ticket.project == project_id) & (Ticket.active == 1)))
+    tickets = list(
+        Ticket.select().where(
+            (Ticket.project == project_id) & (Ticket.active == 1) & (Ticket.status != "triage")
+        )
+    )
     populateTickets(tickets)
     ticket_view = resolve_ticket_view(user)
 
@@ -119,14 +126,18 @@ def project_tickets_view(user: User, project_id: str):
 @tickets_bp.route("/triage")
 @protected
 def triage_view(user: User):
-    tickets = list(Ticket.select().where((Ticket.active == 1) & (Ticket.status == "triage")))
+    tickets = list(
+        Ticket.select()
+        .where((Ticket.active == 1) & (Ticket.status == "triage"))
+        .order_by(Ticket.created_at.asc())
+    )
     populateTickets(tickets)
 
     available_users = User.select().order_by(User.username)
     available_labels = Label.select().order_by(Label.name)
 
     return render_template(
-        "tickets.jinja2",
+        "triage.jinja2",
         user=user,
         page="triage",
         tickets=tickets,
@@ -140,6 +151,7 @@ def triage_view(user: User):
         ticket_create_endpoint="/api/tickets/intake",
         ticket_create_status="triage",
         ticket_base_path="/triage",
+        ai_intake_enabled=get_ai_config() is not None,
     )
 
 
@@ -150,7 +162,7 @@ def triage_project_view(user: User, project_id: str):
     tickets = list(
         Ticket.select().where(
             (Ticket.project == project_id) & (Ticket.active == 1) & (Ticket.status == "triage")
-        )
+        ).order_by(Ticket.created_at.asc())
     )
     populateTickets(tickets)
 
@@ -158,7 +170,7 @@ def triage_project_view(user: User, project_id: str):
     available_labels = Label.select().order_by(Label.name)
 
     return render_template(
-        "tickets.jinja2",
+        "triage.jinja2",
         user=user,
         page="triage",
         tickets=tickets,
@@ -172,6 +184,7 @@ def triage_project_view(user: User, project_id: str):
         ticket_create_endpoint="/api/tickets/intake",
         ticket_create_status="triage",
         ticket_base_path="/triage",
+        ai_intake_enabled=get_ai_config() is not None,
     )
 
 
@@ -224,6 +237,18 @@ def generate_ticket_id(project_id: str) -> str:
                 pass
 
     return f"{project_id}-{max_num + 1}"
+
+
+def generate_unique_ticket_id(project_id: str) -> str:
+    """Generate a ticket ID and guard against rare collisions."""
+    candidate = generate_ticket_id(project_id)
+    while Ticket.get_or_none(Ticket.id == candidate):
+        prefix, _, suffix = candidate.rpartition("-")
+        if suffix.isdigit():
+            candidate = f"{prefix}-{int(suffix) + 1}"
+        else:
+            candidate = f"{project_id}-{int(time.time())}"
+    return candidate
 
 
 def extract_and_save_images(html_content: str) -> str:
@@ -283,7 +308,7 @@ def create_ticket(user: User):
         return jsonify({"error": "Project not found"}), 404
 
     # Generate ticket ID
-    ticket_id = generate_ticket_id(project_id)
+    ticket_id = generate_unique_ticket_id(project_id)
 
     # Create ticket with defaults
     ticket = Ticket.create(
@@ -355,11 +380,25 @@ def create_intake_ticket(user: User):
             return jsonify({"error": "Project not found"}), 404
         project_id = requested_project_id
 
-    ticket_id = generate_ticket_id(project_id)
+    title = str(data.get("title", "")).strip()
+    description = str(data.get("description", "")).strip()
+    possible_duplicates = _find_possible_duplicate_tickets(title, description)
+    if _has_blocking_duplicate(possible_duplicates):
+        return (
+            jsonify(
+                {
+                    "error": "Possible duplicate ticket found",
+                    "possible_duplicates": possible_duplicates,
+                }
+            ),
+            409,
+        )
+
+    ticket_id = generate_unique_ticket_id(project_id)
     ticket = Ticket.create(
         id=ticket_id,
-        title=data.get("title", ""),
-        description=data.get("description", ""),
+        title=title,
+        description=description,
         status="triage",
         priority=data.get("priority", "medium"),
         project=project_id,
@@ -403,6 +442,386 @@ def create_intake_ticket(user: User):
         ),
         201,
     )
+
+
+def _collect_chat_user_context(history: list[dict], message: str) -> str:
+    """Merge prior user chat turns and latest message into one intake context."""
+    parts: list[str] = []
+
+    for turn in history:
+        if not isinstance(turn, dict):
+            continue
+        if str(turn.get("role", "")).strip().lower() != "user":
+            continue
+        content = str(turn.get("content", "")).strip()
+        if content:
+            parts.append(content)
+
+    if message:
+        parts.append(message)
+
+    return "\n".join(parts).strip()
+
+
+def _missing_intake_fields(chat_context: str) -> list[str]:
+    """Heuristic required-field check for conversational intake readiness."""
+    missing: list[str] = []
+    lowered = chat_context.lower()
+    words = [token for token in re.split(r"\s+", chat_context) if token]
+
+    if len(words) < 8:
+        missing.append("context_details")
+
+    impact_tokens = {
+        "urgent",
+        "critical",
+        "outage",
+        "blocked",
+        "blocking",
+        "impact",
+        "cannot",
+        "can't",
+        "fails",
+        "failure",
+        "production",
+        "customer",
+    }
+    if not any(token in lowered for token in impact_tokens):
+        missing.append("impact")
+
+    return missing
+
+
+def _build_follow_up_message(missing_fields: list[str], draft: dict) -> str:
+    """Generate the assistant response for the next chat turn."""
+    if not missing_fields:
+        target = draft.get("suggested_project") or "triage"
+        return (
+            f"I have enough to draft this ticket (title: {draft.get('title', 'Untitled')}). "
+            f"Proposed destination: {target}. Confirm and I can create it."
+        )
+
+    questions: list[str] = []
+    if "context_details" in missing_fields:
+        questions.append("Can you share a bit more context (steps, scope, or examples)?")
+    if "impact" in missing_fields:
+        questions.append("What is the urgency or user/business impact?")
+    if "confidence" in missing_fields:
+        questions.append("I can draft this, but confidence is low. Can you share one more detail so I can improve accuracy?")
+
+    return " ".join(questions)
+
+
+def _chat_missing_fields(chat_context: str, draft: dict) -> list[str]:
+    """Determine whether follow-up is needed for chat intake.
+
+    If AI returned a high-confidence structured draft, treat it as ready and avoid
+    forcing heuristic questions. Fall back to heuristic checks for non-AI drafts
+    or low-confidence AI output.
+    """
+    source = str(draft.get("source", "")).strip().lower()
+    title = str(draft.get("title", "")).strip()
+    description = str(draft.get("description", "")).strip()
+    confidence_raw = draft.get("confidence", 0.0)
+    try:
+        confidence = float(confidence_raw)
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    if source == "ai":
+        if not title or len(title) < 4 or not description or len(description) < 12:
+            return ["context_details"]
+        if confidence < 0.55:
+            return ["confidence"]
+        return []
+
+    return _missing_intake_fields(chat_context)
+
+
+def _normalize_similarity_text(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())).strip()
+
+
+def _token_set(text: str) -> set[str]:
+    return {token for token in _normalize_similarity_text(text).split(" ") if len(token) > 2}
+
+
+def _combined_similarity(title_a: str, desc_a: str, title_b: str, desc_b: str) -> float:
+    normalized_title_a = _normalize_similarity_text(title_a)
+    normalized_title_b = _normalize_similarity_text(title_b)
+    normalized_desc_a = _normalize_similarity_text(desc_a)[:800]
+    normalized_desc_b = _normalize_similarity_text(desc_b)[:800]
+
+    if not normalized_title_a or not normalized_title_b:
+        return 0.0
+
+    title_ratio = SequenceMatcher(None, normalized_title_a, normalized_title_b).ratio()
+    desc_ratio = (
+        SequenceMatcher(None, normalized_desc_a, normalized_desc_b).ratio()
+        if normalized_desc_a and normalized_desc_b
+        else 0.0
+    )
+
+    tokens_a = _token_set(f"{normalized_title_a} {normalized_desc_a}")
+    tokens_b = _token_set(f"{normalized_title_b} {normalized_desc_b}")
+    token_overlap = 0.0
+    if tokens_a and tokens_b:
+        token_overlap = len(tokens_a & tokens_b) / len(tokens_a | tokens_b)
+
+    return max(
+        title_ratio,
+        0.65 * title_ratio + 0.35 * token_overlap,
+        0.5 * title_ratio + 0.25 * desc_ratio + 0.25 * token_overlap,
+    )
+
+
+def _find_possible_duplicate_tickets(title: str, description: str, limit: int = 3) -> list[dict]:
+    normalized_title = _normalize_similarity_text(title)
+    if not normalized_title:
+        return []
+
+    matches: list[dict] = []
+    candidates = (
+        Ticket.select()
+        .where(Ticket.active == 1)
+        .order_by(Ticket.created_at.desc())
+        .limit(400)
+    )
+
+    for candidate in candidates:
+        score = _combined_similarity(
+            title,
+            description,
+            candidate.title or "",
+            candidate.description or "",
+        )
+        if score < 0.74:
+            continue
+        matches.append(
+            {
+                "id": candidate.id,
+                "title": candidate.title,
+                "project": candidate.project,
+                "status": candidate.status,
+                "score": round(score, 4),
+            }
+        )
+
+    matches.sort(key=lambda row: row.get("score", 0), reverse=True)
+    return matches[:limit]
+
+
+def _has_blocking_duplicate(possible_duplicates: list[dict]) -> bool:
+    if not possible_duplicates:
+        return False
+    top_score = float(possible_duplicates[0].get("score") or 0)
+    return top_score >= 0.86
+
+
+@tickets_bp.route("/api/tickets/intake/ai/chat", methods=["POST"])
+@protected
+def chat_ai_intake_ticket(user: User):
+    """Conversational AI intake step that gathers details before commit."""
+    data = request.get_json(silent=True) or {}
+    message = str(data.get("message", "")).strip()
+
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+
+    history_raw = data.get("history") or []
+    history = history_raw if isinstance(history_raw, list) else []
+    chat_context = _collect_chat_user_context(history, message)
+
+    projects = [
+        {"id": project.id, "name": project.name}
+        for project in Project.select().order_by(Project.name)
+    ]
+    draft = suggest_intake_from_message(chat_context, projects)
+
+    missing_fields = _chat_missing_fields(chat_context, draft)
+    possible_duplicates = _find_possible_duplicate_tickets(
+        str(draft.get("title", "")),
+        str(draft.get("description", "")),
+    )
+    has_blocking_duplicate = _has_blocking_duplicate(possible_duplicates)
+    if has_blocking_duplicate:
+        missing_fields = [*missing_fields, "possible_duplicate"]
+
+    ready_to_commit = len(missing_fields) == 0
+    assistant_message = _build_follow_up_message(missing_fields, draft)
+    if has_blocking_duplicate:
+        top = possible_duplicates[0]
+        assistant_message = (
+            f"This looks very similar to {top.get('id')} ({top.get('title')}). "
+            "Please review likely duplicates before creating a new ticket."
+        )
+
+    return (
+        jsonify(
+            {
+                "success": True,
+                "reply": {
+                    "message": assistant_message,
+                    "draft": draft,
+                    "missing_fields": missing_fields,
+                    "possible_duplicates": possible_duplicates,
+                    "ready_to_commit": ready_to_commit,
+                },
+            }
+        ),
+        200,
+    )
+
+
+@tickets_bp.route("/api/tickets/intake/ai/suggest", methods=["POST"])
+@protected
+def suggest_intake_ticket(user: User):
+    """Suggest project/priority/title from free-form intake text."""
+    data = request.get_json(silent=True) or {}
+    message = str(data.get("message", "")).strip()
+
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+
+    projects = [
+        {"id": project.id, "name": project.name}
+        for project in Project.select().order_by(Project.name)
+    ]
+    suggestion = suggest_intake_from_message(message, projects)
+
+    return jsonify({"success": True, "suggestion": suggestion}), 200
+
+
+@tickets_bp.route("/api/tickets/intake/ai/commit", methods=["POST"])
+@protected
+def commit_ai_intake_ticket(user: User):
+    """Create a ticket from an AI suggestion after explicit user confirmation."""
+    data = request.get_json(silent=True) or {}
+    suggestion = data.get("suggestion") or {}
+    destination = str(data.get("destination", "triage")).strip().lower()
+
+    title = str(suggestion.get("title", "")).strip()
+    if not title:
+        return jsonify({"error": "Suggestion title is required"}), 400
+
+    description = str(suggestion.get("description", "")).strip()
+    possible_duplicates = _find_possible_duplicate_tickets(title, description)
+    if _has_blocking_duplicate(possible_duplicates):
+        return (
+            jsonify(
+                {
+                    "error": "Possible duplicate ticket found",
+                    "possible_duplicates": possible_duplicates,
+                }
+            ),
+            409,
+        )
+
+    priority = str(suggestion.get("priority", "medium")).strip().lower()
+    if priority not in {"urgent", "high", "medium", "low", "none"}:
+        priority = "medium"
+
+    if destination == "project":
+        project_id = str(
+            data.get("project")
+            or suggestion.get("suggested_project")
+            or ""
+        ).strip()
+        if not project_id:
+            return jsonify({"error": "Project is required for project destination"}), 400
+
+        project = Project.get_or_none(Project.id == project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+
+        ticket_id = generate_unique_ticket_id(project_id)
+        ticket = Ticket.create(
+            id=ticket_id,
+            title=title,
+            description=description,
+            status="backlog",
+            priority=priority,
+            project=project_id,
+            created_at=int(time.time()),
+        )
+
+        TicketUpdateMessage.create(
+            ticket=ticket_id,
+            title="Created",
+            icon="ph ph-plus",
+            message=f"{user.username} created this ticket from AI intake",
+            created_at=int(time.time()),
+        )
+
+        UserTicketJoin.create(user=user.username, ticket=ticket_id)
+
+        bus.emit(
+            EventTypes.TICKET_CREATED,
+            ticket_id=ticket.id,
+            ticket_title=ticket.title,
+            project=ticket.project,
+            status=ticket.status,
+            actor=user.username,
+            details="Ticket created from AI intake",
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "ticket": {
+                    "id": ticket.id,
+                    "title": ticket.title,
+                    "project": ticket.project,
+                    "status": ticket.status,
+                    "priority": ticket.priority,
+                },
+            }
+        ), 201
+
+    if destination != "triage":
+        return jsonify({"error": "Unknown destination"}), 400
+
+    ticket_id = generate_unique_ticket_id("TRIAGE")
+    ticket = Ticket.create(
+        id=ticket_id,
+        title=title,
+        description=description,
+        status="triage",
+        priority=priority,
+        project="TRIAGE",
+        created_at=int(time.time()),
+    )
+
+    TicketUpdateMessage.create(
+        ticket=ticket_id,
+        title="Intake created",
+        icon="ph ph-tray",
+        message=f"{user.username} created this ticket from AI intake",
+        created_at=int(time.time()),
+    )
+
+    bus.emit(
+        EventTypes.TICKET_TRIAGED,
+        ticket_id=ticket.id,
+        ticket_title=ticket.title,
+        project=ticket.project,
+        status=ticket.status,
+        actor=user.username,
+        details="Ticket entered triage inbox from AI intake",
+    )
+
+    return jsonify(
+        {
+            "success": True,
+            "ticket": {
+                "id": ticket.id,
+                "title": ticket.title,
+                "project": ticket.project,
+                "status": ticket.status,
+                "priority": ticket.priority,
+            },
+        }
+    ), 201
 
 
 @tickets_bp.route("/api/tickets/<ticket_id>", methods=["PUT", "PATCH"])

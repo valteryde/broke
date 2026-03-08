@@ -20,7 +20,7 @@ def anon_enabled_project(app=app):
         value=json.dumps({
             "enabled": True,
             "message": "Welcome! Please submit your ticket.",
-            "projects": [project_id]
+            "projects": []
         })
     )
     
@@ -49,22 +49,24 @@ def _(c=client):
 def _(c=client, project=anon_enabled_project):
     """Test anonymous index when feature is enabled"""
     response = c.get('/anon')
-    # Should redirect to project page if only one project
-    assert response.status_code in [200, 302]
+    assert response.status_code == 200
+    assert b"Submit a Ticket" in response.data
 
 
 @test("/anon/<project_id> GET shows submission form")
 def _(c=client, project=anon_enabled_project):
-    """Test anonymous wizard for specific project"""
+    """Legacy project route should redirect to unified /anon form"""
     response = c.get(f'/anon/{project.id}')
-    assert response.status_code in [200, 302]
+    assert response.status_code == 302
+    assert response.location.endswith('/anon')
 
 
 @test("/anon/<project_id> GET with invalid project returns 403")
 def _(c=client, project=anon_enabled_project):
-    """Test anonymous wizard with non-allowed project"""
+    """Invalid legacy project route should still redirect to /anon"""
     response = c.get('/anon/invalid-project-id')
-    assert response.status_code in [403, 404, 500]
+    assert response.status_code == 302
+    assert response.location.endswith('/anon')
 
 
 @test("/anon/<project_id> POST creates anonymous ticket")
@@ -77,7 +79,6 @@ def _(c=client, project=anon_enabled_project):
         json={
             'title': 'Anonymous Bug Report',
             'description': 'Something is broken',
-            'project': project.id
         },
         content_type='application/json',
         follow_redirects=False)
@@ -94,6 +95,38 @@ def _(c=client, project=anon_enabled_project):
             assert created is not None
             assert created.status == "triage"
             assert created.project == "TRIAGE"
+
+
+@test("/api/anon/submit does not leak duplicate match details")
+def _(c=client, project=anon_enabled_project):
+    initial_count = Ticket.select().count()
+
+    first = c.post(
+        '/api/anon/submit',
+        json={
+            'title': 'Anonymous duplicate title',
+            'description': 'Users cannot login after password reset in production',
+        },
+        content_type='application/json',
+        follow_redirects=False,
+    )
+    assert first.status_code in [200, 201]
+
+    second = c.post(
+        '/api/anon/submit',
+        json={
+            'title': 'Anonymous duplicate title',
+            'description': 'Users cannot login after password reset in production',
+        },
+        content_type='application/json',
+        follow_redirects=False,
+    )
+
+    # Anonymous endpoint must not expose duplicate oracles via status/detail payloads.
+    assert second.status_code in [200, 201]
+    payload = json.loads(second.data)
+    assert 'possible_duplicates' not in payload
+    assert Ticket.select().count() >= initial_count + 2
 
 
 @test("/anon/track/<token> GET shows tracking page")

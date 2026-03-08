@@ -8,6 +8,7 @@ all AI features are hidden from the UI.
 
 import json
 import logging
+import os
 from .models import GlobalSetting, Ticket, Comment
 
 logger = logging.getLogger(__name__)
@@ -21,11 +22,27 @@ def get_ai_config() -> dict | None:
     try:
         setting = GlobalSetting.get(GlobalSetting.key == "ai_settings")
         config = json.loads(setting.value)
-        if not config.get("api_key"):
-            return None
-        return config
+        if config.get("api_key"):
+            return config
     except (GlobalSetting.DoesNotExist, json.JSONDecodeError):
+        pass
+
+    # .env / environment fallback for local testing and non-UI setup.
+    api_key = (
+        os.environ.get("AI_API_KEY", "").strip()
+        or os.environ.get("OPENAI_API_KEY", "").strip()
+        or os.environ.get("BROKE_AI_API_KEY", "").strip()
+    )
+    if not api_key:
         return None
+
+    return {
+        "api_key": api_key,
+        "base_url": os.environ.get("AI_BASE_URL", "").strip()
+        or os.environ.get("OPENAI_BASE_URL", "").strip()
+        or "https://api.openai.com/v1",
+        "model": os.environ.get("AI_MODEL", "").strip() or "gpt-4o-mini",
+    }
 
 
 def is_ai_enabled() -> bool:

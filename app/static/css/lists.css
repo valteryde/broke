@@ -640,6 +640,25 @@
     height: 1.2rem;
 }
 
+.list-send-ticket-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px dashed var(--logo-blue);
+    background: #fff;
+    color: var(--logo-blue);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.list-send-ticket-btn:hover {
+    background: var(--logo-blue);
+    color: #fff;
+}
+
 .list-element:hover .list-element-delete-btn {
     opacity: 1;
 }
