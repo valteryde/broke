@@ -6,8 +6,28 @@ import json
 import secrets
 from ..utils.app import limiter
 from typing import Literal
+from flask import flash, send_from_directory
+from ..utils.models import User, PasswordResetToken, data_path
+from ..utils.events import bus
+import pyargon2
+import os
 
 anon_bp = Blueprint("anon", __name__)
+
+
+def _build_external_base_url() -> str:
+    configured = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
+    if configured:
+        return configured
+    return request.host_url.rstrip("/")
+
+
+def _find_avatar_file(avatar_dir: str, username: str) -> str | None:
+    for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+        candidate = os.path.join(avatar_dir, f"{username}{ext}")
+        if os.path.exists(candidate):
+            return f"{username}{ext}"
+    return None
 
 
 def get_anon_settings():
@@ -179,3 +199,63 @@ def anon_track(secret: str):
     )
 
     return render_template("anon_track.jinja2", ticket=ticket, project=project)
+
+@anon_bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip()
+        user = User.get_or_none(User.email == email)
+        if user:
+            token = secrets.token_urlsafe(32)
+            PasswordResetToken.create(token=token, user=user.username, created_at=int(time.time()))
+            base_url = _build_external_base_url()
+            bus.emit(
+                "USER_PASSWORD_RESET",
+                user=user,
+                token=token,
+                reset_url=f"{base_url}/reset-password/{token}",
+            )
+        # Always show success to prevent email enumeration
+        flash("If your email is registered, you will receive a password reset link.", "success")
+        return redirect("/login")
+    return render_template("forgot_password.jinja2")
+
+@anon_bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token: str):
+    reset_token = PasswordResetToken.get_or_none(PasswordResetToken.token == token)
+    if not reset_token:
+        flash("Invalid or expired password reset token.", "error")
+        return redirect("/login")
+    
+    # Check expiration (e.g. 24 hours = 86400 seconds)
+    if int(time.time()) - reset_token.created_at > 86400:
+        reset_token.delete_instance()
+        flash("Password reset token has expired.", "error")
+        return redirect("/login")
+        
+    if request.method == "POST":
+        password = request.form.get("password", "").strip()
+        if len(password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return render_template("reset_password.jinja2", token=token)
+            
+        user = User.get_or_none(User.username == reset_token.user)
+        if user:
+            user.password_hash = pyargon2.hash(password, str(user.salt))
+            user.save()
+            reset_token.delete_instance()
+            flash("Password reset successful. Please log in.", "success")
+            return redirect("/login")
+            
+        flash("User not found.", "error")
+        return redirect("/login")
+        
+    return render_template("reset_password.jinja2", token=token)
+
+@anon_bp.route("/avatar/<username>")
+def get_avatar(username: str):
+    avatar_dir = data_path("avatars")
+    avatar_file = _find_avatar_file(avatar_dir, username)
+    if avatar_file:
+        return send_from_directory(avatar_dir, avatar_file)
+    return "", 404

@@ -29,9 +29,36 @@ import hashlib
 import time
 import secrets
 import re
+import uuid
+import pyargon2
 
 # Create blueprint
 settings_bp = Blueprint("settings", __name__)
+
+
+MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
+ALLOWED_AVATAR_TYPES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
+
+
+def _avatar_magic_is_valid(content_type: str, header_bytes: bytes) -> bool:
+    if content_type == "image/png":
+        return header_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+    if content_type == "image/jpeg":
+        return header_bytes.startswith(b"\xff\xd8\xff")
+    if content_type == "image/webp":
+        return header_bytes.startswith(b"RIFF") and header_bytes[8:12] == b"WEBP"
+    return False
+
+
+def _delete_existing_avatar_files(avatar_dir: str, username: str):
+    for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+        path = os.path.join(avatar_dir, f"{username}{ext}")
+        if os.path.exists(path):
+            os.remove(path)
 
 
 # ============ Settings Page Routes ============
@@ -211,6 +238,48 @@ def api_update_profile():
 
     return json.dumps({"success": True}), 200
 
+@settings_bp.route("/api/settings/profile/avatar", methods=["POST", "DELETE"])
+@protected
+def api_update_avatar(user: User):
+    """Upload or remove user avatar."""
+    if request.method == "DELETE":
+        avatar_dir = data_path("avatars")
+        os.makedirs(avatar_dir, exist_ok=True)
+        _delete_existing_avatar_files(avatar_dir, user.username)
+        return json.dumps({"success": True}), 200
+
+    if "avatar" not in request.files:
+        return json.dumps({"error": "No file part"}), 400
+
+    file = request.files["avatar"]
+    if file.filename == "":
+        return json.dumps({"error": "No selected file"}), 400
+
+    if file:
+        content_type = (file.content_type or "").lower()
+        extension = ALLOWED_AVATAR_TYPES.get(content_type)
+        if not extension:
+            return json.dumps({"error": "Unsupported avatar format"}), 400
+
+        file.stream.seek(0, os.SEEK_END)
+        size = file.stream.tell()
+        file.stream.seek(0)
+        if size > MAX_AVATAR_SIZE_BYTES:
+            return json.dumps({"error": "Avatar file too large (max 5 MB)"}), 413
+
+        header = file.stream.read(12)
+        file.stream.seek(0)
+        if not _avatar_magic_is_valid(content_type, header):
+            return json.dumps({"error": "Invalid avatar file"}), 400
+
+        avatar_dir = data_path("avatars")
+        os.makedirs(avatar_dir, exist_ok=True)
+        _delete_existing_avatar_files(avatar_dir, user.username)
+        file.save(os.path.join(avatar_dir, f"{user.username}{extension}"))
+
+        return json.dumps({"success": True}), 200
+
+    return json.dumps({"error": "Invalid upload payload"}), 400
 
 @settings_bp.route("/api/settings/preferences", methods=["POST"])
 def api_update_preferences():
@@ -518,6 +587,65 @@ def api_invite_team_member(user: User):
         page="settings",
         section="team",
     )
+
+@settings_bp.route("/api/settings/team/<username>", methods=["DELETE"])
+@protected
+def api_delete_team_member(user: User, username: str):
+    """Delete a team member (Admin only) using tombstone strategy."""
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
+    if user.username == username:
+        return json.dumps({"error": "You cannot delete yourself."}), 400
+
+    try:
+        target_user = User.get(User.username == username)
+
+        # Keep the user row for history references (comments, update authors),
+        # but revoke access and clear user-specific settings/integrations.
+        from ..utils.models import UserSettings, Webhook, APIToken, UserTicketJoin
+
+        UserSettings.delete().where(UserSettings.user == username).execute()
+        Webhook.delete().where(Webhook.user == username).execute()
+        APIToken.delete().where(APIToken.user == username).execute()
+        UserTicketJoin.delete().where(UserTicketJoin.user == username).execute()
+
+        target_user.salt = uuid.uuid4().hex
+        target_user.password_hash = pyargon2.hash(uuid.uuid4().hex, target_user.salt)
+        target_user.email = f"deleted+{username}+{int(time.time())}@deleted.local"
+        target_user.admin = 0
+        target_user.save()
+
+        return json.dumps({"success": True}), 200
+    except DoesNotExist:
+        return json.dumps({"error": "User not found"}), 404
+
+
+@settings_bp.route("/api/settings/team/<username>/temporary-password", methods=["POST"])
+@protected
+def api_set_temporary_password(user: User, username: str):
+    """Set a temporary password for a user when admins need manual recovery."""
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
+    try:
+        target_user = User.get(User.username == username)
+    except DoesNotExist:
+        return json.dumps({"error": "User not found"}), 404
+
+    # Default to generated secret if admin does not provide one.
+    payload = request.get_json(silent=True) or {}
+    temp_password = (payload.get("password") or "").strip() or secrets.token_urlsafe(10)
+    if len(temp_password) < 8:
+        return json.dumps({"error": "Temporary password must be at least 8 characters"}), 400
+
+    target_user.salt = uuid.uuid4().hex
+    target_user.password_hash = pyargon2.hash(temp_password, target_user.salt)
+    target_user.admin = 0
+    target_user.save()
+
+    return json.dumps({"success": True, "temporary_password": temp_password}), 200
+
 
 
 @settings_bp.route("/welcome/<token>", methods=["GET", "POST"])

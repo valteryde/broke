@@ -3,6 +3,9 @@
 from ward import test
 from tests.fixtures import client, fake, test_project, test_ticket, auth_client, auth_user
 import json
+import time
+
+from app.utils.models import Ticket
 
 
 @test("/tickets GET requires authentication")
@@ -107,3 +110,66 @@ def _(c=auth_client, ticket=test_ticket):
     )
 
     assert response.status_code in [200, 302, 401, 404]
+
+
+@test("/api/search requires authentication")
+def _(c=client):
+    c.get('/logout', follow_redirects=False)
+    response = c.get("/api/search?q=test", follow_redirects=False)
+    assert response.status_code in [302, 401]
+
+
+@test("/api/search returns matching active tickets")
+def _(c=auth_client, project=test_project):
+    unique = str(int(time.time() * 1000000))
+    match_ticket = Ticket.create(
+        id=f"{project.id}-{unique}",
+        title=f"Searchable Ticket {unique}",
+        description="Search test",
+        status="backlog",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+    Ticket.create(
+        id=f"{project.id}-{unique}-archived",
+        title=f"Searchable Archived {unique}",
+        description="Search test archived",
+        status="backlog",
+        priority="medium",
+        project=project.id,
+        active=0,
+    )
+
+    response = c.get(f"/api/search?q={unique}")
+
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    assert "results" in payload
+    ids = [row["id"] for row in payload["results"]]
+    assert match_ticket.id in ids
+    assert all("archived" not in value for value in ids)
+
+
+@test("Tickets page includes clear filters control")
+def _(c=auth_client):
+    response = c.get("/tickets")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Clear Filters" in response.data
+
+
+@test("Tickets page supports board view toggle")
+def _(c=auth_client):
+    response = c.get("/tickets?view=board")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"ticket-board" in response.data
+
+
+@test("Tickets page includes local storage view preference hook")
+def _(c=auth_client):
+    response = c.get("/tickets")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"ticket_view_preference" in response.data

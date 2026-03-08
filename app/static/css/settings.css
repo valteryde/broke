@@ -598,6 +598,19 @@
     font-size: 0.95rem;
     font-weight: 500;
     color: #222;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.member-role-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    background: #dbeafe;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    padding: 2px 8px;
 }
 
 .member-email {

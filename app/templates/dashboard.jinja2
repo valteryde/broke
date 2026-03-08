@@ -89,7 +89,7 @@
         </div>
 
          <div class="sb-bottom">
-            <svg width="40" height="40" data-jdenticon-value="{{ user.username }}"></svg>
+            <img src="/avatar/{{ user.username }}" onerror="this.onerror=null; this.outerHTML='<svg width=\'40\' height=\'40\' data-jdenticon-value=\'{{ user.username }}\'></svg>'; if(window.jdenticon) jdenticon.update();" width="40" height="40" style="border-radius: 50%; object-fit: cover;">
             <span>{{ user.username }}</span>
             <a href="/logout" class="sb-logout" title="Sign out">
                 <i class="ph ph-sign-out"></i>
@@ -133,6 +133,27 @@
         {% endblock %}
 
         <small style="margin-bottom:10px;opacity:0.3;text-align:left">{{ app_version() }} {{ app_codename() }}</small>
+    </div>
+
+    <div id="global-search-modal" class="global-search-modal" aria-hidden="true">
+        <div class="global-search-backdrop" data-search-close="true"></div>
+        <div class="global-search-panel" role="dialog" aria-modal="true" aria-label="Global ticket search">
+            <div class="global-search-header">
+                <i class="ph ph-magnifying-glass"></i>
+                <input
+                    id="global-search-input"
+                    class="global-search-input"
+                    type="text"
+                    placeholder="Search tickets by id or title..."
+                    autocomplete="off"
+                >
+                <button id="global-search-close" class="global-search-close" type="button" aria-label="Close search">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <div id="global-search-results" class="global-search-results"></div>
+            <div class="global-search-footnote">Press Esc to close</div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/shortcuts.js') }}"></script>

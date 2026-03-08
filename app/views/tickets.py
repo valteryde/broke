@@ -2,6 +2,7 @@ from ..utils.security import protected
 from ..utils.models import (
     TicketLabelJoin,
     User,
+    UserSettings,
     Ticket,
     Project,
     Comment,
@@ -45,11 +46,24 @@ def populateTickets(tickets: list[Ticket]) -> None:
         ticket.assignees = [User.get_or_none(User.username == utj.user) for utj in UserTicketJoin.select().where(UserTicketJoin.ticket == ticket.id)]  # type: ignore
 
 
+def resolve_ticket_view(user: User) -> str:
+    explicit = request.args.get("view", "").strip().lower()
+    if explicit in {"list", "board"}:
+        return explicit
+
+    settings = UserSettings.get_or_none(UserSettings.user == user.username)
+    if settings and settings.default_ticket_view in {"list", "board"}:
+        return settings.default_ticket_view
+
+    return "list"
+
+
 @tickets_bp.route("/tickets")
 @protected
 def tickets_view(user: User):
     tickets = list(Ticket.select().where(Ticket.active == 1))
     populateTickets(tickets)
+    ticket_view = resolve_ticket_view(user)
 
     available_users = User.select().order_by(User.username)
     available_labels = Label.select().order_by(Label.name)
@@ -63,6 +77,8 @@ def tickets_view(user: User):
         projects=Project.select().distinct().order_by(Project.name),
         available_users=available_users,
         available_labels=available_labels,
+        ticket_view=ticket_view,
+        ticket_view_path="/tickets",
     )
 
 
@@ -72,6 +88,7 @@ def project_tickets_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
     tickets = list(Ticket.select().where((Ticket.project == project_id) & (Ticket.active == 1)))
     populateTickets(tickets)
+    ticket_view = resolve_ticket_view(user)
 
     available_users = User.select().order_by(User.username)
     available_labels = Label.select().order_by(Label.name)
@@ -85,6 +102,8 @@ def project_tickets_view(user: User, project_id: str):
         projects=Project.select().distinct().order_by(Project.name),
         available_users=available_users,
         available_labels=available_labels,
+        ticket_view=ticket_view,
+        ticket_view_path=f"/tickets/{project_id}",
     )
 
 
@@ -453,6 +472,45 @@ def get_projects(user: User):
             ]
         }
     )
+
+
+@tickets_bp.route("/api/search", methods=["GET"])
+@protected
+def api_search(user: User):
+    """Global search for active tickets by id/title."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"results": []}), 200
+
+    try:
+        limit = int(request.args.get("limit", 12))
+    except ValueError:
+        limit = 12
+    limit = max(1, min(limit, 50))
+
+    matches = (
+        Ticket.select()
+        .where(
+            (Ticket.active == 1)
+            & ((Ticket.id.contains(query)) | (Ticket.title.contains(query)))
+        )
+        .order_by(Ticket.created_at.desc())
+        .limit(limit)
+    )
+
+    results = [
+        {
+            "id": ticket.id,
+            "title": ticket.title,
+            "project": ticket.project,
+            "status": ticket.status,
+            "priority": ticket.priority,
+            "url": f"/tickets/{ticket.project}/{ticket.id}",
+        }
+        for ticket in matches
+    ]
+
+    return jsonify({"results": results}), 200
 
 
 @tickets_bp.route("/uploads/<path:filename>", methods=["GET"])

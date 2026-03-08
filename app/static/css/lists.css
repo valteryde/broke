@@ -300,6 +300,25 @@
     position: relative;
 }
 
+.list-clear-filters-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: #fff4f4;
+    color: #9f1239;
+    border: 1px dashed #fda4af;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.88rem;
+}
+
+.list-clear-filters-btn:hover {
+    background: #ffe4e6;
+    border-style: solid;
+}
+
 .list-group-by-btn {
     display: flex;
     align-items: center;

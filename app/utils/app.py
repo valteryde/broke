@@ -247,6 +247,9 @@ def create_app():  # noqa: C901
     app.register_blueprint(anon_bp)
     app.register_blueprint(changelog_bp)
 
+    # Initialize event subscriptions
+    from . import mail
+
     # Start background update checker
     if os.environ.get("FLASK_ENV") != "testing":
         from .updater import start_update_checker, get_update_info

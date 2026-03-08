@@ -134,16 +134,61 @@
             <div class="settings-card">
                 <div class="card-section">
                     <h3>Avatar</h3>
-                    <p class="card-description">Your avatar is automatically generated based on your username</p>
+                    <p class="card-description">Upload a custom profile picture</p>
                     <div class="avatar-section">
-                        <svg width="80" height="80" data-jdenticon-value="{{ user.username }}" class="avatar-preview"></svg>
+                        <img src="/avatar/{{ user.username }}" onerror="this.onerror=null; this.outerHTML='<svg width=\'80\' height=\'80\' data-jdenticon-value=\'{{ user.username }}\' class=\'avatar-preview\'></svg>'; if(window.jdenticon) jdenticon.update();" class="avatar-preview" width="80" height="80" style="border-radius: 50%; object-fit: cover;">
                         <div class="avatar-info">
                             <span class="avatar-username">{{ user.username }}</span>
-                            <span class="avatar-hint">Identicon generated from username</span>
+                            <div style="margin-top: 5px; display: flex; gap: 8px; flex-wrap: wrap;">
+                                <input type="file" id="avatar-upload" accept="image/*" style="display: none;" onchange="uploadAvatar(this)">
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('avatar-upload').click()">Upload Custom Avatar</button>
+                                <button type="button" class="btn btn-secondary" onclick="removeAvatar()">
+                                    <i class="ph ph-trash"></i> Remove Avatar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+            <script>
+                function uploadAvatar(input) {
+                    if (input.files && input.files[0]) {
+                        const formData = new FormData();
+                        formData.append('avatar', input.files[0]);
+                        
+                        fetch('/api/settings/profile/avatar', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                showToast('Avatar updated', 'success');
+                                setTimeout(() => window.location.reload(), 1000);
+                            } else {
+                                showToast(data.error || 'Failed to update avatar', 'error');
+                            }
+                        })
+                        .catch(() => showToast('Error uploading avatar', 'error'));
+                    }
+                }
+
+                function removeAvatar() {
+                    fetch('/api/settings/profile/avatar', {
+                        method: 'DELETE'
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            showToast('Avatar removed', 'success');
+                            setTimeout(() => window.location.reload(), 800);
+                        } else {
+                            showToast(data.error || 'Failed to remove avatar', 'error');
+                        }
+                    })
+                    .catch(() => showToast('Error removing avatar', 'error'));
+                }
+            </script>
 
             <div class="settings-card">
                 <div class="card-section">
@@ -483,9 +528,14 @@
                         {% for member in team_members %}
                         <div class="team-member">
                             <div class="member-info">
-                                <svg width="40" height="40" data-jdenticon-value="{{ member.username }}"></svg>
+                                <img src="/avatar/{{ member.username }}" onerror="this.onerror=null; this.outerHTML='<svg width=\'40\' height=\'40\' data-jdenticon-value=\'{{ member.username }}\'></svg>'; if(window.jdenticon) jdenticon.update();" width="40" height="40" style="border-radius: 50%; object-fit: cover;">
                                 <div class="member-details">
-                                    <span class="member-name">{{ member.username }}</span>
+                                    <span class="member-name">
+                                        {{ member.username }}
+                                        {% if member.admin == 1 %}
+                                        <span class="member-role-badge">Admin</span>
+                                        {% endif %}
+                                    </span>
                                     <span class="member-email">{{ member.email }}</span>
                                 </div>
                             </div>
@@ -495,18 +545,38 @@
                                     <option value="member" {% if not member.admin %}selected{% endif %}>Member</option>
                                 </select>
                             </div> #}
-                            {# <div class="member-actions">
+                            {% if user.admin == 1 %}
+                            <div class="member-actions">
                                 {% if member.username != user.username %}
-                                <button class="btn-icon danger" title="Remove">
+                                <button class="btn-icon danger" title="Remove" onclick="deleteTeamMember('{{ member.username }}')">
                                     <i class="ph ph-user-minus"></i>
                                 </button>
                                 {% endif %}
-                            </div> #}
+                            </div>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>
                 </div>
             </div>
+            <script>
+            function deleteTeamMember(username) {
+                if(confirm('Are you sure you want to delete user ' + username + '? This action cannot be undone.')) {
+                    fetch('/api/settings/team/' + encodeURIComponent(username), {
+                        method: 'DELETE'
+                    }).then(res => res.json()).then(data => {
+                        if(data.success) {
+                            showToast('User deleted', 'success');
+                            setTimeout(() => window.location.reload(), 1000);
+                        } else {
+                            showToast(data.error || 'Failed to delete user', 'error');
+                        }
+                    }).catch(err => {
+                        showToast('Error deleting user', 'error');
+                    });
+                }
+            }
+            </script>
         </div>
 
         {% elif section == 'labels' %}

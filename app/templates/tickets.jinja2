@@ -5,10 +5,34 @@
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dropdown.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lists.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/board.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
 
     <script>
+    (function initTicketViewPreference() {
+        const url = new URL(window.location.href);
+        const explicitView = url.searchParams.get('view');
+        const savedView = localStorage.getItem('ticket_view_preference');
+        const allowed = ['list', 'board'];
+        if (explicitView && allowed.includes(explicitView)) {
+            localStorage.setItem('ticket_view_preference', explicitView);
+            return;
+        }
+
+        if (!explicitView && savedView && allowed.includes(savedView) && savedView !== '{{ ticket_view }}') {
+            url.searchParams.set('view', savedView);
+            window.location.replace(url.toString());
+        }
+    })();
+
+    function setTicketView(view) {
+        localStorage.setItem('ticket_view_preference', view);
+        const url = new URL('{{ ticket_view_path }}', window.location.origin);
+        url.searchParams.set('view', view);
+        window.location.href = url.toString();
+    }
+
     window.availableUsers = [
         {% for available_user in available_users %} 
         {
@@ -35,7 +59,18 @@
 
 {% block content %}
 
-<h1>Tickets</h1>
+<h1 style="margin-bottom: 1rem;">Tickets</h1>
+
+<div class="ticket-view-toggle" role="tablist" aria-label="Ticket view mode">
+    <button class="ticket-view-toggle-btn {% if ticket_view == 'list' %}active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if ticket_view == 'list' else 'false' }}" onclick="setTicketView('list')">
+        <i class="ph ph-list"></i>
+        <span>List</span>
+    </button>
+    <button class="ticket-view-toggle-btn {% if ticket_view == 'board' %}active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if ticket_view == 'board' else 'false' }}" onclick="setTicketView('board')">
+        <i class="ph ph-kanban"></i>
+        <span>Board</span>
+    </button>
+</div>
 
 <div class="project-tabs" id="project-tabs">
     <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="window.location.href = '/tickets'">
@@ -51,7 +86,11 @@
 
 </div>
 
+{% if ticket_view == 'board' %}
+<div id="ticket-board" class="ticket-board"></div>
+{% else %}
 <div id="ticket-list"></div>
+{% endif %}
 
 {% endblock %}
 
@@ -65,6 +104,7 @@
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
     <script src="{{ url_for('static', filename='js/ticket_list.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/board.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
@@ -203,69 +243,6 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const ticketList = new List('ticket-list', {
-                ...TicketListConfig, // Spread base config
-                syncUrlState: false,
-                getInitialState: loadTicketListState,
-                onStateChange: saveTicketListState,
-                onCreate: () => {
-                    showCreateTicketModal();
-                },
-                onUpdate: async (item, field, value, isToggle) => {
-                     let backendField = field;
-                     let backendValue = value;
-                     
-                     if (field === 'priority') backendField = 'priority';
-
-                     if (field === 'assignees') {
-                         backendField = 'assignees';
-                         // Map strings back to objects
-                         backendValue = item.assignees.map(u => {
-                             const user = window.availableUsers.find(au => au.username === u);
-                             return user ? { username: user.username, id: user.id } : { username: u };
-                         });
-                     }
-                     
-                     if (field === 'labels') {
-                         backendValue = item.labels.map(l => ({ name: l.text, color: l.color }));
-                     }
-
-                     try {
-                        const response = await fetch(`/api/tickets/${item.id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ field: backendField, value: backendValue })
-                        });
-                        
-                        if (!response.ok) {
-                            showToast('Failed to save changes', 'error');
-                        } else {
-                            showToast('Updated ' + field, 'success');
-                        }
-                    } catch (error) {
-                        console.error('Save error:', error);
-                        showToast('Error saving changes', 'error');
-                    }
-                },
-                onDelete: async (item) => {
-                    try {
-                        const response = await fetch(`/api/tickets/${item.id}`, {
-                            method: 'DELETE'
-                        });
-                        
-                        if (response.ok) {
-                            ticketList.remove(item.id);
-                            showToast('Ticket deleted', 'success');
-                        } else {
-                            showToast('Failed to delete ticket', 'error');
-                        }
-                    } catch (error) {
-                        console.error('Delete error:', error);
-                        showToast('Error deleting ticket', 'error');
-                    }
-                }
-            });
-
             const tickets = [
                 {% for ticket in tickets %}
                 {
@@ -291,6 +268,101 @@
                 },
                 {% endfor %}
             ];
+
+            const ticketView = '{{ ticket_view }}';
+
+            if (ticketView === 'board') {
+                TicketBoard.init('ticket-board', tickets, {
+                    async onMove(ticketId, newStatus) {
+                        const response = await fetch(`/api/tickets/${ticketId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ field: 'status', value: newStatus })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Failed to update ticket status');
+                        }
+                    },
+                    onCardClick(ticket) {
+                        window.location.href = `/tickets/${ticket.project}/${ticket.id}`;
+                    }
+                });
+                return;
+            }
+
+            const ticketList = new List('ticket-list', {
+                ...TicketListConfig,
+                syncUrlState: false,
+                getInitialState: loadTicketListState,
+                onStateChange: saveTicketListState,
+                onCreate: () => {
+                    showCreateTicketModal();
+                },
+                onClearFilters: (list) => {
+                    list.clearAllFilters();
+                    const searchInput = document.querySelector('.list-search-input');
+                    if (searchInput) {
+                        searchInput.value = '';
+                    }
+                    showToast('Filters cleared', 'success');
+                },
+                onClearFiltersLabel: 'Clear Filters',
+                onUpdate: async (item, field, value, isToggle) => {
+                    let backendField = field;
+                    let backendValue = value;
+
+                    if (field === 'priority') backendField = 'priority';
+
+                    if (field === 'assignees') {
+                        backendField = 'assignees';
+                        backendValue = item.assignees.map(u => {
+                            const user = window.availableUsers.find(au => au.username === u);
+                            return user ? { username: user.username, id: user.id } : { username: u };
+                        });
+                    }
+
+                    if (field === 'labels') {
+                        backendValue = item.labels.map(l => ({ name: l.text, color: l.color }));
+                    }
+
+                    try {
+                        const response = await fetch(`/api/tickets/${item.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ field: backendField, value: backendValue })
+                        });
+
+                        if (!response.ok) {
+                            showToast('Failed to save changes', 'error');
+                        } else {
+                            showToast('Updated ' + field, 'success');
+                        }
+                    } catch (error) {
+                        console.error('Save error:', error);
+                        showToast('Error saving changes', 'error');
+                    }
+                },
+                onDelete: async (item) => {
+                    try {
+                        const response = await fetch(`/api/tickets/${item.id}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (response.ok) {
+                            ticketList.remove(item.id);
+                            showToast('Ticket deleted', 'success');
+                        } else {
+                            showToast('Failed to delete ticket', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Delete error:', error);
+                        showToast('Error deleting ticket', 'error');
+                    }
+                }
+            });
+
+            window.ticketList = ticketList;
 
             tickets.forEach(ticket => ticketList.add(ticket));
 

@@ -43,6 +43,8 @@ class List {
         this.onCreate = options.onCreate || null;
         this.onDelete = options.onDelete || null;
         this.onCreateLabel = options.onCreateLabel || 'Add';
+        this.onClearFilters = options.onClearFilters || null;
+        this.onClearFiltersLabel = options.onClearFiltersLabel || 'Clear Filters';
 
         // Create wrapper structure
         this.wrapper = document.createElement('div');
@@ -394,6 +396,16 @@ class List {
                 items: groupByItems,
                 closeOnClick: true
             });
+        }
+
+        if (this.onClearFilters) {
+            const clearFiltersButton = document.createElement('button');
+            clearFiltersButton.className = 'list-clear-filters-btn';
+            clearFiltersButton.innerHTML = `<span><i class="ph ph-x-circle"></i> ${this.onClearFiltersLabel}</span>`;
+            clearFiltersButton.addEventListener('click', () => {
+                this.onClearFilters(this);
+            });
+            filterOptionsRow.appendChild(clearFiltersButton);
         }
 
         if (this.onCreate) {

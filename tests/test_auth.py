@@ -2,6 +2,11 @@
 from ward import test
 from tests.fixtures import client, fake, auth_user, auth_client
 import json
+import time
+from unittest.mock import patch
+
+from app.utils.models import PasswordResetToken, User
+import pyargon2
 
 
 @test("/callback POST with valid credentials")
@@ -71,3 +76,71 @@ def _(c=auth_client):
     # Should redirect to settings/profile, not login
     assert response.status_code == 302
     assert 'profile' in response.location or 'settings' in response.location
+
+
+@test("/forgot-password GET shows reset form")
+def _(c=client):
+    response = c.get('/forgot-password')
+    assert response.status_code == 200
+    assert b'Forgot Password' in response.data
+
+
+@test("/forgot-password POST creates token for existing email")
+def _(c=client, user=auth_user):
+    with patch('app.views.anon.bus.emit') as emit_mock:
+        response = c.post('/forgot-password', data={'email': user.email}, follow_redirects=False)
+
+    assert response.status_code == 302
+    token = PasswordResetToken.get_or_none(PasswordResetToken.user == user.username)
+    assert token is not None
+    assert emit_mock.called
+
+
+@test("/forgot-password POST does not create token for unknown email")
+def _(c=client, f=fake):
+    unknown_email = f"unknown-{int(time.time() * 1000000)}@example.com"
+
+    with patch('app.views.anon.bus.emit') as emit_mock:
+        response = c.post('/forgot-password', data={'email': unknown_email}, follow_redirects=False)
+
+    assert response.status_code == 302
+    token = PasswordResetToken.get_or_none(PasswordResetToken.user == unknown_email)
+    assert token is None
+    assert not emit_mock.called
+
+
+@test("/reset-password rejects expired token and deletes it")
+def _(c=client, user=auth_user):
+    token_value = f"expired-{int(time.time() * 1000000)}"
+    token = PasswordResetToken.create(
+        token=token_value,
+        user=user.username,
+        created_at=int(time.time()) - 86500,
+    )
+
+    response = c.get(f'/reset-password/{token_value}', follow_redirects=False)
+
+    assert response.status_code == 302
+    assert PasswordResetToken.get_or_none(PasswordResetToken.token == token.token) is None
+
+
+@test("/reset-password POST updates password and consumes token")
+def _(c=client, user=auth_user):
+    token_value = f"valid-{int(time.time() * 1000000)}"
+    PasswordResetToken.create(
+        token=token_value,
+        user=user.username,
+        created_at=int(time.time()),
+    )
+
+    new_password = 'newpassword123'
+    response = c.post(
+        f'/reset-password/{token_value}',
+        data={'password': new_password},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    updated_user = User.get(User.username == user.username)
+    assert updated_user.password_hash == pyargon2.hash(new_password, str(updated_user.salt))
+    assert PasswordResetToken.get_or_none(PasswordResetToken.token == token_value) is None

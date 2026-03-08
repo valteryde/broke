@@ -51,6 +51,12 @@ class UserCreateToken(BaseModel):  # should be deleted after use
     name = CharField(null=True)  # For friendly identification of the invite
 
 
+class PasswordResetToken(BaseModel):
+    token = CharField(primary_key=True)
+    user = CharField()
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
 class Project(BaseModel):
     id = CharField(primary_key=True)
     name = CharField()
@@ -350,6 +356,7 @@ MODELS = [
     GlobalSetting,
     # Changelog models
     ChangelogRelease,
+    PasswordResetToken,
 ]
 
 
