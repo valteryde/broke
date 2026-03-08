@@ -9,6 +9,7 @@ from typing import Literal
 from flask import flash, send_from_directory
 from ..utils.models import User, PasswordResetToken, data_path
 from ..utils.events import bus
+from ..utils.events import EventTypes
 import pyargon2
 import os
 
@@ -131,10 +132,12 @@ def api_anon_submit():
         return jsonify({"error": "Anonymous tickets disabled"}), 403
 
     data = request.get_json()
-    project_id = data.get("project")
+    source_project_id = data.get("project")
 
-    if project_id not in settings.get("projects", []):
+    if source_project_id not in settings.get("projects", []):
         return jsonify({"error": "Invalid project"}), 400
+
+    project_id = "TRIAGE"
 
     # Generate ticket ID (reusing logic from tickets.py or duplicating for cleanliness)
     # Ideally should be a shared utility, but for now copying logic is safer than refactoring widely
@@ -150,6 +153,9 @@ def api_anon_submit():
             except ValueError:
                 pass
     ticket_id = f"{project_id}-{max_num + 1}"
+    while Ticket.get_or_none(Ticket.id == ticket_id):
+        max_num += 1
+        ticket_id = f"{project_id}-{max_num + 1}"
 
     # Generate Secret
     secret = secrets.token_urlsafe(16)
@@ -158,7 +164,7 @@ def api_anon_submit():
         id=ticket_id,
         title=data.get("title", "Anonymous Ticket"),
         description=data.get("description", ""),
-        status="backlog",  # Default status
+        status="triage",  # Anonymous submissions always go through triage.
         priority=data.get("priority", "medium"),
         project=project_id,
         created_at=int(time.time()),
@@ -169,8 +175,18 @@ def api_anon_submit():
         ticket=ticket_id,
         title="Anonymous Ticket Created",
         icon="ph ph-mask-happy",
-        message="A user submitted this ticket anonymously.",
+        message=f"A user submitted this ticket anonymously to triage (source project: {source_project_id}).",
         created_at=int(time.time()),
+    )
+
+    bus.emit(
+        EventTypes.ANON_TICKET_SUBMITTED,
+        ticket_id=ticket_id,
+        ticket_title=data.get("title", "Anonymous Ticket"),
+        project=source_project_id,
+        status="triage",
+        actor="anonymous",
+        details=f"Anonymous ticket entered triage inbox from source project {source_project_id}",
     )
 
     return jsonify({"success": True, "secret": secret, "ticket_id": ticket_id}), 201

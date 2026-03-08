@@ -17,6 +17,7 @@ import base64
 import uuid
 import re
 from ..utils.path import data_path
+from ..utils.events import bus, EventTypes
 
 # Create blueprint
 tickets_bp = Blueprint("tickets", __name__)
@@ -79,6 +80,10 @@ def tickets_view(user: User):
         available_labels=available_labels,
         ticket_view=ticket_view,
         ticket_view_path="/tickets",
+        ticket_page_title="Tickets",
+        ticket_create_endpoint="/api/tickets",
+        ticket_create_status="backlog",
+        ticket_base_path="/tickets",
     )
 
 
@@ -104,6 +109,69 @@ def project_tickets_view(user: User, project_id: str):
         available_labels=available_labels,
         ticket_view=ticket_view,
         ticket_view_path=f"/tickets/{project_id}",
+        ticket_page_title="Tickets",
+        ticket_create_endpoint="/api/tickets",
+        ticket_create_status="backlog",
+        ticket_base_path="/tickets",
+    )
+
+
+@tickets_bp.route("/triage")
+@protected
+def triage_view(user: User):
+    tickets = list(Ticket.select().where((Ticket.active == 1) & (Ticket.status == "triage")))
+    populateTickets(tickets)
+
+    available_users = User.select().order_by(User.username)
+    available_labels = Label.select().order_by(Label.name)
+
+    return render_template(
+        "tickets.jinja2",
+        user=user,
+        page="triage",
+        tickets=tickets,
+        project=None,
+        projects=Project.select().distinct().order_by(Project.name),
+        available_users=available_users,
+        available_labels=available_labels,
+        ticket_view="list",
+        ticket_view_path="/triage",
+        ticket_page_title="Triage Inbox",
+        ticket_create_endpoint="/api/tickets/intake",
+        ticket_create_status="triage",
+        ticket_base_path="/triage",
+    )
+
+
+@tickets_bp.route("/triage/<project_id>")
+@protected
+def triage_project_view(user: User, project_id: str):
+    project = Project.get_or_none(Project.id == project_id)
+    tickets = list(
+        Ticket.select().where(
+            (Ticket.project == project_id) & (Ticket.active == 1) & (Ticket.status == "triage")
+        )
+    )
+    populateTickets(tickets)
+
+    available_users = User.select().order_by(User.username)
+    available_labels = Label.select().order_by(Label.name)
+
+    return render_template(
+        "tickets.jinja2",
+        user=user,
+        page="triage",
+        tickets=tickets,
+        project=project,
+        projects=Project.select().distinct().order_by(Project.name),
+        available_users=available_users,
+        available_labels=available_labels,
+        ticket_view="list",
+        ticket_view_path=f"/triage/{project_id}",
+        ticket_page_title="Triage Inbox",
+        ticket_create_endpoint="/api/tickets/intake",
+        ticket_create_status="triage",
+        ticket_base_path="/triage",
     )
 
 
@@ -240,6 +308,86 @@ def create_ticket(user: User):
     # Auto assign ticket to creator
     UserTicketJoin.create(user=user.username, ticket=ticket_id)
 
+    bus.emit(
+        EventTypes.TICKET_CREATED,
+        ticket_id=ticket.id,
+        ticket_title=ticket.title,
+        project=ticket.project,
+        status=ticket.status,
+        actor=user.username,
+        details="Ticket created manually",
+    )
+
+    return (
+        jsonify(
+            {
+                "success": True,
+                "ticket": {
+                    "id": ticket.id,
+                    "title": ticket.title,
+                    "project": ticket.project,
+                    "status": ticket.status,
+                    "priority": ticket.priority,
+                },
+            }
+        ),
+        201,
+    )
+
+
+@tickets_bp.route("/api/tickets/intake", methods=["POST"])
+@protected
+def create_intake_ticket(user: User):
+    """Create a triage-first ticket used by PM workflows."""
+    data = request.get_json(silent=True) or {}
+
+    raw_project_id = data.get("project")
+    requested_project_id = "" if raw_project_id is None else str(raw_project_id).strip()
+    if requested_project_id.upper() == "TRIAGE":
+        requested_project_id = ""
+    if requested_project_id.lower() in {"none", "null"}:
+        requested_project_id = ""
+
+    project_id = "TRIAGE"
+    if requested_project_id:
+        project = Project.get_or_none(Project.id == requested_project_id)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+        project_id = requested_project_id
+
+    ticket_id = generate_ticket_id(project_id)
+    ticket = Ticket.create(
+        id=ticket_id,
+        title=data.get("title", ""),
+        description=data.get("description", ""),
+        status="triage",
+        priority=data.get("priority", "medium"),
+        project=project_id,
+        created_at=int(time.time()),
+    )
+
+    TicketUpdateMessage.create(
+        ticket=ticket_id,
+        title="Intake created",
+        icon="ph ph-tray",
+        message=f"{user.username} created this ticket in triage",
+        created_at=int(time.time()),
+    )
+
+    bus.emit(
+        EventTypes.TICKET_TRIAGED,
+        ticket_id=ticket.id,
+        ticket_title=ticket.title,
+        project=ticket.project,
+        status=ticket.status,
+        actor=user.username,
+        details=(
+            "Ticket entered triage inbox without project assignment"
+            if ticket.project == "TRIAGE"
+            else f"Ticket entered triage inbox for project {ticket.project}"
+        ),
+    )
+
     return (
         jsonify(
             {
@@ -331,6 +479,13 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
 
     elif field == "status":
         old_status = ticket.status
+        if (
+            old_status == "triage"
+            and value != "triage"
+            and (not ticket.project or ticket.project == "TRIAGE")
+        ):
+            return jsonify({"error": "Assign a project before moving ticket out of triage"}), 400
+
         ticket.status = value
         ticket.save()
 
@@ -339,6 +494,37 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
             title="Status changed",
             icon="ph ph-arrow-right",
             message=f"{user.username} changed status from {old_status} to {value}",
+            created_at=int(time.time()),
+        )
+
+        bus.emit(
+            EventTypes.TICKET_STATUS_CHANGED,
+            ticket_id=ticket.id,
+            ticket_title=ticket.title,
+            project=ticket.project,
+            status=value,
+            actor=user.username,
+            details=f"Status changed from {old_status} to {value}",
+        )
+
+    elif field == "project":
+        target_project = str(value or "").strip()
+        if not target_project:
+            return jsonify({"error": "Project is required"}), 400
+
+        project = Project.get_or_none(Project.id == target_project)
+        if not project:
+            return jsonify({"error": "Project not found"}), 404
+
+        old_project = ticket.project
+        ticket.project = target_project
+        ticket.save()
+
+        TicketUpdateMessage.create(
+            ticket=ticket_id,
+            title="Project changed",
+            icon="ph ph-folder-simple",
+            message=f"{user.username} changed project from {old_project} to {target_project}",
             created_at=int(time.time()),
         )
 
@@ -424,6 +610,16 @@ def add_comment(user: User, ticket_id: str):
 
     comment = Comment.create(
         ticket=ticket_id, user=user.username, body=processed_content, created_at=int(time.time())
+    )
+
+    bus.emit(
+        EventTypes.TICKET_COMMENTED,
+        ticket_id=ticket.id,
+        ticket_title=ticket.title,
+        project=ticket.project,
+        status=ticket.status,
+        actor=user.username,
+        details=(processed_content[:180] + "...") if len(processed_content) > 180 else processed_content,
     )
 
     return (

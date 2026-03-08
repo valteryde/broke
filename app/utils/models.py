@@ -316,6 +316,15 @@ class GlobalSetting(BaseModel):
     value = TextField()  # JSON content
 
 
+class NotificationEventLog(BaseModel):
+    id = AutoField(primary_key=True)
+    event_type = CharField(index=True)
+    channel = CharField()
+    status = CharField()  # success, error
+    detail = TextField(null=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
 # ============ Changelog Models ============
 
 
@@ -354,6 +363,7 @@ MODELS = [
     APIToken,
     DSNToken,
     GlobalSetting,
+    NotificationEventLog,
     # Changelog models
     ChangelogRelease,
     PasswordResetToken,

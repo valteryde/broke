@@ -249,6 +249,9 @@ def create_app():  # noqa: C901
 
     # Initialize event subscriptions
     from . import mail
+    from .notifications import initialize_notification_engine
+
+    initialize_notification_engine()
 
     # Start background update checker
     if os.environ.get("FLASK_ENV") != "testing":

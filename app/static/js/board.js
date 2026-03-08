@@ -1,5 +1,6 @@
 const TicketBoard = {
     statuses: [
+        { key: 'triage', label: 'Triage' },
         { key: 'backlog', label: 'Backlog' },
         { key: 'todo', label: 'To Do' },
         { key: 'in-progress', label: 'In Progress' },

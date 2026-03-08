@@ -1,6 +1,6 @@
 {% extends "dashboard.jinja2" %}
 
-{% block title %}Tickets | Broke{% endblock %}
+{% block title %}{{ ticket_page_title or 'Tickets' }} | Broke{% endblock %}
 
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dropdown.css') }}">
@@ -59,8 +59,18 @@
 
 {% block content %}
 
-<h1 style="margin-bottom: 1rem;">Tickets</h1>
+<h1 style="margin-bottom: 1rem;">{{ ticket_page_title or 'Tickets' }}</h1>
 
+{% if page == 'triage' %}
+<div class="card" style="margin-bottom: 1rem;">
+    <p style="margin: 0; font-weight: 600;">Triage is your intake inbox.</p>
+    <p style="margin: 0.35rem 0 0; color: var(--text-secondary);">
+        Use <strong>Quick Intake</strong> to capture new work, then use <strong>Send Selected</strong> to assign a project and move the ticket into backlog.
+    </p>
+</div>
+{% endif %}
+
+{% if page != 'triage' %}
 <div class="ticket-view-toggle" role="tablist" aria-label="Ticket view mode">
     <button class="ticket-view-toggle-btn {% if ticket_view == 'list' %}active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if ticket_view == 'list' else 'false' }}" onclick="setTicketView('list')">
         <i class="ph ph-list"></i>
@@ -71,20 +81,23 @@
         <span>Board</span>
     </button>
 </div>
+{% endif %}
 
+{% if page != 'triage' %}
 <div class="project-tabs" id="project-tabs">
-    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="window.location.href = '/tickets'">
+    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="window.location.href = '{{ ticket_base_path or '/tickets' }}'">
         <i class="ph ph-squares-four"></i> All
     </button>
     <!-- Project tabs will be populated dynamically -->
 
     {% for proj in projects %}
-    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="window.location.href = '/tickets/{{ proj.id }}'">
+    <button class="project-tab {% if project and proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="window.location.href = '{{ ticket_base_path or '/tickets' }}/{{ proj.id }}'">
         <i class="{{ proj.icon }}"></i> {{ proj.name }}
     </button>
     {% endfor %}
 
 </div>
+{% endif %}
 
 {% if ticket_view == 'board' %}
 <div id="ticket-board" class="ticket-board"></div>
@@ -95,7 +108,11 @@
 {% endblock %}
 
 {% block path %}
+    {% if page == 'triage' %}
+    <a href="/triage"><i class="ph ph-tray"></i> Triage</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="/triage/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
+    {% else %}
     <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
+    {% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -112,7 +129,7 @@
     
     <script>
         // Available projects for ticket creation modal
-        const availableProjects = [
+        window.availableProjects = [
             {% for proj in projects %}
             {
                 id: '{{ proj.id }}',
@@ -145,9 +162,15 @@
 
         // Show create ticket modal
         function showCreateTicketModal() {
+            if ('{{ page }}' === 'triage') {
+                window.selectedProjectId = null;
+                createTicket();
+                return;
+            }
+
             let selectedProject = {% if project %}'{{ project.id }}'{% else %}null{% endif %};
             
-            const projectItems = availableProjects.map(proj => `
+            const projectItems = window.availableProjects.map(proj => `
                 <div class="modal-project-item ${selectedProject === proj.id ? 'selected' : ''}" 
                      data-project-id="${proj.id}"
                      onclick="selectProject('${proj.id}')">
@@ -176,6 +199,64 @@
             window.selectedProjectId = selectedProject;
             updateCreateButton();
         }
+
+        async function persistTicketFieldUpdate(ticketId, field, value) {
+            const response = await fetch(`/api/tickets/${ticketId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field, value })
+            });
+
+            if (!response.ok) {
+                let message = 'Unknown error';
+                try {
+                    const error = await response.json();
+                    message = error.error || message;
+                } catch (_) {
+                    // Keep fallback message.
+                }
+                throw new Error(message);
+            }
+        }
+
+        async function sendTicketToProject(item, projectId) {
+            await persistTicketFieldUpdate(item.id, 'project', projectId);
+            await persistTicketFieldUpdate(item.id, 'status', 'backlog');
+            item.project = projectId;
+            item.status = 'backlog';
+        }
+
+        function openSendSelectedModal(listInstance) {
+            if (!window.availableProjects || window.availableProjects.length === 0) {
+                showToast('No projects available', 'error');
+                return;
+            }
+
+            const selected = listInstance.selectedIndex >= 0 ? listInstance.renderedItems[listInstance.selectedIndex] : null;
+            if (!selected || !selected.element) {
+                showToast('Select a triage ticket first', 'error');
+                return;
+            }
+
+            const item = selected.element;
+            new ListModal({
+                title: `Send ${item.id} to Project`,
+                items: window.availableProjects.map(project => ({
+                    label: project.name,
+                    value: project.id,
+                    icon: project.icon
+                })),
+                onSelect: async (selectedProject) => {
+                    try {
+                        await sendTicketToProject(item, selectedProject.value);
+                        listInstance.applyFilters();
+                        showToast(`Sent ${item.id} to ${selectedProject.label}`, 'success');
+                    } catch (error) {
+                        showToast(error.message || 'Failed to send ticket', 'error');
+                    }
+                }
+            }).show();
+        }
         
         // Select project in modal
         function selectProject(projectId) {
@@ -199,7 +280,8 @@
         
         // Create ticket and redirect
         async function createTicket() {
-            if (!window.selectedProjectId) return;
+            const isTriagePage = '{{ page }}' === 'triage';
+            if (!isTriagePage && !window.selectedProjectId) return;
             
             const btn = document.getElementById('create-ticket-btn');
             if (btn) {
@@ -208,13 +290,15 @@
             }
             
             try {
-                const response = await fetch('/api/tickets', {
+                const endpoint = '{{ ticket_create_endpoint or '/api/tickets' }}';
+                const defaultStatus = '{{ ticket_create_status or 'backlog' }}';
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        project: window.selectedProjectId,
+                        project: isTriagePage ? null : window.selectedProjectId,
                         title: '',
-                        status: 'backlog',
+                        status: defaultStatus,
                         priority: 'medium'
                     })
                 });
@@ -223,7 +307,11 @@
                     const data = await response.json();
                     Modal.close();
                     // Redirect to new ticket
-                    window.location.href = `/tickets/${data.ticket.project}/${data.ticket.id}`;
+                    if ('{{ page }}' === 'triage') {
+                        window.location.href = '/triage';
+                    } else {
+                        window.location.href = `/tickets/${data.ticket.project}/${data.ticket.id}`;
+                    }
                 } else {
                     const error = await response.json();
                     alert('Failed to create ticket: ' + (error.error || 'Unknown error'));
@@ -291,11 +379,13 @@
                 return;
             }
 
+            const isTriagePage = '{{ page }}' === 'triage';
             const ticketList = new List('ticket-list', {
                 ...TicketListConfig,
                 syncUrlState: false,
                 getInitialState: loadTicketListState,
                 onStateChange: saveTicketListState,
+                onCreateLabel: isTriagePage ? 'Quick Intake' : 'Add Ticket',
                 onCreate: () => {
                     showCreateTicketModal();
                 },
@@ -363,6 +453,17 @@
             });
 
             window.ticketList = ticketList;
+
+            if (isTriagePage) {
+                const filterRow = ticketList.wrapper ? ticketList.wrapper.querySelector('.list-filter-options') : null;
+                if (filterRow) {
+                    const sendButton = document.createElement('button');
+                    sendButton.className = 'list-create-btn';
+                    sendButton.innerHTML = '<span><i class="ph ph-paper-plane-tilt"></i> Send Selected</span>';
+                    sendButton.addEventListener('click', () => openSendSelectedModal(ticketList));
+                    filterRow.appendChild(sendButton);
+                }
+            }
 
             tickets.forEach(ticket => ticketList.add(ticket));
 

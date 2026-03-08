@@ -2,7 +2,7 @@
 
 from ward import test, fixture
 from tests.fixtures import app, client, auth_client, auth_user, create_test_project
-from app.utils.models import User, Project, Label, APIToken, DSNToken
+from app.utils.models import User, Project, Label, APIToken, DSNToken, GlobalSetting, create_user
 import json
 import time
 
@@ -217,3 +217,104 @@ def _(c=client):
         data={"password": "newpass123", "confirm_password": "newpass123"},
     )
     assert response.status_code in [200, 302, 404]
+
+
+@test("Admin can update notification engine settings")
+def _(c=client, f=None):
+    import time
+    username = f"notify_admin_{int(time.time() * 1000000)}"
+    email = f"{username}@example.com"
+    admin = create_user(username, "password123", email, admin=1)
+
+    login = c.post(
+        "/callback",
+        data={"username": admin.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+
+    response = c.post(
+        "/api/settings/notifications/engine",
+        data=json.dumps(
+            {
+                "channels": {
+                    "email": {"enabled": True},
+                    "slack": {"enabled": True, "webhook_url": "https://example.com/webhook"},
+                }
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    stored = GlobalSetting.get_or_none(GlobalSetting.key == "notification_engine_settings")
+    assert stored is not None
+
+
+@test("Non-admin cannot update notification engine settings")
+def _(c=auth_client):
+    response = c.post(
+        "/api/settings/notifications/engine",
+        data=json.dumps({"channels": {"email": {"enabled": False}}}),
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+@test("Admin can fetch notification engine settings")
+def _(c=client):
+    import time
+
+    username = f"notify_read_admin_{int(time.time() * 1000000)}"
+    email = f"{username}@example.com"
+    admin = create_user(username, "password123", email, admin=1)
+
+    login = c.post(
+        "/callback",
+        data={"username": admin.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+
+    response = c.get("/api/settings/notifications/engine")
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    assert payload.get("success") is True
+    assert "channels" in payload.get("settings", {})
+    assert "event_channels" in payload.get("settings", {})
+
+
+@test("Admin can update notification event channel routing")
+def _(c=client):
+    import time
+
+    username = f"notify_route_admin_{int(time.time() * 1000000)}"
+    email = f"{username}@example.com"
+    admin = create_user(username, "password123", email, admin=1)
+
+    login = c.post(
+        "/callback",
+        data={"username": admin.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+
+    response = c.post(
+        "/api/settings/notifications/engine",
+        data=json.dumps(
+            {
+                "event_channels": {
+                    "TICKET_CREATED": ["email", "slack"],
+                    "TICKET_COMMENTED": ["slack"],
+                }
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+
+    stored = GlobalSetting.get_or_none(GlobalSetting.key == "notification_engine_settings")
+    assert stored is not None
+    settings = json.loads(stored.value)
+    assert settings["event_channels"]["TICKET_CREATED"] == ["email", "slack"]
+    assert settings["event_channels"]["TICKET_COMMENTED"] == ["slack"]

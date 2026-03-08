@@ -6,6 +6,13 @@
 // Ticket Status Configuration
 // Used by: lists.js, ticket.js
 const StatusConfig = {
+    'triage': {
+        value: 'triage',
+        label: 'Triage',
+        icon: 'ph-tray',
+        color: '#0ea5e9',
+        colorClass: 'status-triage'
+    },
     'backlog': { 
         value: 'backlog',
         label: 'Backlog', 
@@ -58,7 +65,7 @@ const StatusConfig = {
 };
 
 // Order of statuses for sorting and grouping
-const StatusOrder = ['backlog', 'todo', 'in-progress', 'in-review', 'done', 'closed', 'duplicate'];
+const StatusOrder = ['triage', 'backlog', 'todo', 'in-progress', 'in-review', 'done', 'closed', 'duplicate'];
 
 // Helper to get statuses as array (for dropdowns)
 const StatusList = StatusOrder.map(key => StatusConfig[key]);

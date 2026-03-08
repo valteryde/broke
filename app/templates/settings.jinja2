@@ -321,23 +321,23 @@
         <div class="settings-section">
             <div class="section-header">
                 <h1>Notifications</h1>
-                <p class="section-description">Control how and when you receive notifications</p>
+                <p class="section-description">Route Broke events to email and Slack channels</p>
             </div>
 
             <div class="settings-card">
                 <div class="card-section">
-                    <h3>Email Notifications</h3>
-                    <p class="card-description">Configure email notification preferences</p>
+                    <h3>Delivery Channels</h3>
+                    <p class="card-description">Enable channels and set Slack webhook for outbound notifications.</p>
 
                     <div class="preference-group">
                         <div class="preference-item">
                             <div class="preference-info">
-                                <span class="preference-label">Ticket Assignments</span>
-                                <span class="preference-description">When you're assigned to a ticket</span>
+                                <span class="preference-label">Email Channel</span>
+                                <span class="preference-description">Send events to admin emails</span>
                             </div>
                             <div class="preference-control">
                                 <label class="toggle-switch">
-                                    <input type="checkbox" checked>
+                                    <input type="checkbox" id="engine-channel-email" data-skip-pref="1" {% if notification_engine.channels.email.enabled %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
@@ -345,58 +345,83 @@
 
                         <div class="preference-item">
                             <div class="preference-info">
-                                <span class="preference-label">Comments</span>
-                                <span class="preference-description">When someone comments on your tickets</span>
+                                <span class="preference-label">Slack Channel</span>
+                                <span class="preference-description">Send events to a Slack incoming webhook</span>
                             </div>
                             <div class="preference-control">
                                 <label class="toggle-switch">
-                                    <input type="checkbox" checked>
+                                    <input type="checkbox" id="engine-channel-slack" data-skip-pref="1" {% if notification_engine.channels.slack.enabled %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
                         </div>
 
-                        <div class="preference-item">
-                            <div class="preference-info">
-                                <span class="preference-label">Status Changes</span>
-                                <span class="preference-description">When ticket status is updated</span>
-                            </div>
-                            <div class="preference-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="preference-item">
-                            <div class="preference-info">
-                                <span class="preference-label">Error Alerts</span>
-                                <span class="preference-description">When new errors are detected</span>
-                            </div>
-                            <div class="preference-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="preference-item">
-                            <div class="preference-info">
-                                <span class="preference-label">Weekly Digest</span>
-                                <span class="preference-description">Summary of activity every week</span>
-                            </div>
-                            <div class="preference-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
+                        <div class="form-group" style="width: 100%; margin-top: 8px;">
+                            <label for="engine-slack-webhook">Slack Webhook URL</label>
+                            <input type="url" id="engine-slack-webhook" class="form-input" placeholder="https://hooks.slack.com/services/..." value="{{ notification_engine.channels.slack.webhook_url }}" {% if user.admin != 1 %}disabled{% endif %}>
+                            <span class="form-hint">Required when Slack is enabled for any event.</span>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Event Channel Routing</h3>
+                    <p class="card-description">Choose which channels should receive each event type.</p>
+
+                    {% set event_rows = [
+                        ('TICKET_CREATED', 'Ticket Created', 'Manual ticket creation from Tickets'),
+                        ('TICKET_TRIAGED', 'Ticket Triaged', 'PM intake ticket created in triage inbox'),
+                        ('TICKET_STATUS_CHANGED', 'Status Changed', 'Any ticket status transition'),
+                        ('TICKET_COMMENTED', 'Ticket Commented', 'New comment added to a ticket'),
+                        ('ANON_TICKET_SUBMITTED', 'Anonymous Submitted', 'Anonymous submission entered triage')
+                    ] %}
+
+                    <div class="settings-form" id="event-channel-grid">
+                        <div class="preference-item" style="font-weight: 600;">
+                            <div class="preference-info"><span class="preference-label">Event</span></div>
+                            <div class="preference-control" style="display: flex; gap: 24px; align-items: center;">
+                                <span>Email</span>
+                                <span>Slack</span>
+                            </div>
+                        </div>
+
+                        {% for event_key, event_label, event_description in event_rows %}
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">{{ event_label }}</span>
+                                <span class="preference-description">{{ event_description }}</span>
+                            </div>
+                            <div class="preference-control" style="display: flex; gap: 24px; align-items: center;">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" data-skip-pref="1" data-event-channel="email" data-event-type="{{ event_key }}" {% if 'email' in notification_engine.event_channels.get(event_key, []) %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" data-skip-pref="1" data-event-channel="slack" data-event-type="{{ event_key }}" {% if 'slack' in notification_engine.event_channels.get(event_key, []) %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if user.admin == 1 %}
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" id="save-notification-engine-btn">Save Notification Routing</button>
+                    </div>
+                    {% else %}
+                    <div class="empty-state small">
+                        <p>Only admins can configure event channels.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <script>
+                window.notificationEngineSettings = {{ notification_engine | tojson }};
+            </script>
         </div>
 
         {% elif section == 'email' %}

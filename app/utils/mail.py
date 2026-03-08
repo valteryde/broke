@@ -74,7 +74,7 @@ def send_email(to_email, subject, html_content):
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {e}")
 
-def handle_password_reset(user=None, token=None, reset_url=None):
+def handle_password_reset(user=None, token=None, reset_url=None, **_event):
     if not user or not token:
         return
 

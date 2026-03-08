@@ -32,6 +32,10 @@ import re
 import uuid
 import pyargon2
 from ..utils import mail
+from ..utils.notifications import (
+    get_notification_engine_settings,
+    save_notification_engine_settings,
+)
 
 # Create blueprint
 settings_bp = Blueprint("settings", __name__)
@@ -121,6 +125,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
 
     elif section == "notifications":
         context["user_settings"] = user_settings
+        context["notification_engine"] = get_notification_engine_settings()
 
     elif section == "email":
         try:
@@ -349,6 +354,25 @@ def api_update_notifications():
     settings.save()
 
     return json.dumps({"success": True}), 200
+
+
+@settings_bp.route("/api/settings/notifications/engine", methods=["GET"])
+@protected
+def api_get_notification_engine_settings(user: User):
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+    return json.dumps({"success": True, "settings": get_notification_engine_settings()}), 200
+
+
+@settings_bp.route("/api/settings/notifications/engine", methods=["POST"])
+@protected
+def api_update_notification_engine_settings(user: User):
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    updated = save_notification_engine_settings(payload)
+    return json.dumps({"success": True, "settings": updated}), 200
 
 
 @settings_bp.route("/api/settings/anonymous", methods=["POST"])

@@ -84,8 +84,16 @@ def _(c=client, project=anon_enabled_project):
     
     # Should create ticket and return success
     assert response.status_code in [200, 201, 302]
-    # Ticket count should increase (or stay same if validation fails)
     assert Ticket.select().count() >= initial_count
+
+    if response.status_code in [200, 201]:
+        payload = json.loads(response.data)
+        ticket_id = payload.get("ticket_id")
+        if ticket_id:
+            created = Ticket.get_or_none(Ticket.id == ticket_id)
+            assert created is not None
+            assert created.status == "triage"
+            assert created.project == "TRIAGE"
 
 
 @test("/anon/track/<token> GET shows tracking page")

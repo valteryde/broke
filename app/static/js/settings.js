@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initForms();
     initToggles();
     initCopyButtons();
+    initNotificationEngine();
 });
 
 /**
@@ -110,6 +111,9 @@ function initToggles() {
 
     toggles.forEach(toggle => {
         toggle.addEventListener('change', async () => {
+            if (toggle.dataset.skipPref === '1') {
+                return;
+            }
             const settingName = toggle.id || toggle.name;
             const value = toggle.checked;
 
@@ -143,6 +147,71 @@ function initToggles() {
             savePreference('ticketView', ticketViewSelect.value);
         });
     }
+}
+
+function initNotificationEngine() {
+    const saveButton = document.getElementById('save-notification-engine-btn');
+    if (!saveButton) {
+        return;
+    }
+
+    saveButton.addEventListener('click', async () => {
+        const channelEmail = document.getElementById('engine-channel-email');
+        const channelSlack = document.getElementById('engine-channel-slack');
+        const slackWebhook = document.getElementById('engine-slack-webhook');
+
+        const channels = {
+            email: { enabled: Boolean(channelEmail && channelEmail.checked) },
+            slack: {
+                enabled: Boolean(channelSlack && channelSlack.checked),
+                webhook_url: slackWebhook ? slackWebhook.value.trim() : ''
+            }
+        };
+
+        if (channels.slack.enabled && !channels.slack.webhook_url) {
+            showToast('Slack webhook URL is required when Slack channel is enabled', 'error');
+            return;
+        }
+
+        const eventChannels = {};
+        document.querySelectorAll('[data-event-type][data-event-channel]').forEach((checkbox) => {
+            const eventType = checkbox.dataset.eventType;
+            const eventChannel = checkbox.dataset.eventChannel;
+            if (!eventType || !eventChannel) {
+                return;
+            }
+
+            if (!eventChannels[eventType]) {
+                eventChannels[eventType] = [];
+            }
+
+            if (checkbox.checked) {
+                eventChannels[eventType].push(eventChannel);
+            }
+        });
+
+        saveButton.disabled = true;
+        try {
+            const response = await fetch('/api/settings/notifications/engine', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channels, event_channels: eventChannels })
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                showToast(result.error || 'Failed to update notification engine', 'error');
+                return;
+            }
+
+            showToast('Notification routing updated', 'success');
+            window.notificationEngineSettings = result.settings || window.notificationEngineSettings;
+        } catch (error) {
+            showToast('Failed to update notification engine', 'error');
+        } finally {
+            saveButton.disabled = false;
+        }
+    });
 }
 
 /**

@@ -51,6 +51,163 @@ def _(c=auth_client, f=fake, project=test_project):
     assert response.status_code in [200, 201, 302, 401, 404]
 
 
+@test("Create triage intake ticket via POST")
+def _(c=auth_client, f=fake, project=test_project):
+    ticket_data = {
+        "title": f.sentence(),
+        "description": f.text(),
+        "project": project.id,
+        "priority": "medium",
+    }
+
+    response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps(ticket_data),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    assert response.status_code in [200, 201]
+    payload = json.loads(response.data)
+    assert payload.get("ticket", {}).get("status") == "triage"
+
+
+@test("Create triage intake ticket without project")
+def _(c=auth_client, f=fake):
+    ticket_data = {
+        "title": f.sentence(),
+        "description": f.text(),
+        "priority": "medium",
+    }
+
+    response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps(ticket_data),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 201
+    payload = json.loads(response.data)
+    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("project") == "TRIAGE"
+
+
+@test("Create triage intake ticket accepts null project")
+def _(c=auth_client, f=fake):
+    ticket_data = {
+        "title": f.sentence(),
+        "description": f.text(),
+        "project": None,
+        "priority": "medium",
+    }
+
+    response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps(ticket_data),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 201
+    payload = json.loads(response.data)
+    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("project") == "TRIAGE"
+
+
+@test("Create triage intake ticket accepts TRIAGE sentinel project")
+def _(c=auth_client, f=fake):
+    ticket_data = {
+        "title": f.sentence(),
+        "description": f.text(),
+        "project": "TRIAGE",
+        "priority": "medium",
+    }
+
+    response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps(ticket_data),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 201
+    payload = json.loads(response.data)
+    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("project") == "TRIAGE"
+
+
+@test("Cannot move triage ticket to active flow without project assignment")
+def _(c=auth_client, f=fake):
+    create_response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps({"title": f.sentence(), "priority": "medium"}),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+    assert create_response.status_code == 201
+    ticket_id = json.loads(create_response.data)["ticket"]["id"]
+
+    status_response = c.patch(
+        f"/api/tickets/{ticket_id}",
+        data=json.dumps({"field": "status", "value": "todo"}),
+        content_type="application/json",
+    )
+    assert status_response.status_code == 400
+
+
+@test("Can assign project to triage ticket and then move status")
+def _(c=auth_client, f=fake, project=test_project):
+    create_response = c.post(
+        "/api/tickets/intake",
+        data=json.dumps({"title": f.sentence(), "priority": "medium"}),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+    assert create_response.status_code == 201
+    ticket_id = json.loads(create_response.data)["ticket"]["id"]
+
+    project_response = c.patch(
+        f"/api/tickets/{ticket_id}",
+        data=json.dumps({"field": "project", "value": project.id}),
+        content_type="application/json",
+    )
+    assert project_response.status_code == 200
+
+    status_response = c.patch(
+        f"/api/tickets/{ticket_id}",
+        data=json.dumps({"field": "status", "value": "todo"}),
+        content_type="application/json",
+    )
+    assert status_response.status_code == 200
+
+
+@test("/triage GET shows triage inbox")
+def _(c=auth_client):
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Triage Inbox" in response.data
+
+
+@test("/triage does not show intake confirmation modal copy")
+def _(c=auth_client):
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Create Intake Ticket" not in response.data
+
+
+@test("/triage shows workflow guidance and send action")
+def _(c=auth_client):
+    response = c.get("/triage")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Triage is your intake inbox" in response.data
+        assert b"Quick Intake" in response.data
+        assert b"Send Selected" in response.data
+
+
 @test("/api/tickets/<id> DELETE requires authentication")
 def _(c=client, ticket=test_ticket):
     """Test deletion requires auth"""
