@@ -9,13 +9,22 @@ from ..utils.models import (
     TicketUpdateMessage,
     TicketLabelJoin,
 )
-from flask import render_template, redirect, Blueprint
+from flask import render_template, redirect, Blueprint, request
+from urllib.parse import urlencode
 import json
 import time
 from ..utils.path import data_path, path
 
 # Create blueprint
 news_bp = Blueprint("news", __name__)
+
+LOW_SIGNAL_UPDATE_TITLES = {
+    "Title changed",
+    "Description updated",
+    "Priority changed",
+    "Assignees changed",
+    "Labels changed",
+}
 
 
 def time_ago(timestamp: int) -> str:
@@ -150,7 +159,9 @@ def news_view(user: User):
     )
 
 
-def build_timeline_events(project_id: str | None = None, days: int = 30) -> dict:  # noqa: C901
+def build_timeline_events(
+    project_id: str | None = None, days: int = 30, detailed: bool = False
+) -> dict:  # noqa: C901
     """
     Build a comprehensive timeline of events across tickets, comments, errors, and updates.
 
@@ -219,42 +230,43 @@ def build_timeline_events(project_id: str | None = None, days: int = 30) -> dict
             }
         )
 
-    # Get comments
-    comment_query = Comment.select()
-    if cutoff > 0:
-        comment_query = comment_query.where(Comment.created_at >= cutoff)
+    # Comments are useful for deep audits, but too noisy for default timeline reading.
+    if detailed:
+        comment_query = Comment.select()
+        if cutoff > 0:
+            comment_query = comment_query.where(Comment.created_at >= cutoff)
 
-    for comment in comment_query:
-        # Filter by project if specified
-        if project_id:
-            try:
-                ticket = Ticket.get(Ticket.id == comment.ticket)
-                if ticket.project != project_id:
+        for comment in comment_query:
+            # Filter by project if specified
+            if project_id:
+                try:
+                    ticket = Ticket.get(Ticket.id == comment.ticket)
+                    if ticket.project != project_id:
+                        continue
+                except Exception:
                     continue
-            except Exception:
-                continue
 
-        date_parts = format_date_parts(comment.created_at)
-        activity_by_day[date_parts["date_key"]] += 1
-        user_activity[comment.user.username] += 1
+            date_parts = format_date_parts(comment.created_at)
+            activity_by_day[date_parts["date_key"]] += 1
+            user_activity[comment.user.username] += 1
 
-        events.append(
-            {
-                "type": "comment",
-                "type_label": "Comment",
-                "icon": "ph-chat-circle",
-                "title": f"Comment on {comment.ticket}",
-                "description": comment.body[:200] if comment.body else None,
-                "timestamp": comment.created_at,
-                "link": (
-                    f"/tickets/{Ticket.get(Ticket.id == comment.ticket).project}/{comment.ticket}"
-                    if Ticket.get_or_none(Ticket.id == comment.ticket)
-                    else None
-                ),
-                "meta": {"user": comment.user.username, "ticket_id": comment.ticket},
-                **date_parts,
-            }
-        )
+            events.append(
+                {
+                    "type": "comment",
+                    "type_label": "Comment",
+                    "icon": "ph-chat-circle",
+                    "title": f"Comment on {comment.ticket}",
+                    "description": comment.body[:200] if comment.body else None,
+                    "timestamp": comment.created_at,
+                    "link": (
+                        f"/tickets/{Ticket.get(Ticket.id == comment.ticket).project}/{comment.ticket}"
+                        if Ticket.get_or_none(Ticket.id == comment.ticket)
+                        else None
+                    ),
+                    "meta": {"user": comment.user.username, "ticket_id": comment.ticket},
+                    **date_parts,
+                }
+            )
 
     # Get ticket updates
     update_query = TicketUpdateMessage.select()
@@ -270,6 +282,9 @@ def build_timeline_events(project_id: str | None = None, days: int = 30) -> dict
                     continue
             except Exception:
                 continue
+
+        if not detailed and update.title in LOW_SIGNAL_UPDATE_TITLES:
+            continue
 
         date_parts = format_date_parts(update.created_at)
         activity_by_day[date_parts["date_key"]] += 1
@@ -495,10 +510,45 @@ def build_timeline_events(project_id: str | None = None, days: int = 30) -> dict
     }
 
 
+def _parse_timeline_days(raw_days: str | None) -> int:
+    if not raw_days:
+        return 30
+    if raw_days == "all":
+        return 0
+    try:
+        days = int(raw_days)
+    except (TypeError, ValueError):
+        return 30
+    return max(1, min(days, 3650))
+
+
+def _parse_timeline_detail(raw_detail: str | None) -> bool:
+    if not raw_detail:
+        return False
+    return raw_detail.strip().lower() in {"1", "true", "all", "detailed", "full"}
+
+
+def _timeline_query_suffix(days: int, detailed: bool) -> str:
+    params = {}
+    if days == 0:
+        params["days"] = "all"
+    elif days != 30:
+        params["days"] = str(days)
+    if detailed:
+        params["detail"] = "all"
+    return f"?{urlencode(params)}" if params else ""
+
+
+def _timeline_mode_url(base_path: str, days: int, detailed: bool) -> str:
+    return f"{base_path}{_timeline_query_suffix(days, detailed)}"
+
+
 @news_bp.route("/timeline")
 @protected
 def timeline_view(user: User):
-    data = build_timeline_events(project_id=None, days=30)
+    days = _parse_timeline_days(request.args.get("days"))
+    detail_mode = _parse_timeline_detail(request.args.get("detail"))
+    data = build_timeline_events(project_id=None, days=days, detailed=detail_mode)
 
     return render_template(
         "timeline.jinja2",
@@ -509,6 +559,11 @@ def timeline_view(user: User):
         events=data["events"][:50],  # Limit initial load
         events_json=json.dumps(data["events"][:100]),
         activity_by_day=json.dumps(data["activity_by_day"]),
+        query_suffix=_timeline_query_suffix(days, detail_mode),
+        compact_url=_timeline_mode_url("/timeline", days, False),
+        detailed_url=_timeline_mode_url("/timeline", days, True),
+        detail_mode=detail_mode,
+        selected_days="all" if days == 0 else str(days),
         has_more_events=len(data["events"]) > 50,
         total_events=data["total_events"],
         date_range=data["date_range"],
@@ -533,7 +588,9 @@ def timeline_project_view(user: User, project_id: str):
     if not project:
         return redirect("/timeline")
 
-    data = build_timeline_events(project_id=project_id, days=30)
+    days = _parse_timeline_days(request.args.get("days"))
+    detail_mode = _parse_timeline_detail(request.args.get("detail"))
+    data = build_timeline_events(project_id=project_id, days=days, detailed=detail_mode)
 
     return render_template(
         "timeline.jinja2",
@@ -544,6 +601,11 @@ def timeline_project_view(user: User, project_id: str):
         events=data["events"][:50],
         events_json=json.dumps(data["events"][:100]),
         activity_by_day=json.dumps(data["activity_by_day"]),
+        query_suffix=_timeline_query_suffix(days, detail_mode),
+        compact_url=_timeline_mode_url(f"/timeline/{project.id}", days, False),
+        detailed_url=_timeline_mode_url(f"/timeline/{project.id}", days, True),
+        detail_mode=detail_mode,
+        selected_days="all" if days == 0 else str(days),
         has_more_events=len(data["events"]) > 50,
         total_events=data["total_events"],
         date_range=data["date_range"],

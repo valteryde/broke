@@ -1,7 +1,7 @@
 """Extended tests for news and timeline functionality"""
 from ward import test, fixture, Scope
 from tests.fixtures import app, client, auth_client, auth_user, create_test_project
-from app.utils.models import Project, Ticket, Comment
+from app.utils.models import Project, Ticket, Comment, TicketUpdateMessage
 import json
 import time
 
@@ -147,4 +147,97 @@ def _(c=auth_client, user=auth_user):
     # Cleanup
     for ticket in tickets:
         ticket.delete_instance()
+    project.delete_instance()
+
+
+@test("Timeline defaults to compact highlights view")
+def _(c=auth_client, user=auth_user):
+    """Default timeline hides low-signal comments and metadata updates."""
+    timestamp = int(time.time() * 1000000)
+    project = create_test_project(f"tl-compact-{timestamp}", "Timeline Compact", "Test")
+    ticket = Ticket.create(
+        id=f"TL-{timestamp}",
+        title="Timeline compact test",
+        description="Test",
+        project=project.id,
+        author=user.username,
+        status="open",
+        priority="medium",
+        active=1,
+    )
+    comment = Comment.create(
+        ticket=ticket.id,
+        user=user,
+        body="This comment should only show in detailed mode",
+        created_at=int(time.time()),
+    )
+    label_update = TicketUpdateMessage.create(
+        ticket=ticket.id,
+        title="Labels changed",
+        icon="ph ph-tag",
+        message="labels were updated",
+        created_at=int(time.time()),
+    )
+    status_update = TicketUpdateMessage.create(
+        ticket=ticket.id,
+        title="Status changed",
+        icon="ph ph-arrow-right",
+        message="status moved from todo to in-progress",
+        created_at=int(time.time()),
+    )
+
+    response = c.get("/timeline")
+    body = response.data.decode("utf-8")
+
+    assert response.status_code == 200
+    assert "Status changed" in body
+    assert f"Comment on {ticket.id}" not in body
+    assert "Labels changed" not in body
+
+    comment.delete_instance()
+    label_update.delete_instance()
+    status_update.delete_instance()
+    ticket.delete_instance()
+    project.delete_instance()
+
+
+@test("Timeline detailed mode shows full activity")
+def _(c=auth_client, user=auth_user):
+    """Detailed mode includes comments and low-signal updates."""
+    timestamp = int(time.time() * 1000000)
+    project = create_test_project(f"tl-detail-{timestamp}", "Timeline Detail", "Test")
+    ticket = Ticket.create(
+        id=f"TD-{timestamp}",
+        title="Timeline detail test",
+        description="Test",
+        project=project.id,
+        author=user.username,
+        status="open",
+        priority="medium",
+        active=1,
+    )
+    comment = Comment.create(
+        ticket=ticket.id,
+        user=user,
+        body="Detailed mode comment",
+        created_at=int(time.time()),
+    )
+    label_update = TicketUpdateMessage.create(
+        ticket=ticket.id,
+        title="Labels changed",
+        icon="ph ph-tag",
+        message="labels were updated",
+        created_at=int(time.time()),
+    )
+
+    response = c.get("/timeline?detail=all")
+    body = response.data.decode("utf-8")
+
+    assert response.status_code == 200
+    assert f"Comment on {ticket.id}" in body
+    assert "Labels changed" in body
+
+    comment.delete_instance()
+    label_update.delete_instance()
+    ticket.delete_instance()
     project.delete_instance()

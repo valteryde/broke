@@ -140,6 +140,10 @@
     transition: all 0.2s;
 }
 
+a.view-btn {
+    text-decoration: none;
+}
+
 .filter-btn:hover,
 .view-btn:hover {
     background: #ddd;
