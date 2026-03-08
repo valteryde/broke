@@ -6,8 +6,9 @@ import json
 import io
 import time
 
-from app.utils.models import User, create_user, UserSettings
+from app.utils.models import User, create_user, UserSettings, GlobalSetting
 import pyargon2
+from unittest.mock import patch
 
 
 @test("/settings GET requires authentication")
@@ -112,6 +113,14 @@ def _(c=auth_client):
     """Test team settings page"""
     response = c.get("/settings/team")
     assert response.status_code in [200, 302]
+
+
+@test("/settings/email GET shows email settings page")
+def _(c=auth_client):
+    response = c.get("/settings/email")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Email Service" in response.data
 
 
 @test("Team page shows admin role badges")
@@ -290,3 +299,87 @@ def _(c=auth_client, f=fake):
         content_type="application/json",
     )
     assert response.status_code == 403
+
+
+@test("Non-admin cannot update SMTP settings")
+def _(c=auth_client):
+    response = c.post(
+        "/api/settings/email",
+        data=json.dumps({"host": "smtp.example.com", "port": 587}),
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+@test("Admin can update SMTP settings")
+def _(c=client, f=fake):
+    admin_username = f"admin_mail_{f.uuid4()[:8]}"
+    admin_email = f"admin_mail_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    payload = {
+        "host": "smtp.example.com",
+        "port": 587,
+        "username": "smtp-user",
+        "password": "smtp-pass",
+        "from": "noreply@example.com",
+        "use_tls": True,
+    }
+
+    response = c.post(
+        "/api/settings/email",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+
+    record = GlobalSetting.get_or_none(GlobalSetting.key == "smtp_settings")
+    assert record is not None
+    saved = json.loads(record.value)
+    assert saved.get("host") == "smtp.example.com"
+    assert saved.get("port") == 587
+    assert saved.get("username") == "smtp-user"
+    assert saved.get("from") == "noreply@example.com"
+
+
+@test("Non-admin cannot send test email")
+def _(c=auth_client):
+    response = c.post(
+        "/api/settings/email/test",
+        data=json.dumps({"recipient": "test@example.com"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+@test("Admin can send test email")
+def _(c=client, f=fake):
+    admin_username = f"admin_mail_test_{f.uuid4()[:8]}"
+    admin_email = f"admin_mail_test_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    with patch("app.views.settings.mail.send_email") as send_email_mock:
+        response = c.post(
+            "/api/settings/email/test",
+            data=json.dumps({"recipient": "dev@example.com"}),
+            content_type="application/json",
+        )
+
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    assert payload.get("success") is True
+    assert send_email_mock.called

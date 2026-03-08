@@ -393,6 +393,7 @@ def setup_test_data():  # noqa: C901
             password_hash=pyargon2.hash("code", salt),
             salt=salt,
             email="user@test.com",
+            admin=1,
         )
     except Exception:
         pass
@@ -407,6 +408,7 @@ def setup_test_data():  # noqa: C901
                 password_hash=pyargon2.hash(fake.password(), salt),
                 salt=salt,
                 email=fake.unique.email(),
+                admin=0,
             )
             usernames.append(username)
         except Exception:

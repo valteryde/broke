@@ -132,6 +132,31 @@ sentry_sdk.init(
 )
 ```
 
+## Email Service (SMTP)
+
+Password reset emails require SMTP configuration.
+
+### Configure from the UI (recommended)
+
+1. Sign in as an admin user.
+2. Go to `Settings -> Email Service`.
+3. Fill in SMTP host, port, username/password, sender address, and TLS preference.
+4. Save settings.
+
+These values are stored in app settings and used automatically by the password reset flow.
+
+### Configure from environment variables (optional)
+
+You can also configure SMTP via environment variables:
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASSWORD`
+- `SMTP_FROM`
+
+UI-saved SMTP settings take precedence over environment variables when present.
+
 ## Tech Stack
 
 - **Backend:** Flask + Gunicorn

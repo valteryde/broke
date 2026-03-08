@@ -4,15 +4,46 @@ from email.mime.multipart import MIMEMultipart
 import os
 import logging
 from .events import bus
+from .models import GlobalSetting
+import json
 
 logger = logging.getLogger(__name__)
 
+
+def _load_smtp_settings() -> dict:
+    settings = {
+        "host": os.environ.get("SMTP_HOST", "").strip(),
+        "port": int(os.environ.get("SMTP_PORT", 587)),
+        "username": os.environ.get("SMTP_USER", "").strip(),
+        "password": os.environ.get("SMTP_PASSWORD", "").strip(),
+        "from": os.environ.get("SMTP_FROM", "noreply@broke.dk").strip(),
+        "use_tls": True,
+    }
+
+    try:
+        record = GlobalSetting.get_or_none(GlobalSetting.key == "smtp_settings")
+        if record and record.value:
+            stored = json.loads(record.value)
+            settings["host"] = str(stored.get("host", settings["host"]))
+            settings["port"] = int(stored.get("port", settings["port"]))
+            settings["username"] = str(stored.get("username", settings["username"]))
+            settings["password"] = str(stored.get("password", settings["password"]))
+            settings["from"] = str(stored.get("from", settings["from"]))
+            settings["use_tls"] = bool(stored.get("use_tls", True))
+    except Exception:
+        # Keep env/default settings if settings table is unavailable or malformed.
+        pass
+
+    return settings
+
 def send_email(to_email, subject, html_content):
-    smtp_host = os.environ.get("SMTP_HOST")
-    smtp_port = os.environ.get("SMTP_PORT", 587)
-    smtp_user = os.environ.get("SMTP_USER")
-    smtp_password = os.environ.get("SMTP_PASSWORD")
-    smtp_from = os.environ.get("SMTP_FROM", "noreply@broke.dk")
+    smtp_settings = _load_smtp_settings()
+    smtp_host = smtp_settings["host"]
+    smtp_port = smtp_settings["port"]
+    smtp_user = smtp_settings["username"]
+    smtp_password = smtp_settings["password"]
+    smtp_from = smtp_settings["from"]
+    use_tls = smtp_settings["use_tls"]
 
     if not smtp_host:
         logger.warning(
@@ -33,8 +64,7 @@ def send_email(to_email, subject, html_content):
     try:
         server = smtplib.SMTP(smtp_host, int(smtp_port))
         server.ehlo()
-        # Only starttls if not localhost/testing
-        if smtp_host not in ["localhost", "127.0.0.1"]:
+        if use_tls and smtp_host not in ["localhost", "127.0.0.1"]:
             server.starttls()
             if smtp_user and smtp_password:
                 server.login(smtp_user, smtp_password)

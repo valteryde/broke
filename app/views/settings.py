@@ -31,6 +31,7 @@ import secrets
 import re
 import uuid
 import pyargon2
+from ..utils import mail
 
 # Create blueprint
 settings_bp = Blueprint("settings", __name__)
@@ -81,6 +82,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         "profile": "Profile",
         "preferences": "Preferences",
         "notifications": "Notifications",
+        "email": "Email Service",
         "security": "Security",
         "general": "General",
         "projects": "Projects",
@@ -119,6 +121,20 @@ def settings_section_view(user: User, section: str):  # noqa: C901
 
     elif section == "notifications":
         context["user_settings"] = user_settings
+
+    elif section == "email":
+        try:
+            setting = GlobalSetting.get(GlobalSetting.key == "smtp_settings")
+            context["smtp_settings"] = json.loads(setting.value)
+        except (DoesNotExist, json.JSONDecodeError):
+            context["smtp_settings"] = {
+                "host": os.environ.get("SMTP_HOST", ""),
+                "port": int(os.environ.get("SMTP_PORT", 587)),
+                "username": os.environ.get("SMTP_USER", ""),
+                "password": os.environ.get("SMTP_PASSWORD", ""),
+                "from": os.environ.get("SMTP_FROM", ""),
+                "use_tls": True,
+            }
 
     elif section == "projects":
         context["projects"] = list(Project.select().order_by(Project.name))
@@ -393,6 +409,72 @@ def api_update_ai(user: User):
         GlobalSetting.create(key="ai_settings", value=json.dumps(settings))
 
     return json.dumps({"success": True, "message": "AI Integration settings saved"}), 200
+
+
+@settings_bp.route("/api/settings/email", methods=["POST"])
+@protected
+def api_update_email_settings(user: User):
+    """Update SMTP email settings (admin only)."""
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
+    data = request.get_json(silent=True) or {}
+    host = str(data.get("host", "")).strip()
+    if not host:
+        return json.dumps({"error": "SMTP host is required"}), 400
+
+    try:
+        port = int(data.get("port", 587))
+    except (TypeError, ValueError):
+        return json.dumps({"error": "SMTP port must be a number"}), 400
+
+    if port <= 0 or port > 65535:
+        return json.dumps({"error": "SMTP port is out of range"}), 400
+
+    settings = {
+        "host": host,
+        "port": port,
+        "username": str(data.get("username", "")).strip(),
+        "password": str(data.get("password", "")).strip(),
+        "from": str(data.get("from", "")).strip(),
+        "use_tls": bool(data.get("use_tls", True)),
+    }
+
+    try:
+        record = GlobalSetting.get(GlobalSetting.key == "smtp_settings")
+        record.value = json.dumps(settings)
+        record.save()
+    except DoesNotExist:
+        GlobalSetting.create(key="smtp_settings", value=json.dumps(settings))
+
+    return json.dumps({"success": True}), 200
+
+
+@settings_bp.route("/api/settings/email/test", methods=["POST"])
+@protected
+def api_send_test_email(user: User):
+        """Send a test email using current SMTP configuration (admin only)."""
+        if user.admin != 1:
+                return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
+        data = request.get_json(silent=True) or {}
+        recipient = str(data.get("recipient", "")).strip() or user.email
+        if not recipient:
+                return json.dumps({"error": "Recipient email is required"}), 400
+
+        html = f"""
+        <html>
+            <body>
+                <h2>Broke SMTP Test</h2>
+                <p>Hello {user.username},</p>
+                <p>This is a test email from Broke.</p>
+                <p>If you received this message, your SMTP configuration is working.</p>
+            </body>
+        </html>
+        """
+
+        mail.send_email(recipient, "Broke SMTP Test Email", html)
+        return json.dumps({"success": True}), 200
 
 
 @settings_bp.route("/api/settings/security/password", methods=["POST"])

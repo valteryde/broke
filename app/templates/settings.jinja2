@@ -45,6 +45,10 @@
                 <i class="ph ph-bell"></i>
                 <span>Notifications</span>
             </a>
+            <a href="/settings/email" class="settings-nav-item {% if section == 'email' %}active{% endif %}">
+                <i class="ph ph-envelope-simple"></i>
+                <span>Email Service</span>
+            </a>
             <a href="/settings/security" class="settings-nav-item {% if section == 'security' %}active{% endif %}">
                 <i class="ph ph-shield-check"></i>
                 <span>Security</span>
@@ -393,6 +397,153 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        {% elif section == 'email' %}
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Email Service</h1>
+                <p class="section-description">Configure SMTP so Broke can send password reset emails</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>SMTP Configuration</h3>
+                    <p class="card-description">These settings are used when sending transactional emails.</p>
+
+                    {% if user.admin != 1 %}
+                    <div class="empty-state small">
+                        <p>Only admins can modify email service settings.</p>
+                    </div>
+                    {% endif %}
+
+                    <form id="email-form" class="settings-form">
+                        <div class="form-group">
+                            <label for="smtp-host">SMTP Host</label>
+                            <input type="text" id="smtp-host" name="host" class="form-input" value="{{ smtp_settings.get('host', '') }}" placeholder="smtp.example.com" {% if user.admin != 1 %}disabled{% endif %}>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="smtp-port">SMTP Port</label>
+                            <input type="number" id="smtp-port" name="port" class="form-input" value="{{ smtp_settings.get('port', 587) }}" min="1" max="65535" {% if user.admin != 1 %}disabled{% endif %}>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="smtp-username">SMTP Username</label>
+                            <input type="text" id="smtp-username" name="username" class="form-input" value="{{ smtp_settings.get('username', '') }}" {% if user.admin != 1 %}disabled{% endif %}>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="smtp-password">SMTP Password</label>
+                            <input type="password" id="smtp-password" name="password" class="form-input" value="{{ smtp_settings.get('password', '') }}" {% if user.admin != 1 %}disabled{% endif %}>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="smtp-from">From Address</label>
+                            <input type="email" id="smtp-from" name="from" class="form-input" value="{{ smtp_settings.get('from', '') }}" placeholder="noreply@example.com" {% if user.admin != 1 %}disabled{% endif %}>
+                        </div>
+
+                        <div class="preference-group">
+                            <div class="preference-item">
+                                <div class="preference-info">
+                                    <span class="preference-label">Use TLS</span>
+                                    <span class="preference-description">Enable STARTTLS when connecting to SMTP</span>
+                                </div>
+                                <div class="preference-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="smtp-use-tls" name="use_tls" {% if smtp_settings.get('use_tls', True) %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if user.admin == 1 %}
+                        <div class="form-group">
+                            <label for="smtp-test-recipient">Test Recipient</label>
+                            <input type="email" id="smtp-test-recipient" class="form-input" value="{{ user.email }}" placeholder="you@example.com">
+                            <span class="form-hint">Optional: defaults to your account email</span>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save SMTP Settings</button>
+                            <button type="button" id="smtp-test-btn" class="btn btn-secondary">
+                                <i class="ph ph-paper-plane-tilt"></i> Send Test Email
+                            </button>
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+
+            <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const emailForm = document.getElementById('email-form');
+                if (!emailForm) return;
+
+                emailForm.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+
+                    const payload = {
+                        host: document.getElementById('smtp-host').value,
+                        port: Number(document.getElementById('smtp-port').value || 587),
+                        username: document.getElementById('smtp-username').value,
+                        password: document.getElementById('smtp-password').value,
+                        from: document.getElementById('smtp-from').value,
+                        use_tls: document.getElementById('smtp-use-tls').checked,
+                    };
+
+                    const saveButton = emailForm.querySelector('button[type="submit"]');
+                    if (saveButton) saveButton.disabled = true;
+
+                    try {
+                        const response = await fetch('/api/settings/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+                        if (!response.ok) {
+                            showToast(result.error || 'Failed to save SMTP settings', 'error');
+                        } else {
+                            showToast('SMTP settings saved', 'success');
+                        }
+                    } catch (error) {
+                        showToast('Failed to save SMTP settings', 'error');
+                    } finally {
+                        if (saveButton) saveButton.disabled = false;
+                    }
+                });
+
+                const testButton = document.getElementById('smtp-test-btn');
+                if (testButton) {
+                    testButton.addEventListener('click', async () => {
+                        const recipientInput = document.getElementById('smtp-test-recipient');
+                        const recipient = recipientInput ? recipientInput.value : '';
+
+                        testButton.disabled = true;
+                        try {
+                            const response = await fetch('/api/settings/email/test', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ recipient })
+                            });
+                            const result = await response.json();
+                            if (!response.ok) {
+                                showToast(result.error || 'Failed to send test email', 'error');
+                            } else {
+                                showToast('Test email request sent', 'success');
+                            }
+                        } catch (error) {
+                            showToast('Failed to send test email', 'error');
+                        } finally {
+                            testButton.disabled = false;
+                        }
+                    });
+                }
+            });
+            </script>
         </div>
 
         {% elif section == 'security' %}
