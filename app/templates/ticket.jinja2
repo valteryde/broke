@@ -35,11 +35,25 @@
                 <a href="/tickets/{{ parent_ticket.project }}/{{ parent_ticket.id }}">{{ parent_ticket.id }}</a>
             </p>
             {% endif %}
+            {% if subticket_count > 0 %}
+            <p style="margin:0.35rem 0 0 0;opacity:0.85;">
+                <strong>Subticket Progress:</strong> {{ subticket_done_count }}/{{ subticket_count }} done
+            </p>
+            {% endif %}
         </div>
         <button class="btn btn-secondary" type="button" onclick="createSubticket()">
             <i class="ph ph-plus"></i> Create Subticket
         </button>
     </div>
+
+    {% if all_subtickets_done and ticket.status not in ['done', 'closed'] %}
+    <div style="margin:0.75rem 0;padding:0.75rem;background-color:rgba(72,187,120,0.12);border:1px solid rgba(72,187,120,0.3);border-radius:4px;">
+        <p style="margin:0 0 0.5rem 0;"><strong>✓ All subtickets are complete</strong></p>
+        <button class="btn btn-primary" type="button" onclick="closeParentTicket()">
+            <i class="ph ph-check-circle"></i> Close Parent Ticket
+        </button>
+    </div>
+    {% endif %}
 
     {% if subtickets and subtickets|length > 0 %}
     <ul style="margin:0.75rem 0 0 1.1rem;display:grid;gap:0.45rem;">
@@ -104,6 +118,28 @@
             } catch (error) {
                 console.error('Create subticket error:', error);
                 alert('Failed to create subticket');
+            }
+        }
+
+        async function closeParentTicket() {
+            if (!confirm('Close this parent ticket?')) return;
+
+            try {
+                const response = await fetch('/api/tickets/{{ ticket.id }}', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ field: 'status', value: 'done' })
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const payload = await response.json();
+                    alert(payload.error || 'Failed to close ticket');
+                }
+            } catch (error) {
+                console.error('Close ticket error:', error);
+                alert('Failed to close ticket');
             }
         }
 

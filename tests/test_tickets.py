@@ -242,6 +242,84 @@ def _(c=auth_client, f=fake, project=test_project):
         assert child.id.encode() in response.data
 
 
+@test("Ticket detail shows subticket progress rollup")
+def _(c=auth_client, f=fake, project=test_project):
+    parent = Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-ROLLUP",
+        title=f"Parent {f.word()}",
+        description="Parent ticket",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+    Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-ROLLUP-DONE",
+        title=f"Done child {f.word()}",
+        description="Child ticket",
+        status="done",
+        priority="medium",
+        project=project.id,
+        active=1,
+        parent_ticket_id=parent.id,
+    )
+    Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-ROLLUP-OPEN",
+        title=f"Open child {f.word()}",
+        description="Child ticket",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+        parent_ticket_id=parent.id,
+    )
+
+    response = c.get(f"/tickets/{project.id}/{parent.id}")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Subticket Progress" in response.data
+        assert b"1/2 done" in response.data
+
+
+@test("Ticket detail suggests closing parent when all subtickets are done")
+def _(c=auth_client, f=fake, project=test_project):
+    parent = Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-CLOSE",
+        title=f"Parent {f.word()}",
+        description="Parent ticket",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+    Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-CLOSE-A",
+        title=f"Done child {f.word()}",
+        description="Child ticket",
+        status="done",
+        priority="medium",
+        project=project.id,
+        active=1,
+        parent_ticket_id=parent.id,
+    )
+    Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-CLOSE-B",
+        title=f"Done child {f.word()}",
+        description="Child ticket",
+        status="closed",
+        priority="medium",
+        project=project.id,
+        active=1,
+        parent_ticket_id=parent.id,
+    )
+
+    response = c.get(f"/tickets/{project.id}/{parent.id}")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"All subtickets are complete" in response.data
+        assert b"Close Parent Ticket" in response.data
+
+
 @test("Create triage intake ticket via POST")
 def _(c=auth_client, f=fake, project=test_project):
     ticket_data = {

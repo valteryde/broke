@@ -208,6 +208,12 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         .where((Ticket.parent_ticket_id == ticket_id) & (Ticket.active == 1))
         .order_by(Ticket.created_at.asc())
     )
+
+    subticket_count = len(subtickets)
+    closed_statuses = {"done", "closed"}
+    subticket_done_count = sum(1 for child in subtickets if child.status in closed_statuses)
+    all_subtickets_done = subticket_count > 0 and subticket_done_count == subticket_count
+
     parent_ticket = None
     if ticket.parent_ticket_id:
         parent_ticket = Ticket.get_or_none(Ticket.id == ticket.parent_ticket_id)
@@ -224,6 +230,9 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         updates=updates,
         subtickets=subtickets,
         parent_ticket=parent_ticket,
+        subticket_count=subticket_count,
+        subticket_done_count=subticket_done_count,
+        all_subtickets_done=all_subtickets_done,
     )
 
 
