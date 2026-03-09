@@ -173,6 +173,9 @@ def handle_event_item(part: ProjectPart, payload: dict, event_id: str | None = N
         # Update existing group
         error_group.event_count += 1
         error_group.last_seen = timestamp
+        # Regression detection: reopen issues that were previously resolved.
+        if error_group.status == "resolved":
+            error_group.status = "unresolved"
         error_group.save()
     except DoesNotExist:
         # Create new group

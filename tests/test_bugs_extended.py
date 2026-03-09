@@ -356,6 +356,37 @@ def _(part=error_project_part):
     error_group1.delete_instance()
 
 
+@test("Resolved error group reopens when same fingerprint reoccurs")
+def _(part=error_project_part):
+    """Regression detection: resolved errors should reopen on new occurrences."""
+    from app.views.bug import handle_event_item
+
+    payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "RuntimeError",
+                    "value": "regression detected",
+                    "stacktrace": {"frames": [{"module": "svc", "function": "run"}]},
+                }
+            ]
+        }
+    }
+
+    error_group = handle_event_item(part, payload, "regression-event-1")
+    error_group.status = "resolved"
+    error_group.save()
+
+    reopened = handle_event_item(part, payload, "regression-event-2")
+
+    assert reopened.id == error_group.id
+    assert reopened.event_count >= 2
+    assert reopened.status == "unresolved"
+
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == reopened).execute()
+    reopened.delete_instance()
+
+
 @test("/api/errors/<id>/status requires authentication")
 def _(c=client, error_group=error_group_fixture):
     response = c.post(
