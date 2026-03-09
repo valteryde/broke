@@ -203,6 +203,14 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
 
     comments = Comment.select().where(Comment.ticket == ticket_id).order_by(Comment.id)  # type: ignore
     updates = TicketUpdateMessage.select().where(TicketUpdateMessage.ticket == ticket_id).order_by(TicketUpdateMessage.id)  # type: ignore
+    subtickets = list(
+        Ticket.select()
+        .where((Ticket.parent_ticket_id == ticket_id) & (Ticket.active == 1))
+        .order_by(Ticket.created_at.asc())
+    )
+    parent_ticket = None
+    if ticket.parent_ticket_id:
+        parent_ticket = Ticket.get_or_none(Ticket.id == ticket.parent_ticket_id)
 
     return render_template(
         "ticket.jinja2",
@@ -214,6 +222,8 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         available_labels=available_labels,
         comments=comments,
         updates=updates,
+        subtickets=subtickets,
+        parent_ticket=parent_ticket,
     )
 
 
@@ -298,7 +308,23 @@ def create_ticket(user: User):
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    project_id = data.get("project")
+    requested_project_id = str(data.get("project") or "").strip()
+    parent_ticket_id = str(data.get("parent_ticket_id") or "").strip() or None
+
+    parent_ticket = None
+    if parent_ticket_id:
+        parent_ticket = Ticket.get_or_none((Ticket.id == parent_ticket_id) & (Ticket.active == 1))
+        if not parent_ticket:
+            return jsonify({"error": "Parent ticket not found"}), 404
+        if parent_ticket.parent_ticket_id:
+            return jsonify({"error": "Only one subticket level is supported"}), 400
+
+    project_id = requested_project_id
+    if parent_ticket:
+        if requested_project_id and requested_project_id != parent_ticket.project:
+            return jsonify({"error": "Subticket project must match parent project"}), 400
+        project_id = parent_ticket.project
+
     if not project_id:
         return jsonify({"error": "Project is required"}), 400
 
@@ -319,6 +345,7 @@ def create_ticket(user: User):
         priority=data.get("priority", "medium"),
         project=project_id,
         created_at=int(time.time()),
+        parent_ticket_id=parent_ticket_id,
     )
 
     # Create initial activity message
@@ -353,6 +380,7 @@ def create_ticket(user: User):
                     "project": ticket.project,
                     "status": ticket.status,
                     "priority": ticket.priority,
+                    "parent_ticket_id": ticket.parent_ticket_id,
                 },
             }
         ),
@@ -931,6 +959,11 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
         if not target_project:
             return jsonify({"error": "Project is required"}), 400
 
+        if ticket.parent_ticket_id:
+            parent = Ticket.get_or_none(Ticket.id == ticket.parent_ticket_id)
+            if parent and parent.project != target_project:
+                return jsonify({"error": "Subticket project must match parent project"}), 400
+
         project = Project.get_or_none(Project.id == target_project)
         if not project:
             return jsonify({"error": "Project not found"}), 404
@@ -1144,6 +1177,11 @@ def export_ticket(user: User, ticket_id: str):
     )
     labels = [row.label for row in TicketLabelJoin.select().where(TicketLabelJoin.ticket == ticket_id)]
     assignees = [row.user for row in UserTicketJoin.select().where(UserTicketJoin.ticket == ticket_id)]
+    subtickets = list(
+        Ticket.select()
+        .where((Ticket.parent_ticket_id == ticket_id) & (Ticket.active == 1))
+        .order_by(Ticket.created_at.asc())
+    )
 
     payload = {
         "id": ticket.id,
@@ -1152,6 +1190,7 @@ def export_ticket(user: User, ticket_id: str):
         "project": ticket.project,
         "status": ticket.status,
         "priority": ticket.priority,
+        "parent_ticket_id": ticket.parent_ticket_id,
         "created_at": ticket.created_at,
         "labels": labels,
         "assignees": assignees,
@@ -1173,6 +1212,16 @@ def export_ticket(user: User, ticket_id: str):
             }
             for update in updates
         ],
+        "subtickets": [
+            {
+                "id": child.id,
+                "title": child.title,
+                "status": child.status,
+                "priority": child.priority,
+                "created_at": child.created_at,
+            }
+            for child in subtickets
+        ],
     }
 
     export_format = str(request.args.get("format", "markdown")).strip().lower()
@@ -1189,6 +1238,7 @@ def export_ticket(user: User, ticket_id: str):
         f"- Project: {ticket.project}",
         f"- Status: {ticket.status}",
         f"- Priority: {ticket.priority}",
+        f"- Parent Ticket: {ticket.parent_ticket_id or 'None'}",
         f"- Created At (epoch): {ticket.created_at}",
         f"- Labels: {', '.join(labels) if labels else 'None'}",
         f"- Assignees: {', '.join(assignees) if assignees else 'None'}",
@@ -1226,6 +1276,17 @@ def export_ticket(user: User, ticket_id: str):
             )
     else:
         markdown_lines.append("No updates.")
+
+    markdown_lines.append("")
+    markdown_lines.append("## Subtickets")
+    markdown_lines.append("")
+    if subtickets:
+        for child in subtickets:
+            markdown_lines.append(
+                f"- {child.id} | {child.title} | {child.status} | {child.priority}"
+            )
+    else:
+        markdown_lines.append("No subtickets.")
 
     content = "\n".join(markdown_lines)
     return content, 200, {"Content-Type": "text/markdown; charset=utf-8"}

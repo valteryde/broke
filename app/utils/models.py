@@ -182,6 +182,7 @@ class Ticket(BaseModel):
 
     created_at = IntegerField(default=lambda: int(time.time()))
     active = IntegerField(default=1)
+    parent_ticket_id = CharField(null=True, index=True)
 
     anonymous_secret = CharField(null=True, unique=True)
 
@@ -373,7 +374,21 @@ MODELS = [
 def initialize_db():
     database.connect()
     database.create_tables(MODELS, safe=True)
+    _ensure_ticket_parent_column()
     database.close()
+
+
+def _ensure_ticket_parent_column() -> None:
+    """Backfill schema for older databases that predate parent_ticket_id."""
+    columns = [
+        row[1]
+        for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()
+    ]
+    if "parent_ticket_id" not in columns:
+        database.execute_sql("ALTER TABLE ticket ADD COLUMN parent_ticket_id TEXT;")
+        database.execute_sql(
+            "CREATE INDEX IF NOT EXISTS ticket_parent_ticket_id ON ticket(parent_ticket_id);"
+        )
 
 
 def setup_test_data():  # noqa: C901

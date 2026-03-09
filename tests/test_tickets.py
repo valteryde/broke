@@ -118,6 +118,130 @@ def _(c=auth_client, f=fake, project=test_project):
     assert response.status_code in [200, 201, 302, 401, 404]
 
 
+@test("Create subticket via POST with parent ticket")
+def _(c=auth_client, f=fake, project=test_project):
+    parent = Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-P",
+        title=f"Parent {f.word()}",
+        description="Parent ticket",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+
+    response = c.post(
+        "/api/tickets",
+        data=json.dumps(
+            {
+                "title": f"Child {f.word()}",
+                "description": "Subticket details",
+                "project": project.id,
+                "status": "todo",
+                "priority": "medium",
+                "parent_ticket_id": parent.id,
+            }
+        ),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 201
+    payload = json.loads(response.data)
+    assert payload.get("ticket", {}).get("parent_ticket_id") == parent.id
+
+
+@test("Create subticket rejects unknown parent ticket")
+def _(c=auth_client, f=fake, project=test_project):
+    response = c.post(
+        "/api/tickets",
+        data=json.dumps(
+            {
+                "title": f"Child {f.word()}",
+                "description": "Subticket details",
+                "project": project.id,
+                "status": "todo",
+                "priority": "medium",
+                "parent_ticket_id": "NONEXISTENT-123",
+            }
+        ),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 404
+
+
+@test("Create nested subticket depth greater than one is rejected")
+def _(c=auth_client, f=fake, project=test_project):
+    parent = Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-ROOT",
+        title=f"Parent {f.word()}",
+        description="Parent ticket",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+    child = Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-CHILD",
+        title=f"Child {f.word()}",
+        description="First-level child",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+        parent_ticket_id=parent.id,
+    )
+
+    response = c.post(
+        "/api/tickets",
+        data=json.dumps(
+            {
+                "title": f"Nested {f.word()}",
+                "description": "Should be rejected",
+                "project": project.id,
+                "status": "todo",
+                "priority": "medium",
+                "parent_ticket_id": child.id,
+            }
+        ),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+
+
+@test("Ticket detail renders subticket section and children")
+def _(c=auth_client, f=fake, project=test_project):
+    parent = Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-DETAIL",
+        title=f"Parent {f.word()}",
+        description="Parent ticket",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+    child = Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-DETAIL-CHILD",
+        title=f"Child {f.word()}",
+        description="Child ticket",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+        parent_ticket_id=parent.id,
+    )
+
+    response = c.get(f"/tickets/{project.id}/{parent.id}")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Subtickets" in response.data
+        assert child.id.encode() in response.data
+
+
 @test("Create triage intake ticket via POST")
 def _(c=auth_client, f=fake, project=test_project):
     ticket_data = {

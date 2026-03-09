@@ -25,6 +25,37 @@
     </a>
 </div>
 
+<section class="card" style="padding:0.9rem;margin-bottom:0.75rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;">
+        <div>
+            <h3 style="margin:0;">Subtickets</h3>
+            {% if parent_ticket %}
+            <p style="margin:0.35rem 0 0 0;opacity:0.75;">
+                Parent:
+                <a href="/tickets/{{ parent_ticket.project }}/{{ parent_ticket.id }}">{{ parent_ticket.id }}</a>
+            </p>
+            {% endif %}
+        </div>
+        <button class="btn btn-secondary" type="button" onclick="createSubticket()">
+            <i class="ph ph-plus"></i> Create Subticket
+        </button>
+    </div>
+
+    {% if subtickets and subtickets|length > 0 %}
+    <ul style="margin:0.75rem 0 0 1.1rem;display:grid;gap:0.45rem;">
+        {% for child in subtickets %}
+        <li>
+            <a href="/tickets/{{ child.project }}/{{ child.id }}"><strong>{{ child.id }}</strong></a>
+            - {{ child.title }}
+            <span style="opacity:0.7;">({{ child.status }}, {{ child.priority }})</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="margin:0.75rem 0 0 0;opacity:0.75;">No subtickets yet.</p>
+    {% endif %}
+</section>
+
 <div id="ticket-editor"></div>
 
 {% endblock %}
@@ -47,6 +78,35 @@
     <script>
 
         var editor;
+
+        async function createSubticket() {
+            try {
+                const response = await fetch('/api/tickets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: '',
+                        description: '',
+                        status: 'todo',
+                        priority: 'medium',
+                        project: '{{ ticket.project }}',
+                        parent_ticket_id: '{{ ticket.id }}'
+                    })
+                });
+
+                const payload = await response.json();
+                if (!response.ok) {
+                    alert(payload.error || 'Failed to create subticket');
+                    return;
+                }
+
+                window.location.href = `/tickets/${payload.ticket.project}/${payload.ticket.id}`;
+            } catch (error) {
+                console.error('Create subticket error:', error);
+                alert('Failed to create subticket');
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             // Sample ticket data (would come from backend)
             const ticketData = {
