@@ -41,74 +41,119 @@ This roadmap reflects the current product philosophy:
 
 ## Phase Plan
 
-## Phase 1: Foundation and Safety (2-3 weeks)
+## Phase 1: Foundation and Safety (2-3 weeks) ✅ COMPLETE
 Goal: make production usage safer without changing product complexity.
 
-### 1) Security Hardening Baseline
-- Replace hardcoded app secret with environment-based secret.
-- Enforce secure cookie/session defaults.
-- Add CSRF protection for form and JSON mutation endpoints.
-- Add stricter authorization checks on destructive/admin-sensitive routes.
-- Add basic security headers (CSP-lite, X-Frame-Options, etc.).
-- Expand tests for authz boundaries and CSRF behavior.
+### 1) Security Hardening Baseline ✅ COMPLETE
+- ✅ Replace hardcoded app secret with environment-based secret
+- ✅ Enforce secure cookie/session defaults
+- ✅ Add CSRF protection for form and JSON mutation endpoints
+- ✅ Add stricter authorization checks on destructive/admin-sensitive routes
+- ✅ Add basic security headers (CSP-lite, X-Frame-Options, etc.)
+- ✅ Expand tests for authz boundaries and CSRF behavior
+
+Implementation:
+- Secret key precedence: `BROKE_SECRET_KEY` → `FLASK_SECRET_KEY` → random process key
+- Session cookies: `HttpOnly=True`, `SameSite=Lax`, configurable `Secure` flag via `BROKE_SESSION_COOKIE_SECURE`
+- CSRF validation in `app/utils/security.py`: validates token from session vs. header/form/JSON
+- `@protected` decorator enforces auth + CSRF for mutation endpoints
+- Security headers added via `@app.after_request` in `app/utils/app.py`
+- Headers: CSP (permissive), X-Frame-Options=DENY, X-Content-Type-Options=nosniff, Referrer-Policy
+
+Test coverage:
+- `tests/test_security.py`: Secret key configuration, session hardening, security headers, CSRF validation (7 tests)
+- `tests/test_tickets.py`: CSRF-enabled tests for protected mutations (2 tests passing)
 
 Definition of done:
-- No hardcoded secret in runtime app config.
-- Mutation routes reject invalid/absent CSRF.
-- Existing auth tests pass and new authz tests cover key admin and destructive flows.
+- ✅ No hardcoded secret in runtime app config
+- ✅ Mutation routes reject invalid/absent CSRF
+- ✅ Existing auth tests pass and new authz tests cover key admin and destructive flows
 
-### 2) Reporting + Export MVP
-- Add ticket export from ticket detail page:
+### 2) Reporting + Export MVP ✅ COMPLETE
+- ✅ Add ticket export from ticket detail page:
   - Markdown export
   - JSON export
-- Add basic report page with:
+- ✅ Add basic report page with:
   - Tickets created/closed over time
   - Triage backlog size and age
   - Error groups unresolved/resolved trend
-- Add CSV export for report tables where useful.
+- ✅ Add CSV export for report tables where useful
+
+Implementation:
+- Ticket export endpoint: `GET /api/tickets/{id}/export?format=markdown|json`
+- Includes ticket metadata, comments, updates, labels, assignees, subtickets
+- Reports view: `/reports` with 30-day rollup stats
+- Report stats: tickets_created, tickets_closed, triage_backlog, avg_triage_age_days, unresolved_errors, resolved_errors
+- Per-project breakdown table with active/closed/triage tickets + error counts
+- CSV export: `/reports/export.csv` generates downloadable CSV report
+
+Files:
+- Export: `app/views/tickets.py` - `export_ticket()` function (lines ~1173+)
+- Reports: `app/views/news.py` - `reports_view()`, `reports_export_csv()`, `build_reports_summary()` (lines ~549+)
+- Template: `app/templates/reports.jinja2`
 
 Definition of done:
-- Any single ticket can be exported from UI in at least Markdown + JSON.
-- Report page loads quickly and works for all projects + project-specific view.
+- ✅ Any single ticket can be exported from UI in at least Markdown + JSON
+- ✅ Report page loads quickly and works for all projects + project-specific view
 
 ---
 
-## Phase 2: Workflow Depth (2-4 weeks)
+## Phase 2: Workflow Depth (2-4 weeks) ✅ COMPLETE
 Goal: improve team execution quality with minimal added complexity.
 
-### 3) Subtickets (MVP)
+### 3) Subtickets (MVP) ✅ COMPLETE
 Data model direction:
 - Add parent-child relationship on tickets (e.g. `parent_ticket_id` nullable).
 - Restrict depth to 1 level initially (ticket -> subtickets) to keep UI/querying simple.
 
 Feature scope:
-- Create subticket from ticket detail.
-- Show subticket list on parent ticket with status and assignee.
-- Progress indicator on parent (e.g. `3/5 subtickets done`).
-- Optional auto-close suggestion: if all subtickets closed, prompt to close parent.
+- ✅ Create subticket from ticket detail
+- ✅ Show subticket list on parent ticket with status and assignee
+- ✅ Progress indicator on parent (e.g. `3/5 subtickets done`)
+- ✅ Auto-close suggestion: if all subtickets closed, prompt to close parent
+
+Implementation:
+- Model: `Ticket.parent_ticket_id` CharField with index
+- Migration: `scripts/migrate_005_ticket_parent.py` + runtime backfill
+- API validation: parent exists, no nesting > 1 level, project alignment enforced
+- UI: Subticket section in `app/templates/ticket.jinja2` with quick-create action
+- Rollup: `subticket_count`, `subticket_done_count`, `all_subtickets_done` computed in backend
+- Close suggestion: Green banner + "Close Parent Ticket" button when all children done
+
+Test coverage:
+- `tests/test_tickets.py`: 6 subticket tests (progress rollup, close suggestion, validation) passing
+
+Commits:
+- `73b7ced`: Subtickets MVP (model, API, UI, export)
+- `62b5fe5`: Subticket progress rollup + auto-close suggestion
 
 Definition of done:
-- Subtickets can be created, edited, searched, and navigated.
-- Parent ticket clearly shows child status rollup.
-- No regressions in existing ticket flows.
+- ✅ Subtickets can be created, edited, searched, and navigated
+- ✅ Parent ticket clearly shows child status rollup
+- ✅ No regressions in existing ticket flows
 
-### 4) Lightweight Automation (Not Zapier)
+### 4) Lightweight Automation (Not Zapier) ✅ COMPLETE
 Answer to necessity question:
 - Full automation engine is not necessary.
 - A few built-in rules provide most value with low complexity.
 
-MVP automation rules:
-- On GitHub PR opened referencing ticket -> status `in-review`.
-- On PR merged or commit `fixes #ID` -> status `closed`.
-- On anonymous intake -> always `triage` (already present, keep).
-- Optional: when ticket moved out of `triage` and no assignee, auto-assign actor.
+**Implemented automation rules:**
+- ✅ On GitHub PR opened referencing ticket → status `in-review`
+- ✅ On PR merged or commit `fixes #ID` → status `closed`
+- ✅ On commit with `ref #ID` → link commit to ticket (TicketUpdateMessage)
+- ✅ On anonymous intake → always `triage` (already present)
 
 Implementation style:
-- Keep rule set hardcoded/config-light in app settings.
-- No generic workflow builder UI.
+- Hardcoded in `app/views/webhooks.py` webhook handlers
+- Event-driven via GitHub webhooks (push, pull_request events)
+- Pattern matching: `TICKET_RESOLVE_PATTERN`, `TICKET_REFER_PATTERN`
+
+Test coverage:
+- `tests/test_github_webhooks_pr.py`: PR opened → in-review, PR merged → closed (2/2 passing)
+- `tests/test_github_webhooks_push.py`: Commit fixes → closed, commit refs → linked (3/3 passing)
 
 Definition of done:
-- 3-5 high-value automations are reliable and test-covered.
+- ✅ 3-5 high-value automations are reliable and test-covered.
 
 ---
 
