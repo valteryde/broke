@@ -26,6 +26,47 @@ const ErrorListConfig = {
                 { value: 'resolved', label: 'Resolved', icon: 'ph-check-circle' },
                 { value: 'ignored', label: 'Ignored', icon: 'ph-eye-slash' }
             ]
+        },
+        environment: {
+            label: 'Environment',
+            icon: 'ph-cloud',
+            filter: (element, values) => {
+                if (!values || values.length === 0) return true;
+                if (!element.environment) return values.includes('none');
+                return values.includes(element.environment);
+            },
+            getOptions: () => [
+                { value: 'production', label: 'Production', icon: 'ph-lightning' },
+                { value: 'staging', label: 'Staging', icon: 'ph-wrench' },
+                { value: 'development', label: 'Development', icon: 'ph-code' },
+                { value: 'none', label: 'None', icon: 'ph-question' }
+            ]
+        },
+        release: {
+            label: 'Release',
+            icon: 'ph-tag',
+            filter: (element, values) => {
+                if (!values || values.length === 0) return true;
+                if (!element.release) return values.includes('none');
+                return values.includes(element.release);
+            },
+            getOptions: (listInstance) => {
+                // Dynamically generate release options from list data.
+                const items = Array.isArray(listInstance?.elements) ? listInstance.elements : [];
+                const releases = new Set();
+                items.forEach(item => {
+                    if (item.release) {
+                        releases.add(item.release);
+                    }
+                });
+                const options = Array.from(releases).sort().map(release => ({
+                    value: release,
+                    label: release,
+                    icon: 'ph-tag'
+                }));
+                options.push({ value: 'none', label: 'None', icon: 'ph-question' });
+                return options;
+            }
         }
     },
 

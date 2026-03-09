@@ -384,3 +384,53 @@ def _(c=client, error_group=error_group_fixture):
         follow_redirects=False,
     )
     assert response.status_code in [302, 401]
+
+
+@test("/errors/<project_id>/<part_id> renders environment and release fields for filtering")
+def _(c=auth_client, project=error_project, part=error_project_part):
+    error = ErrorGroup.create(
+        part=part,
+        fingerprint=f"fp-filter-{int(time.time() * 1000000)}",
+        exception_type="RuntimeError",
+        exception_value="Filtering payload test",
+        platform="python",
+        environment="production",
+        release="v1.2.3",
+        event_count=1,
+        status="unresolved",
+    )
+
+    try:
+        response = c.get(f"/errors/{project.id}/{part.id}")
+        assert response.status_code == 200
+        body = response.data.decode("utf-8")
+        assert 'environment: "production"' in body
+        assert 'release: "v1.2.3"' in body
+    finally:
+        ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
+        error.delete_instance()
+
+
+@test("/errors/<project_id>/<part_id> renders null environment and release when missing")
+def _(c=auth_client, project=error_project, part=error_project_part):
+    error = ErrorGroup.create(
+        part=part,
+        fingerprint=f"fp-filter-none-{int(time.time() * 1000000)}",
+        exception_type="TypeError",
+        exception_value="Missing metadata test",
+        platform="python",
+        environment=None,
+        release=None,
+        event_count=1,
+        status="unresolved",
+    )
+
+    try:
+        response = c.get(f"/errors/{project.id}/{part.id}")
+        assert response.status_code == 200
+        body = response.data.decode("utf-8")
+        assert "environment: null" in body
+        assert "release: null" in body
+    finally:
+        ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
+        error.delete_instance()
