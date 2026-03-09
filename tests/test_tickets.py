@@ -874,3 +874,87 @@ def _(c=auth_client):
     assert response.status_code in [200, 302]
     if response.status_code == 200:
         assert b"ticket_view_preference" in response.data
+
+
+@test("/api/tickets/<id>/export requires authentication")
+def _(c=client, ticket=test_ticket):
+    response = c.get(f"/api/tickets/{ticket.id}/export", follow_redirects=False)
+    assert response.status_code in [302, 401]
+
+
+@test("/api/tickets/<id>/export returns JSON payload")
+def _(c=auth_client, ticket=test_ticket):
+    response = c.get(f"/api/tickets/{ticket.id}/export?format=json")
+    assert response.status_code == 200
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+
+    payload = json.loads(response.data)
+    assert payload.get("id") == ticket.id
+    assert payload.get("title") == ticket.title
+    assert isinstance(payload.get("comments"), list)
+    assert isinstance(payload.get("updates"), list)
+
+
+@test("/api/tickets/<id>/export returns Markdown payload")
+def _(c=auth_client, ticket=test_ticket):
+    response = c.get(f"/api/tickets/{ticket.id}/export?format=markdown")
+    assert response.status_code == 200
+    assert response.headers.get("Content-Type", "").startswith("text/markdown")
+
+    body = response.data.decode("utf-8")
+    assert f"# Ticket {ticket.id}" in body
+    assert ticket.title in body
+
+
+@test("CSRF enabled rejects protected mutation without token and origin")
+def _(c=auth_client, f=fake, project=test_project):
+    previous = c.application.config.get("WTF_CSRF_ENABLED", False)
+    c.application.config["WTF_CSRF_ENABLED"] = True
+
+    try:
+        response = c.post(
+            "/api/tickets",
+            data=json.dumps(
+                {
+                    "title": f.sentence(),
+                    "description": f.text(),
+                    "project": project.id,
+                    "status": "todo",
+                    "priority": "medium",
+                }
+            ),
+            content_type="application/json",
+            follow_redirects=False,
+        )
+        assert response.status_code == 403
+    finally:
+        c.application.config["WTF_CSRF_ENABLED"] = previous
+
+
+@test("CSRF enabled allows protected mutation with matching token")
+def _(c=auth_client, f=fake, project=test_project):
+    previous = c.application.config.get("WTF_CSRF_ENABLED", False)
+    c.application.config["WTF_CSRF_ENABLED"] = True
+
+    try:
+        with c.session_transaction() as sess:
+            sess["_csrf_token"] = "test-csrf-token-123"
+
+        response = c.post(
+            "/api/tickets",
+            data=json.dumps(
+                {
+                    "title": f.sentence(),
+                    "description": f.text(),
+                    "project": project.id,
+                    "status": "todo",
+                    "priority": "medium",
+                }
+            ),
+            headers={"X-CSRF-Token": "test-csrf-token-123"},
+            content_type="application/json",
+            follow_redirects=False,
+        )
+        assert response.status_code in [200, 201]
+    finally:
+        c.application.config["WTF_CSRF_ENABLED"] = previous

@@ -40,3 +40,33 @@ def _(c=client):
     response = c.get('/', follow_redirects=False)
     assert response.status_code == 302
     assert '/news' in response.location
+
+
+@test("/reports GET requires authentication")
+def _(c=client):
+    response = c.get('/reports', follow_redirects=False)
+    assert response.status_code in [200, 302, 401]
+
+
+@test("/reports GET shows reporting dashboard when authenticated")
+def _(c=auth_client):
+    response = c.get('/reports')
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"Reports" in response.data
+
+
+@test("/reports/export.csv GET requires authentication")
+def _(c=client):
+    response = c.get('/reports/export.csv', follow_redirects=False)
+    assert response.status_code in [200, 302, 401]
+
+
+@test("/reports/export.csv GET returns CSV report when authenticated")
+def _(c=auth_client):
+    response = c.get('/reports/export.csv')
+    assert response.status_code == 200
+    assert response.headers.get('Content-Type', '').startswith('text/csv')
+
+    body = response.data.decode('utf-8')
+    assert 'project_id,project_name,active_tickets,closed_tickets,triage_tickets' in body

@@ -8,11 +8,13 @@ Flow is simple
 
 """
 
-from flask import request, session, url_for, redirect
+from flask import request, session, url_for, redirect, jsonify, current_app
 from functools import wraps
 from .models import User
 import pyargon2
 from peewee import DoesNotExist
+import secrets
+import hmac
 
 # Usage for the decorator could be like this:
 # @secureroute('/protected')
@@ -81,9 +83,80 @@ def protected(func):
         if not user:
             login_url = url_for("auth.login", next=request.path)
             return redirect(login_url)
+
+        if not _csrf_valid_for_request():
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "CSRF validation failed"}), 403
+            return "CSRF validation failed", 403
+
         return func(user, *args, **kwargs)
 
     return wrapper
+
+
+def get_csrf_token() -> str:
+    """Get or create CSRF token for current session."""
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def _request_method_needs_csrf() -> bool:
+    return request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _csrf_enabled() -> bool:
+    # Keep compatibility with existing test configuration toggle.
+    return bool(current_app.config.get("WTF_CSRF_ENABLED", True))
+
+
+def _get_request_csrf_token() -> str:
+    header_token = (request.headers.get("X-CSRF-Token") or "").strip()
+    if header_token:
+        return header_token
+
+    form_token = (request.form.get("csrf_token") or "").strip()
+    if form_token:
+        return form_token
+
+    data = request.get_json(silent=True)
+    if isinstance(data, dict):
+        json_token = str(data.get("csrf_token") or "").strip()
+        if json_token:
+            return json_token
+
+    return ""
+
+
+def _same_origin_request() -> bool:
+    origin = (request.headers.get("Origin") or "").strip()
+    referer = (request.headers.get("Referer") or "").strip()
+    host_url = request.host_url.rstrip("/")
+
+    if origin and origin.rstrip("/") == host_url:
+        return True
+    if referer and referer.startswith(host_url):
+        return True
+    return False
+
+
+def _csrf_valid_for_request() -> bool:
+    if not _request_method_needs_csrf():
+        return True
+
+    if not _csrf_enabled():
+        return True
+
+    session_token = str(session.get("_csrf_token") or "")
+    request_token = _get_request_csrf_token()
+
+    if session_token and request_token and hmac.compare_digest(session_token, request_token):
+        return True
+
+    # Compatibility fallback for existing browser forms/fetch calls.
+    return _same_origin_request()
 
 
 def init_auth_routes(app):

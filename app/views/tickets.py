@@ -1128,6 +1128,109 @@ def api_search(user: User):
     return jsonify({"results": results}), 200
 
 
+@tickets_bp.route("/api/tickets/<ticket_id>/export", methods=["GET"])
+@protected
+def export_ticket(user: User, ticket_id: str):
+    """Export a ticket as JSON or Markdown."""
+    ticket = Ticket.get_or_none(Ticket.id == ticket_id)
+    if not ticket or ticket.active == 0:
+        return jsonify({"error": "Ticket not found"}), 404
+
+    comments = list(Comment.select().where(Comment.ticket == ticket_id).order_by(Comment.created_at.asc()))
+    updates = list(
+        TicketUpdateMessage.select()
+        .where(TicketUpdateMessage.ticket == ticket_id)
+        .order_by(TicketUpdateMessage.created_at.asc())
+    )
+    labels = [row.label for row in TicketLabelJoin.select().where(TicketLabelJoin.ticket == ticket_id)]
+    assignees = [row.user for row in UserTicketJoin.select().where(UserTicketJoin.ticket == ticket_id)]
+
+    payload = {
+        "id": ticket.id,
+        "title": ticket.title,
+        "description": ticket.description,
+        "project": ticket.project,
+        "status": ticket.status,
+        "priority": ticket.priority,
+        "created_at": ticket.created_at,
+        "labels": labels,
+        "assignees": assignees,
+        "comments": [
+            {
+                "id": comment.id,
+                "user": comment.user.username,
+                "body": comment.body,
+                "created_at": comment.created_at,
+            }
+            for comment in comments
+        ],
+        "updates": [
+            {
+                "title": update.title,
+                "icon": update.icon,
+                "message": update.message,
+                "created_at": update.created_at,
+            }
+            for update in updates
+        ],
+    }
+
+    export_format = str(request.args.get("format", "markdown")).strip().lower()
+    if export_format in {"json", "application/json"}:
+        return jsonify(payload), 200
+
+    if export_format not in {"md", "markdown", "text/markdown"}:
+        return jsonify({"error": "Unsupported export format"}), 400
+
+    markdown_lines = [
+        f"# Ticket {ticket.id}",
+        "",
+        f"- Title: {ticket.title}",
+        f"- Project: {ticket.project}",
+        f"- Status: {ticket.status}",
+        f"- Priority: {ticket.priority}",
+        f"- Created At (epoch): {ticket.created_at}",
+        f"- Labels: {', '.join(labels) if labels else 'None'}",
+        f"- Assignees: {', '.join(assignees) if assignees else 'None'}",
+        "",
+        "## Description",
+        "",
+        ticket.description or "",
+        "",
+        "## Comments",
+        "",
+    ]
+
+    if comments:
+        for comment in comments:
+            markdown_lines.extend(
+                [
+                    f"### {comment.user.username} ({comment.created_at})",
+                    "",
+                    comment.body or "",
+                    "",
+                ]
+            )
+    else:
+        markdown_lines.append("No comments.")
+        markdown_lines.append("")
+
+    markdown_lines.append("## Updates")
+    markdown_lines.append("")
+    if updates:
+        for update in updates:
+            markdown_lines.extend(
+                [
+                    f"- **{update.title}** ({update.created_at}): {update.message}",
+                ]
+            )
+    else:
+        markdown_lines.append("No updates.")
+
+    content = "\n".join(markdown_lines)
+    return content, 200, {"Content-Type": "text/markdown; charset=utf-8"}
+
+
 @tickets_bp.route("/uploads/<path:filename>", methods=["GET"])
 @protected
 def get_uploads(user: User, filename: str):

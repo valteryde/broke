@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Broke{% endblock %}</title>
     
     <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js" async
@@ -71,6 +72,11 @@
             <div class="sb-element {% if page == 'timeline' %}active{% endif %}" onclick="window.location.href = '/timeline'">
                 <i class="ph ph-git-commit"></i>
                 <span>Timeline</span>
+            </div>
+
+            <div class="sb-element {% if page == 'reports' %}active{% endif %}" onclick="window.location.href = '/reports'">
+                <i class="ph ph-chart-bar"></i>
+                <span>Reports</span>
             </div>
 
             <div class="sb-element {% if page == 'changelog' %}active{% endif %}" onclick="window.location.href = '/changelog/manage'">
@@ -158,6 +164,30 @@
 
     <script src="{{ url_for('static', filename='js/shortcuts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/master.js') }}"></script>
+
+    <script>
+        window.BROKE_CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+        (function () {
+            if (!window.fetch) return;
+
+            const originalFetch = window.fetch.bind(window);
+            window.fetch = function (input, init) {
+                const opts = init ? { ...init } : {};
+                const method = (opts.method || 'GET').toUpperCase();
+
+                if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+                    const headers = new Headers(opts.headers || {});
+                    if (!headers.has('X-CSRF-Token') && window.BROKE_CSRF_TOKEN) {
+                        headers.set('X-CSRF-Token', window.BROKE_CSRF_TOKEN);
+                    }
+                    opts.headers = headers;
+                }
+
+                return originalFetch(input, opts);
+            };
+        })();
+    </script>
     
     {% block scripts %}
 

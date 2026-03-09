@@ -1,0 +1,72 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}Reports | Broke{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-chart-bar"></i> Reports</span>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+    <div>
+        <h1 style="margin:0;">Reports</h1>
+        <p style="margin:0.3rem 0 0 0;opacity:0.75;">Operational snapshot for the last {{ summary.window_days }} days.</p>
+    </div>
+    <a class="btn btn-secondary" href="/reports/export.csv"><i class="ph ph-download-simple"></i> Export CSV</a>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem;margin-bottom:1rem;">
+    <article class="card" style="padding:0.9rem;">
+        <h3 style="margin:0;font-size:0.95rem;opacity:0.75;">Tickets Created</h3>
+        <p style="font-size:1.4rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.tickets_created }}</p>
+    </article>
+    <article class="card" style="padding:0.9rem;">
+        <h3 style="margin:0;font-size:0.95rem;opacity:0.75;">Tickets Closed</h3>
+        <p style="font-size:1.4rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.tickets_closed }}</p>
+    </article>
+    <article class="card" style="padding:0.9rem;">
+        <h3 style="margin:0;font-size:0.95rem;opacity:0.75;">Triage Backlog</h3>
+        <p style="font-size:1.4rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.triage_backlog }}</p>
+    </article>
+    <article class="card" style="padding:0.9rem;">
+        <h3 style="margin:0;font-size:0.95rem;opacity:0.75;">Avg Triage Age (days)</h3>
+        <p style="font-size:1.4rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.avg_triage_age_days }}</p>
+    </article>
+    <article class="card" style="padding:0.9rem;">
+        <h3 style="margin:0;font-size:0.95rem;opacity:0.75;">Unresolved Errors</h3>
+        <p style="font-size:1.4rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.unresolved_errors }}</p>
+    </article>
+    <article class="card" style="padding:0.9rem;">
+        <h3 style="margin:0;font-size:0.95rem;opacity:0.75;">Resolved Errors</h3>
+        <p style="font-size:1.4rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.resolved_errors }}</p>
+    </article>
+</div>
+
+<div class="card" style="padding:0.9rem;overflow:auto;">
+    <h2 style="margin-top:0;">Project Breakdown</h2>
+    <table style="width:100%;border-collapse:collapse;min-width:720px;">
+        <thead>
+            <tr style="text-align:left;border-bottom:1px solid rgba(255,255,255,0.1);">
+                <th style="padding:0.5rem 0.4rem;">Project</th>
+                <th style="padding:0.5rem 0.4rem;">Active Tickets</th>
+                <th style="padding:0.5rem 0.4rem;">Closed Tickets</th>
+                <th style="padding:0.5rem 0.4rem;">Triage Tickets</th>
+                <th style="padding:0.5rem 0.4rem;">Unresolved Errors</th>
+                <th style="padding:0.5rem 0.4rem;">Resolved Errors</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in summary.project_rows %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+                <td style="padding:0.55rem 0.4rem;"><strong>{{ row.project_name }}</strong> <span style="opacity:0.6;">({{ row.project_id }})</span></td>
+                <td style="padding:0.55rem 0.4rem;">{{ row.active_tickets }}</td>
+                <td style="padding:0.55rem 0.4rem;">{{ row.closed_tickets }}</td>
+                <td style="padding:0.55rem 0.4rem;">{{ row.triage_tickets }}</td>
+                <td style="padding:0.55rem 0.4rem;">{{ row.unresolved_errors }}</td>
+                <td style="padding:0.55rem 0.4rem;">{{ row.resolved_errors }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

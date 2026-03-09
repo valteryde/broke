@@ -511,7 +511,8 @@ def error_detail_view(user: User, project_id: str, part_id: int, error_id: int):
 
 
 @bug_bp.route("/api/errors/<int:error_id>/status", methods=["POST"])  # type: ignore
-def update_error_status(error_id: int):
+@protected
+def update_error_status(user: User, error_id: int):
     """API endpoint to update error status."""
     try:
         error = ErrorGroup.get(ErrorGroup.id == error_id)
@@ -742,7 +743,8 @@ def ingest_envelope_view(part: int):  # noqa: C901
 
 
 @bug_bp.route("/api/errors/<int:error_id>/create_ticket", methods=["GET"])  # type: ignore
-def create_ticket_from_error(error_id: int):
+@protected
+def create_ticket_from_error(user: User, error_id: int):
     """Create a ticket in an external system from the error."""
     try:
         error = ErrorGroup.get(ErrorGroup.id == error_id)

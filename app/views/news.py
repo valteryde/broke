@@ -5,14 +5,17 @@ from ..utils.models import (
     UserTicketJoin,
     ErrorGroup,
     Project,
+    ProjectPart,
     Comment,
     TicketUpdateMessage,
     TicketLabelJoin,
 )
-from flask import render_template, redirect, Blueprint, request
+from flask import render_template, redirect, Blueprint, request, Response
 from urllib.parse import urlencode
 import json
 import time
+import csv
+import io
 from ..utils.path import data_path, path
 
 # Create blueprint
@@ -543,6 +546,108 @@ def _timeline_mode_url(base_path: str, days: int, detailed: bool) -> str:
     return f"{base_path}{_timeline_query_suffix(days, detailed)}"
 
 
+def build_reports_summary(days: int = 30) -> dict:
+    """Build rollup stats and per-project rows for the reports dashboard."""
+    now = int(time.time())
+    cutoff = now - (days * 86400)
+
+    closed_statuses = {"closed", "done"}
+
+    tickets_created = (
+        Ticket.select()
+        .where((Ticket.active == 1) & (Ticket.created_at >= cutoff))
+        .count()
+    )
+    tickets_closed = (
+        Ticket.select()
+        .where((Ticket.active == 1) & (Ticket.status.in_(closed_statuses)) & (Ticket.created_at >= cutoff))
+        .count()
+    )
+
+    triage_tickets = list(
+        Ticket.select()
+        .where((Ticket.active == 1) & (Ticket.status == "triage"))
+        .order_by(Ticket.created_at.asc())
+    )
+    triage_backlog = len(triage_tickets)
+    avg_triage_age_days = 0.0
+    if triage_tickets:
+        total_age_seconds = sum(max(0, now - ticket.created_at) for ticket in triage_tickets)
+        avg_triage_age_days = round(total_age_seconds / triage_backlog / 86400, 1)
+
+    unresolved_errors = ErrorGroup.select().where(ErrorGroup.status == "unresolved").count()
+    resolved_errors = ErrorGroup.select().where(ErrorGroup.status == "resolved").count()
+
+    project_rows = []
+    for project in Project.select().order_by(Project.name):
+        active_tickets = (
+            Ticket.select()
+            .where(
+                (Ticket.project == project.id)
+                & (Ticket.active == 1)
+                & (~(Ticket.status.in_(closed_statuses)))
+                & (Ticket.status != "triage")
+            )
+            .count()
+        )
+        closed_tickets = (
+            Ticket.select()
+            .where(
+                (Ticket.project == project.id)
+                & (Ticket.active == 1)
+                & (Ticket.status.in_(closed_statuses))
+            )
+            .count()
+        )
+        triage_count = (
+            Ticket.select()
+            .where(
+                (Ticket.project == project.id)
+                & (Ticket.active == 1)
+                & (Ticket.status == "triage")
+            )
+            .count()
+        )
+
+        part_ids = [part.id for part in ProjectPart.select(ProjectPart.id).where(ProjectPart.project == project.id)]
+        unresolved_project_errors = 0
+        resolved_project_errors = 0
+        if part_ids:
+            unresolved_project_errors = (
+                ErrorGroup.select()
+                .where((ErrorGroup.part.in_(part_ids)) & (ErrorGroup.status == "unresolved"))
+                .count()
+            )
+            resolved_project_errors = (
+                ErrorGroup.select()
+                .where((ErrorGroup.part.in_(part_ids)) & (ErrorGroup.status == "resolved"))
+                .count()
+            )
+
+        project_rows.append(
+            {
+                "project_id": project.id,
+                "project_name": project.name,
+                "active_tickets": active_tickets,
+                "closed_tickets": closed_tickets,
+                "triage_tickets": triage_count,
+                "unresolved_errors": unresolved_project_errors,
+                "resolved_errors": resolved_project_errors,
+            }
+        )
+
+    return {
+        "window_days": days,
+        "tickets_created": tickets_created,
+        "tickets_closed": tickets_closed,
+        "triage_backlog": triage_backlog,
+        "avg_triage_age_days": avg_triage_age_days,
+        "unresolved_errors": unresolved_errors,
+        "resolved_errors": resolved_errors,
+        "project_rows": project_rows,
+    }
+
+
 @news_bp.route("/timeline")
 @protected
 def timeline_view(user: User):
@@ -620,4 +725,58 @@ def timeline_project_view(user: User, project_id: str):
         effort_bugs=data["effort_bugs"],
         effort_features=data["effort_features"],
         top_contributors=data["top_contributors"],
+    )
+
+
+@news_bp.route("/reports")
+@protected
+def reports_view(user: User):
+    summary = build_reports_summary(days=30)
+    return render_template(
+        "reports.jinja2",
+        user=user,
+        page="reports",
+        summary=summary,
+    )
+
+
+@news_bp.route("/reports/export.csv")
+@protected
+def reports_export_csv(user: User):
+    summary = build_reports_summary(days=30)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "project_id",
+            "project_name",
+            "active_tickets",
+            "closed_tickets",
+            "triage_tickets",
+            "unresolved_errors",
+            "resolved_errors",
+        ]
+    )
+
+    for row in summary["project_rows"]:
+        writer.writerow(
+            [
+                row["project_id"],
+                row["project_name"],
+                row["active_tickets"],
+                row["closed_tickets"],
+                row["triage_tickets"],
+                row["unresolved_errors"],
+                row["resolved_errors"],
+            ]
+        )
+
+    csv_content = output.getvalue()
+    output.close()
+
+    return Response(
+        csv_content,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=reports.csv"},
     )

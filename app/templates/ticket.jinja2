@@ -16,6 +16,15 @@
 
 {% block content %}
 
+<div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.75rem;">
+    <a class="btn btn-secondary" href="/api/tickets/{{ ticket.id }}/export?format=markdown">
+        <i class="ph ph-file-text"></i> Export Markdown
+    </a>
+    <a class="btn btn-secondary" href="/api/tickets/{{ ticket.id }}/export?format=json">
+        <i class="ph ph-brackets-curly"></i> Export JSON
+    </a>
+</div>
+
 <div id="ticket-editor"></div>
 
 {% endblock %}

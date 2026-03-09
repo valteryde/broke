@@ -1,6 +1,7 @@
 """Tests for security utilities"""
 from ward import test
 from tests.fixtures import fake
+import os
 
 
 @test("create_user creates user with hashed password")
@@ -66,6 +67,99 @@ def _(f=fake):
         assert False, "Should have raised IntegrityError"
     except IntegrityError:
         pass  # Expected
+
+
+@test("create_app uses BROKE_SECRET_KEY when configured")
+def _():
+    """App should honor explicit secret key configuration from environment."""
+    from app.utils.app import create_app
+
+    key = "test-secret-key-from-env"
+    previous = os.environ.get("BROKE_SECRET_KEY")
+    previous_env = os.environ.get("FLASK_ENV")
+    os.environ["BROKE_SECRET_KEY"] = key
+    os.environ["FLASK_ENV"] = "testing"
+
+    try:
+        app = create_app()
+        assert app.secret_key == key
+    finally:
+        if previous is None:
+            os.environ.pop("BROKE_SECRET_KEY", None)
+        else:
+            os.environ["BROKE_SECRET_KEY"] = previous
+        if previous_env is None:
+            os.environ.pop("FLASK_ENV", None)
+        else:
+            os.environ["FLASK_ENV"] = previous_env
+
+
+@test("create_app hardens session cookie defaults")
+def _():
+    """Session cookie defaults should follow secure baseline settings."""
+    from app.utils.app import create_app
+
+    previous_env = os.environ.get("FLASK_ENV")
+    os.environ["FLASK_ENV"] = "testing"
+
+    try:
+        app = create_app()
+        assert app.config["SESSION_COOKIE_HTTPONLY"] is True
+        assert app.config["SESSION_COOKIE_SAMESITE"] == "Lax"
+        assert app.config["SESSION_COOKIE_SECURE"] is False
+    finally:
+        if previous_env is None:
+            os.environ.pop("FLASK_ENV", None)
+        else:
+            os.environ["FLASK_ENV"] = previous_env
+
+
+@test("create_app enables secure session cookie when configured")
+def _():
+    """Session cookie secure flag should be configurable by environment."""
+    from app.utils.app import create_app
+
+    previous = os.environ.get("BROKE_SESSION_COOKIE_SECURE")
+    previous_env = os.environ.get("FLASK_ENV")
+    os.environ["BROKE_SESSION_COOKIE_SECURE"] = "true"
+    os.environ["FLASK_ENV"] = "testing"
+
+    try:
+        app = create_app()
+        assert app.config["SESSION_COOKIE_SECURE"] is True
+    finally:
+        if previous is None:
+            os.environ.pop("BROKE_SESSION_COOKIE_SECURE", None)
+        else:
+            os.environ["BROKE_SESSION_COOKIE_SECURE"] = previous
+        if previous_env is None:
+            os.environ.pop("FLASK_ENV", None)
+        else:
+            os.environ["FLASK_ENV"] = previous_env
+
+
+@test("create_app adds baseline security headers")
+def _():
+    """Security headers should be present on app responses by default."""
+    from app.utils.app import create_app
+
+    previous_env = os.environ.get("FLASK_ENV")
+    os.environ["FLASK_ENV"] = "testing"
+
+    try:
+        app = create_app()
+        with app.test_client() as client:
+            response = client.get("/login")
+
+        assert response.headers.get("X-Frame-Options") == "DENY"
+        assert response.headers.get("X-Content-Type-Options") == "nosniff"
+        assert response.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+        assert response.headers.get("Content-Security-Policy") is not None
+    finally:
+        if previous_env is None:
+            os.environ.pop("FLASK_ENV", None)
+        else:
+            os.environ["FLASK_ENV"] = previous_env
 
 
 @test("Users have unique emails")

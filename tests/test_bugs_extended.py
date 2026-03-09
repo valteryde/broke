@@ -46,6 +46,23 @@ def dsn_token_fixture(app=app, project=error_project):
     token.delete_instance()
 
 
+@fixture(scope=Scope.Test)
+def error_group_fixture(app=app, part=error_project_part):
+    error_group = ErrorGroup.create(
+        part=part,
+        fingerprint=f"fp-{int(time.time() * 1000000)}",
+        exception_type="ValueError",
+        exception_value="Fixture error",
+        platform="python",
+        environment="test",
+        event_count=1,
+        status="unresolved",
+    )
+    yield error_group
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error_group).execute()
+    error_group.delete_instance()
+
+
 @test("normalize_message removes UUIDs")
 def _():
     """Test that normalize_message removes UUID patterns"""
@@ -337,3 +354,33 @@ def _(part=error_project_part):
     # Cleanup
     ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error_group1).execute()
     error_group1.delete_instance()
+
+
+@test("/api/errors/<id>/status requires authentication")
+def _(c=client, error_group=error_group_fixture):
+    response = c.post(
+        f"/api/errors/{error_group.id}/status",
+        data=json.dumps({"status": "resolved"}),
+        content_type="application/json",
+        follow_redirects=False,
+    )
+    assert response.status_code in [302, 401]
+
+
+@test("/api/errors/<id>/status works when authenticated")
+def _(c=auth_client, error_group=error_group_fixture):
+    response = c.post(
+        f"/api/errors/{error_group.id}/status",
+        data=json.dumps({"status": "resolved"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+
+
+@test("/api/errors/<id>/create_ticket requires authentication")
+def _(c=client, error_group=error_group_fixture):
+    response = c.get(
+        f"/api/errors/{error_group.id}/create_ticket",
+        follow_redirects=False,
+    )
+    assert response.status_code in [302, 401]

@@ -5,6 +5,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_caching import Cache
 import tomllib
+import os
+import secrets
 
 # Global app instance (for backwards compatibility during migration)
 _app = None
@@ -70,15 +72,34 @@ def create_app():  # noqa: C901
         Configured Flask application instance
     """
     global _app
-    import os
-
     # Initialize database tables on app creation (but not during tests)
     if os.environ.get("FLASK_ENV") != "testing":
         from .models import initialize_db
         initialize_db()
 
     app = flask.Flask("Broke")
-    app.secret_key = "supersecretkey-i-swear-it-not-hardcoded-at-all-pls-dont-hack-me"
+
+    # Secret key precedence: BROKE_SECRET_KEY -> FLASK_SECRET_KEY -> random process key.
+    secret_key = (
+        os.environ.get("BROKE_SECRET_KEY")
+        or os.environ.get("FLASK_SECRET_KEY")
+        or secrets.token_urlsafe(64)
+    )
+    app.secret_key = secret_key
+
+    # Harden session cookie defaults while allowing secure cookies behind TLS deployments.
+    session_cookie_secure = str(os.environ.get("BROKE_SESSION_COOKIE_SECURE", "false")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=session_cookie_secure,
+    )
+
     app.template_folder = path("templates")
     app.static_folder = path("static")
 
@@ -169,9 +190,20 @@ def create_app():  # noqa: C901
             429,
         )
 
+    @app.after_request
+    def add_security_headers(response):
+        # Keep CSP intentionally permissive for now because templates rely on inline assets.
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+        )
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
     # Initialize Flask-Caching with Redis backend
     global cache, limiter
-    import os
 
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
@@ -234,6 +266,12 @@ def create_app():  # noqa: C901
             return cached_sidebar_data(user.username)
 
         return dict(sidebar_news=get_news)
+
+    @app.context_processor
+    def inject_csrf_token():
+        from .security import get_csrf_token
+
+        return {"csrf_token": get_csrf_token()}
 
     # Register blueprints
     from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp, anon_bp, changelog_bp
