@@ -122,6 +122,14 @@ const ErrorListConfig = {
             </span>
         `;
 
+        const rowActions = `
+            <span class="list-inline-actions" style="display:inline-flex;gap:0.35rem;align-items:center;">
+                <button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="resolved" title="Resolve" style="padding:0.15rem 0.4rem;font-size:0.75rem;">Resolve</button>
+                <button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="ignored" title="Ignore" style="padding:0.15rem 0.4rem;font-size:0.75rem;">Ignore</button>
+                <button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="unresolved" title="Reopen" style="padding:0.15rem 0.4rem;font-size:0.75rem;">Reopen</button>
+            </span>
+        `;
+
         // Render logic similar to tickets but tailored for errors
         inner.innerHTML = `
             <i class="ph ${element.icon || 'ph-bug'} list-element-icon"></i>
@@ -142,7 +150,15 @@ const ErrorListConfig = {
             <span class="list-assignees">
                 <span class="list-assignee"> <i class="ph ph-clock"></i>  ${dateString}</span>
             </span>
+            ${rowActions}
         `;
+
+        inner.querySelectorAll('.error-inline-action').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+            });
+        });
         return inner;
     },
 

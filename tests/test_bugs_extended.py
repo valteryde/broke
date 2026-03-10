@@ -465,3 +465,28 @@ def _(c=auth_client, project=error_project, part=error_project_part):
     finally:
         ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
         error.delete_instance()
+
+
+@test("/errors/<project_id>/<part_id> renders inline row status actions")
+def _(c=auth_client, project=error_project, part=error_project_part):
+    error = ErrorGroup.create(
+        part=part,
+        fingerprint=f"fp-inline-actions-{int(time.time() * 1000000)}",
+        exception_type="ValueError",
+        exception_value="Inline action rendering",
+        platform="python",
+        environment="staging",
+        release="v2.0.0",
+        event_count=1,
+        status="unresolved",
+    )
+
+    try:
+        response = c.get(f"/errors/{project.id}/{part.id}")
+        assert response.status_code == 200
+        body = response.data.decode("utf-8")
+        assert "error-inline-action" in body
+        assert "errorList.handleUpdate(item, 'status', newStatus)" in body
+    finally:
+        ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
+        error.delete_instance()

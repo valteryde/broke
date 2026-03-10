@@ -84,7 +84,7 @@ def _fallback_suggestion(
     if project_id:
         confidence = 0.7
 
-    route = "direct" if project_id and confidence >= 0.8 else "triage"
+    route = "direct" if project_id and confidence >= 0.8 else "intake"
 
     return {
         "title": title or "New intake ticket",
@@ -200,7 +200,7 @@ User message:
         confidence = _clamp_confidence(parsed.get("confidence", 0.5))
         reason = _normalize_text(str(parsed.get("reason", "") or "")) or "AI suggestion generated."
 
-        route = "direct" if normalized_project and confidence >= 0.8 else "triage"
+        route = "direct" if normalized_project and confidence >= 0.8 else "intake"
 
         return {
             "title": title,

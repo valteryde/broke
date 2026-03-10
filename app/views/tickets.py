@@ -25,6 +25,12 @@ from ..utils.ai_changelog import get_ai_config
 # Create blueprint
 tickets_bp = Blueprint("tickets", __name__)
 
+INTAKE_STATUSES = {"intake", "triage"}
+
+
+def _is_intake_status(value: str | None) -> bool:
+    return str(value or "").strip().lower() in INTAKE_STATUSES
+
 
 def populateTickets(tickets: list[Ticket]) -> None:
     """
@@ -65,7 +71,7 @@ def resolve_ticket_view(user: User) -> str:
 @tickets_bp.route("/tickets")
 @protected
 def tickets_view(user: User):
-    tickets = list(Ticket.select().where((Ticket.active == 1) & (Ticket.status != "triage")))
+    tickets = list(Ticket.select().where((Ticket.active == 1) & (~(Ticket.status.in_(INTAKE_STATUSES)))))
     populateTickets(tickets)
     ticket_view = resolve_ticket_view(user)
 
@@ -96,7 +102,9 @@ def project_tickets_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
     tickets = list(
         Ticket.select().where(
-            (Ticket.project == project_id) & (Ticket.active == 1) & (Ticket.status != "triage")
+            (Ticket.project == project_id)
+            & (Ticket.active == 1)
+            & (~(Ticket.status.in_(INTAKE_STATUSES)))
         )
     )
     populateTickets(tickets)
@@ -124,11 +132,12 @@ def project_tickets_view(user: User, project_id: str):
 
 
 @tickets_bp.route("/triage")
+@tickets_bp.route("/intake")
 @protected
 def triage_view(user: User):
     tickets = list(
         Ticket.select()
-        .where((Ticket.active == 1) & (Ticket.status == "triage"))
+        .where((Ticket.active == 1) & (Ticket.status.in_(INTAKE_STATUSES)))
         .order_by(Ticket.created_at.asc())
     )
     populateTickets(tickets)
@@ -146,22 +155,25 @@ def triage_view(user: User):
         available_users=available_users,
         available_labels=available_labels,
         ticket_view="list",
-        ticket_view_path="/triage",
-        ticket_page_title="Triage Inbox",
+        ticket_view_path="/intake",
+        ticket_page_title="Intake Inbox",
         ticket_create_endpoint="/api/tickets/intake",
-        ticket_create_status="triage",
-        ticket_base_path="/triage",
+        ticket_create_status="intake",
+        ticket_base_path="/intake",
         ai_intake_enabled=get_ai_config() is not None,
     )
 
 
 @tickets_bp.route("/triage/<project_id>")
+@tickets_bp.route("/intake/<project_id>")
 @protected
 def triage_project_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
     tickets = list(
         Ticket.select().where(
-            (Ticket.project == project_id) & (Ticket.active == 1) & (Ticket.status == "triage")
+            (Ticket.project == project_id)
+            & (Ticket.active == 1)
+            & (Ticket.status.in_(INTAKE_STATUSES))
         ).order_by(Ticket.created_at.asc())
     )
     populateTickets(tickets)
@@ -179,11 +191,11 @@ def triage_project_view(user: User, project_id: str):
         available_users=available_users,
         available_labels=available_labels,
         ticket_view="list",
-        ticket_view_path=f"/triage/{project_id}",
-        ticket_page_title="Triage Inbox",
+        ticket_view_path=f"/intake/{project_id}",
+        ticket_page_title="Intake Inbox",
         ticket_create_endpoint="/api/tickets/intake",
-        ticket_create_status="triage",
-        ticket_base_path="/triage",
+        ticket_create_status="intake",
+        ticket_base_path="/intake",
         ai_intake_enabled=get_ai_config() is not None,
     )
 
@@ -400,7 +412,7 @@ def create_ticket(user: User):
 @tickets_bp.route("/api/tickets/intake", methods=["POST"])
 @protected
 def create_intake_ticket(user: User):
-    """Create a triage-first ticket used by PM workflows."""
+    """Create an intake-first ticket used by PM workflows."""
     data = request.get_json(silent=True) or {}
 
     raw_project_id = data.get("project")
@@ -436,7 +448,7 @@ def create_intake_ticket(user: User):
         id=ticket_id,
         title=title,
         description=description,
-        status="triage",
+        status="intake",
         priority=data.get("priority", "medium"),
         project=project_id,
         created_at=int(time.time()),
@@ -446,7 +458,7 @@ def create_intake_ticket(user: User):
         ticket=ticket_id,
         title="Intake created",
         icon="ph ph-tray",
-        message=f"{user.username} created this ticket in triage",
+        message=f"{user.username} created this ticket in intake",
         created_at=int(time.time()),
     )
 
@@ -458,9 +470,9 @@ def create_intake_ticket(user: User):
         status=ticket.status,
         actor=user.username,
         details=(
-            "Ticket entered triage inbox without project assignment"
+            "Ticket entered intake inbox without project assignment"
             if ticket.project == "TRIAGE"
-            else f"Ticket entered triage inbox for project {ticket.project}"
+            else f"Ticket entered intake inbox for project {ticket.project}"
         ),
     )
 
@@ -532,7 +544,7 @@ def _missing_intake_fields(chat_context: str) -> list[str]:
 def _build_follow_up_message(missing_fields: list[str], draft: dict) -> str:
     """Generate the assistant response for the next chat turn."""
     if not missing_fields:
-        target = draft.get("suggested_project") or "triage"
+        target = draft.get("suggested_project") or "intake"
         return (
             f"I have enough to draft this ticket (title: {draft.get('title', 'Untitled')}). "
             f"Proposed destination: {target}. Confirm and I can create it."
@@ -735,7 +747,7 @@ def commit_ai_intake_ticket(user: User):
     """Create a ticket from an AI suggestion after explicit user confirmation."""
     data = request.get_json(silent=True) or {}
     suggestion = data.get("suggestion") or {}
-    destination = str(data.get("destination", "triage")).strip().lower()
+    destination = str(data.get("destination", "intake")).strip().lower()
 
     title = str(suggestion.get("title", "")).strip()
     if not title:
@@ -815,7 +827,10 @@ def commit_ai_intake_ticket(user: User):
             }
         ), 201
 
-    if destination != "triage":
+    if destination == "triage":
+        destination = "intake"
+
+    if destination != "intake":
         return jsonify({"error": "Unknown destination"}), 400
 
     ticket_id = generate_unique_ticket_id("TRIAGE")
@@ -823,7 +838,7 @@ def commit_ai_intake_ticket(user: User):
         id=ticket_id,
         title=title,
         description=description,
-        status="triage",
+        status="intake",
         priority=priority,
         project="TRIAGE",
         created_at=int(time.time()),
@@ -844,7 +859,7 @@ def commit_ai_intake_ticket(user: User):
         project=ticket.project,
         status=ticket.status,
         actor=user.username,
-        details="Ticket entered triage inbox from AI intake",
+        details="Ticket entered intake inbox from AI intake",
     )
 
     return jsonify(
@@ -936,11 +951,11 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
     elif field == "status":
         old_status = ticket.status
         if (
-            old_status == "triage"
-            and value != "triage"
+            _is_intake_status(old_status)
+            and (not _is_intake_status(value))
             and (not ticket.project or ticket.project == "TRIAGE")
         ):
-            return jsonify({"error": "Assign a project before moving ticket out of triage"}), 400
+            return jsonify({"error": "Assign a project before moving ticket out of intake"}), 400
 
         ticket.status = value
         ticket.save()

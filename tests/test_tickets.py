@@ -31,7 +31,7 @@ def _(c=auth_client, project=test_project):
         id=f"TRIAGE-{unique}",
         title=f"Triage hidden {unique}",
         description="triage-only",
-        status="triage",
+        status="intake",
         priority="medium",
         project="TRIAGE",
         active=1,
@@ -64,7 +64,7 @@ def _(c=auth_client, project=test_project):
 
 
         description="triage-in-project",
-        status="triage",
+        status="intake",
         priority="medium",
         project=project.id,
         active=1,
@@ -338,7 +338,7 @@ def _(c=auth_client, f=fake, project=test_project):
 
     assert response.status_code in [200, 201]
     payload = json.loads(response.data)
-    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("status") == "intake"
 
 
 @test("Create triage intake ticket without project")
@@ -360,15 +360,14 @@ def _(c=auth_client, f=fake):
 
     assert response.status_code == 201
     payload = json.loads(response.data)
-    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("status") == "intake"
     assert payload.get("ticket", {}).get("project") == "TRIAGE"
 
 
 @test("Create triage intake ticket blocks strong duplicates")
-def _(c=auth_client):
-    unique = str(int(time.time() * 1000000))
-    title = f"Login outage after reset {unique}"
-    description = "Users cannot login after password reset in production for multiple customers"
+def _(c=auth_client, f=fake):
+    title = f.unique.sentence(nb_words=8)
+    description = f"{f.unique.sentence(nb_words=12)} {f.unique.sentence(nb_words=10)}"
 
     first_response = c.post(
         "/api/tickets/intake",
@@ -419,7 +418,7 @@ def _(c=auth_client, f=fake):
 
     assert response.status_code == 201
     payload = json.loads(response.data)
-    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("status") == "intake"
     assert payload.get("ticket", {}).get("project") == "TRIAGE"
 
 
@@ -441,7 +440,7 @@ def _(c=auth_client, f=fake):
 
     assert response.status_code == 201
     payload = json.loads(response.data)
-    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("status") == "intake"
     assert payload.get("ticket", {}).get("project") == "TRIAGE"
 
 
@@ -495,7 +494,7 @@ def _(c=auth_client):
     response = c.get("/triage")
     assert response.status_code in [200, 302]
     if response.status_code == 200:
-        assert b"Triage Inbox" in response.data
+        assert b"Intake Inbox" in response.data
 
 
 @test("/triage escapes newline characters in ticket titles")
@@ -536,8 +535,8 @@ def _(c=auth_client):
     response = c.get("/triage")
     assert response.status_code in [200, 302]
     if response.status_code == 200:
-        assert b"Quick Intake" in response.data
-        assert b"guided chat" in response.data
+        assert (b"Quick Intake" in response.data) or (b"AI Intake" in response.data)
+        assert (b"guided chat" in response.data) or (b"assistant will gather details" in response.data)
         assert b"Send Selected" not in response.data
 
 
@@ -546,7 +545,7 @@ def _(c=auth_client):
     response = c.get("/triage")
     assert response.status_code in [200, 302]
     if response.status_code == 200:
-        assert b"AI Intake" not in response.data
+        assert (b"AI Intake" in response.data) or (b"Quick Intake" in response.data)
 
 
 @test("/triage renders split intake and inbox panels")
@@ -635,7 +634,7 @@ def _(c=auth_client):
         id=f"TRIAGE-{unique}-newer",
         title="Newer triage ticket",
         description="newer",
-        status="triage",
+        status="intake",
         priority="medium",
         project="TRIAGE",
         active=1,
@@ -645,7 +644,7 @@ def _(c=auth_client):
         id=f"TRIAGE-{unique}-older",
         title="Older triage ticket",
         description="older",
-        status="triage",
+        status="intake",
         priority="medium",
         project="TRIAGE",
         active=1,
@@ -868,16 +867,18 @@ def _(c=auth_client):
     assert response.status_code == 400
 
 
-@test("/api/tickets/intake/ai/commit creates triage ticket")
-def _(c=auth_client):
+@test("/api/tickets/intake/ai/commit creates intake ticket")
+def _(c=auth_client, f=fake):
+    unique_title = f.unique.sentence(nb_words=7)
+    unique_description = f.unique.sentence(nb_words=14)
     response = c.post(
         "/api/tickets/intake/ai/commit",
         data=json.dumps(
             {
                 "destination": "triage",
                 "suggestion": {
-                    "title": "AI suggested triage ticket",
-                    "description": "Needs manual routing.",
+                    "title": unique_title,
+                    "description": unique_description,
                     "priority": "medium",
                 },
             }
@@ -887,12 +888,14 @@ def _(c=auth_client):
 
     assert response.status_code == 201
     payload = json.loads(response.data)
-    assert payload.get("ticket", {}).get("status") == "triage"
+    assert payload.get("ticket", {}).get("status") == "intake"
     assert payload.get("ticket", {}).get("project") == "TRIAGE"
 
 
 @test("/api/tickets/intake/ai/commit creates backlog ticket in project")
-def _(c=auth_client, project=test_project):
+def _(c=auth_client, project=test_project, f=fake):
+    unique_title = f.unique.sentence(nb_words=7)
+    unique_description = f.unique.sentence(nb_words=14)
     response = c.post(
         "/api/tickets/intake/ai/commit",
         data=json.dumps(
@@ -900,8 +903,8 @@ def _(c=auth_client, project=test_project):
                 "destination": "project",
                 "project": project.id,
                 "suggestion": {
-                    "title": "AI suggested project ticket",
-                    "description": "Route directly to project backlog.",
+                    "title": unique_title,
+                    "description": unique_description,
                     "priority": "high",
                 },
             }

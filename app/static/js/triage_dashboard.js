@@ -215,7 +215,7 @@
 
     function findProjectByHint(rawHint) {
         const hint = String(rawHint || '').trim().toLowerCase();
-        if (!hint || hint === 'skip' || hint === 'none' || hint === 'triage') {
+        if (!hint || hint === 'skip' || hint === 'none' || hint === 'intake' || hint === 'triage') {
             return '';
         }
 
@@ -248,7 +248,7 @@
             suggested_project: state.guidedDraft.project || null,
             confidence: 0.75,
             reason: 'Guided intake conversation completed.',
-            route: state.guidedDraft.project ? 'direct' : 'triage',
+            route: state.guidedDraft.project ? 'direct' : 'intake',
             source: 'guided',
         };
     }
@@ -290,7 +290,7 @@
             if (state.guidedDraft.project) {
                 appendChatBubble('assistant', `Great. Draft ready and suggested project is ${state.guidedDraft.project}. Confirm where to create it in the draft card.`);
             } else {
-                appendChatBubble('assistant', 'Great. Draft ready. No project match provided, so creating in triage is recommended in the draft card.');
+                appendChatBubble('assistant', 'Great. Draft ready. No project match provided, so creating in intake is recommended in the draft card.');
             }
         }
     }
@@ -328,13 +328,13 @@
                 ${followup}
                 <p class="triage-draft-main-title">${escapeHtml(draft.title || 'Untitled')}</p>
                 <div class="triage-draft-meta">
-                    <span class="triage-draft-meta-item"><i class="ph ph-folder-open"></i>${escapeHtml(draft.suggested_project || 'triage')}</span>
+                    <span class="triage-draft-meta-item"><i class="ph ph-folder-open"></i>${escapeHtml(draft.suggested_project || 'intake')}</span>
                     <span class="triage-draft-meta-item"><i class="ph ph-flag"></i>${escapeHtml(draft.priority || 'medium')}</span>
                 </div>
                 <div class="triage-ai-draft-description">${escapeHtml(draft.description || 'No description available yet.')}</div>
                 ${duplicateMarkup}
                 <div class="triage-intake-actions">
-                    <button type="button" class="btn btn-secondary triage-draft-commit-triage" ${readyToCommit ? '' : 'disabled'}><i class="ph ph-tray"></i> Create in Triage</button>
+                    <button type="button" class="btn btn-secondary triage-draft-commit-triage" ${readyToCommit ? '' : 'disabled'}><i class="ph ph-tray"></i> Create in Intake</button>
                     <button type="button" class="btn btn-primary triage-draft-commit-project ${readyToCommit && hasProject ? '' : 'triage-hidden'}"><i class="ph ph-arrow-square-out"></i> Create in Suggested Project</button>
                 </div>
             </div>
@@ -343,7 +343,7 @@
         const commitTriage = row.querySelector('.triage-draft-commit-triage');
         const commitProject = row.querySelector('.triage-draft-commit-project');
         if (commitTriage) {
-            commitTriage.addEventListener('click', () => commitAIDraft('triage'));
+            commitTriage.addEventListener('click', () => commitAIDraft('intake'));
         }
         if (commitProject) {
             commitProject.addEventListener('click', () => commitAIDraft('project'));
@@ -431,7 +431,7 @@
             }
             const createdTicket = body.ticket || {};
             const createdId = createdTicket.id || 'new ticket';
-            const createdProject = createdTicket.project || 'triage';
+            const createdProject = createdTicket.project || 'intake';
             toast(`Created ${createdId} in ${createdProject}`, 'success');
             window.setTimeout(() => {
                 window.location.reload();

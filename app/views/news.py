@@ -564,9 +564,11 @@ def build_reports_summary(days: int = 30) -> dict:
         .count()
     )
 
+    intake_statuses = {"intake", "triage"}
+
     triage_tickets = list(
         Ticket.select()
-        .where((Ticket.active == 1) & (Ticket.status == "triage"))
+        .where((Ticket.active == 1) & (Ticket.status.in_(intake_statuses)))
         .order_by(Ticket.created_at.asc())
     )
     triage_backlog = len(triage_tickets)
@@ -586,7 +588,7 @@ def build_reports_summary(days: int = 30) -> dict:
                 (Ticket.project == project.id)
                 & (Ticket.active == 1)
                 & (~(Ticket.status.in_(closed_statuses)))
-                & (Ticket.status != "triage")
+                & (~(Ticket.status.in_(intake_statuses)))
             )
             .count()
         )
@@ -604,7 +606,7 @@ def build_reports_summary(days: int = 30) -> dict:
             .where(
                 (Ticket.project == project.id)
                 & (Ticket.active == 1)
-                & (Ticket.status == "triage")
+                & (Ticket.status.in_(intake_statuses))
             )
             .count()
         )

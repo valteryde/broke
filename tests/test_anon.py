@@ -93,7 +93,7 @@ def _(c=client, project=anon_enabled_project):
         if ticket_id:
             created = Ticket.get_or_none(Ticket.id == ticket_id)
             assert created is not None
-            assert created.status == "triage"
+            assert created.status == "intake"
             assert created.project == "TRIAGE"
 
 

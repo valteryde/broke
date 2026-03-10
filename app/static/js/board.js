@@ -1,6 +1,6 @@
 const TicketBoard = {
     statuses: [
-        { key: 'triage', label: 'Triage' },
+        { key: 'intake', label: 'Intake' },
         { key: 'backlog', label: 'Backlog' },
         { key: 'todo', label: 'To Do' },
         { key: 'in-progress', label: 'In Progress' },
@@ -10,10 +10,10 @@ const TicketBoard = {
 
     getStatuses() {
         const page = window.ticketPageContext || 'tickets';
-        if (page === 'triage') {
+        if (page === 'triage' || page === 'intake') {
             return this.statuses;
         }
-        return this.statuses.filter((status) => status.key !== 'triage');
+        return this.statuses.filter((status) => status.key !== 'intake');
     },
 
     init(containerId, tickets, options = {}) {
@@ -29,7 +29,9 @@ const TicketBoard = {
 
         const normalizedTickets = (tickets || []).map((ticket) => ({
             ...ticket,
-            status: statuses.some((s) => s.key === ticket.status) ? ticket.status : 'backlog'
+            status: ticket.status === 'triage'
+                ? 'intake'
+                : (statuses.some((s) => s.key === ticket.status) ? ticket.status : 'backlog')
         }));
 
         const render = () => {

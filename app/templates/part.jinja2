@@ -107,6 +107,23 @@
             ];
 
             errorListItems.forEach(error => errorList.add(error));
+
+            const errorListRoot = document.getElementById('error-list');
+            if (errorListRoot) {
+                errorListRoot.addEventListener('click', (event) => {
+                    const button = event.target.closest('.error-inline-action');
+                    if (!button) return;
+
+                    const errorId = button.getAttribute('data-error-id');
+                    const newStatus = button.getAttribute('data-status');
+                    if (!errorId || !newStatus) return;
+
+                    const item = errorList.elements.find((row) => String(row.id) === String(errorId));
+                    if (!item) return;
+
+                    errorList.handleUpdate(item, 'status', newStatus);
+                });
+            }
         });
     </script>
 

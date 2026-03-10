@@ -113,7 +113,7 @@ def api_anon_submit():
         id=ticket_id,
         title=title,
         description=description,
-        status="triage",  # Anonymous submissions always go through triage.
+        status="intake",  # Anonymous submissions always go through intake.
         priority=data.get("priority", "medium"),
         project=project_id,
         created_at=int(time.time()),
@@ -132,7 +132,7 @@ def api_anon_submit():
         ticket=ticket_id,
         title="Anonymous Ticket Created",
         icon="ph ph-mask-happy",
-        message=f"A user submitted this ticket anonymously to triage.{duplicate_note}",
+        message=f"A user submitted this ticket anonymously to intake.{duplicate_note}",
         created_at=int(time.time()),
     )
 
@@ -141,9 +141,9 @@ def api_anon_submit():
         ticket_id=ticket_id,
         ticket_title=title,
         project=project_id,
-        status="triage",
+        status="intake",
         actor="anonymous",
-        details="Anonymous ticket entered triage inbox",
+        details="Anonymous ticket entered intake inbox",
     )
 
     return jsonify({"success": True, "secret": secret, "ticket_id": ticket_id}), 201

@@ -1,6 +1,6 @@
 {% extends "dashboard.jinja2" %}
 
-{% block title %}{{ ticket_page_title or 'Triage Inbox' }} | Broke{% endblock %}
+{% block title %}{{ ticket_page_title or 'Intake Inbox' }} | Broke{% endblock %}
 
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<h1 style="margin-bottom: 0.2rem;">{{ ticket_page_title or 'Triage Inbox' }}</h1>
+<h1 style="margin-bottom: 0.2rem;">{{ ticket_page_title or 'Intake Inbox' }}</h1>
 <p class="triage-page-subtitle">Capture issues quickly and route them without losing context.</p>
 
 <div class="triage-layout">
@@ -68,7 +68,7 @@
                 {% endfor %}
             </div>
             <div id="triage-empty-state" class="triage-empty-state {% if tickets|length > 0 %}triage-hidden{% endif %}">
-                <p style="margin: 0; color: var(--text-secondary);">No tickets currently in triage.</p>
+                <p style="margin: 0; color: var(--text-secondary);">No tickets currently in intake.</p>
             </div>
         </div>
     </section>
@@ -76,10 +76,10 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/triage"><i class="ph ph-tray"></i> Triage</a>
+    <a href="/intake"><i class="ph ph-tray"></i> Intake</a>
     {% if project %}
     <i class="ph ph-caret-right"></i>
-    <a href="/triage/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+    <a href="/intake/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
     {% endif %}
 {% endblock %}
 
