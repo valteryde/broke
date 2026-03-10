@@ -56,6 +56,37 @@ def populateTickets(tickets: list[Ticket]) -> None:
         ticket.assignees = [User.get_or_none(User.username == utj.user) for utj in UserTicketJoin.select().where(UserTicketJoin.ticket == ticket.id)]  # type: ignore
 
 
+def populate_ticket_board_meta(tickets: list[Ticket]) -> None:
+    """Attach subticket rollup fields used by Kanban cards."""
+    if not tickets:
+        return
+
+    ticket_ids = [ticket.id for ticket in tickets if getattr(ticket, "id", None)]
+    if not ticket_ids:
+        return
+
+    subtickets = list(
+        Ticket.select(Ticket.parent_ticket_id, Ticket.status)
+        .where((Ticket.parent_ticket_id.in_(ticket_ids)) & (Ticket.active == 1))
+    )
+
+    counts: dict[str, int] = {ticket_id: 0 for ticket_id in ticket_ids}
+    done_counts: dict[str, int] = {ticket_id: 0 for ticket_id in ticket_ids}
+    closed_statuses = {"done", "closed"}
+
+    for child in subtickets:
+        parent_id = str(child.parent_ticket_id or "")
+        if not parent_id:
+            continue
+        counts[parent_id] = counts.get(parent_id, 0) + 1
+        if child.status in closed_statuses:
+            done_counts[parent_id] = done_counts.get(parent_id, 0) + 1
+
+    for ticket in tickets:
+        ticket.subticket_count = counts.get(ticket.id, 0)  # type: ignore[attr-defined]
+        ticket.subticket_done_count = done_counts.get(ticket.id, 0)  # type: ignore[attr-defined]
+
+
 def resolve_ticket_view(user: User) -> str:
     explicit = request.args.get("view", "").strip().lower()
     if explicit in {"list", "board"}:
@@ -73,6 +104,7 @@ def resolve_ticket_view(user: User) -> str:
 def tickets_view(user: User):
     tickets = list(Ticket.select().where((Ticket.active == 1) & (~(Ticket.status.in_(INTAKE_STATUSES)))))
     populateTickets(tickets)
+    populate_ticket_board_meta(tickets)
     ticket_view = resolve_ticket_view(user)
 
     available_users = User.select().order_by(User.username)
@@ -108,6 +140,7 @@ def project_tickets_view(user: User, project_id: str):
         )
     )
     populateTickets(tickets)
+    populate_ticket_board_meta(tickets)
     ticket_view = resolve_ticket_view(user)
 
     available_users = User.select().order_by(User.username)

@@ -26,6 +26,8 @@ const TicketBoard = {
         const onCardClick = options.onCardClick || (() => {});
 
         const statuses = this.getStatuses();
+        const priorityFilter = document.getElementById('ticket-board-filter-priority');
+        const assigneeFilter = document.getElementById('ticket-board-filter-assignee');
 
         const normalizedTickets = (tickets || []).map((ticket) => ({
             ...ticket,
@@ -34,9 +36,32 @@ const TicketBoard = {
                 : (statuses.some((s) => s.key === ticket.status) ? ticket.status : 'backlog')
         }));
 
+        const applyFilters = (rows) => {
+            const selectedPriority = priorityFilter ? String(priorityFilter.value || 'all') : 'all';
+            const selectedAssignee = assigneeFilter ? String(assigneeFilter.value || 'all') : 'all';
+
+            return rows.filter((ticket) => {
+                if (selectedPriority !== 'all' && String(ticket.urgency || 'none') !== selectedPriority) {
+                    return false;
+                }
+
+                if (selectedAssignee === 'all') {
+                    return true;
+                }
+
+                const assignees = Array.isArray(ticket.assignees) ? ticket.assignees : [];
+                if (selectedAssignee === 'unassigned') {
+                    return assignees.length === 0;
+                }
+
+                return assignees.includes(selectedAssignee);
+            });
+        };
+
         const render = () => {
+            const visibleTickets = applyFilters(normalizedTickets);
             const columnsHtml = statuses.map((status) => {
-                const items = normalizedTickets.filter((ticket) => ticket.status === status.key);
+                const items = visibleTickets.filter((ticket) => ticket.status === status.key);
                 const cards = items.map((ticket) => this.renderCard(ticket)).join('');
                 return `
                     <section class="ticket-board-column" data-status="${status.key}">
@@ -55,16 +80,39 @@ const TicketBoard = {
             this.bindEvents(container, normalizedTickets, onMove, onCardClick, render);
         };
 
+        if (priorityFilter) {
+            priorityFilter.addEventListener('change', render);
+        }
+        if (assigneeFilter) {
+            assigneeFilter.addEventListener('change', render);
+        }
+
         render();
     },
 
     renderCard(ticket) {
         const safeTitle = ticket.title || '(Untitled)';
+        const priorityLabel = ticket.urgency || 'none';
+        const assignees = Array.isArray(ticket.assignees) ? ticket.assignees : [];
+        const assigneeHtml = assignees.slice(0, 3).map((username) => {
+            const initial = (username || '?').charAt(0).toUpperCase();
+            return `<span title="${username}" style="display:inline-flex;align-items:center;justify-content:center;width:1.2rem;height:1.2rem;border-radius:50%;background:#1f2937;color:#fff;font-size:0.7rem;">${initial}</span>`;
+        }).join('');
+
+        const subticketCount = Number(ticket.subticketCount || 0);
+        const subticketDoneCount = Number(ticket.subticketDoneCount || 0);
+        const subticketMeta = subticketCount > 0
+            ? `<div class="ticket-board-card-subtasks">Subtasks ${subticketDoneCount}/${subticketCount}</div>`
+            : '';
+
         return `
             <article class="ticket-board-card" draggable="true" data-ticket-id="${ticket.id}">
                 <div class="ticket-board-card-id">${ticket.id}</div>
                 <div class="ticket-board-card-title">${safeTitle}</div>
                 <div class="ticket-board-card-meta">${ticket.project}</div>
+                <div class="ticket-board-card-meta">Priority: ${priorityLabel}</div>
+                ${subticketMeta}
+                <div class="ticket-board-card-assignees" style="display:flex;gap:0.25rem;margin-top:0.35rem;">${assigneeHtml}</div>
             </article>
         `;
     },

@@ -89,6 +89,26 @@
 </div>
 
 {% if ticket_view == 'board' %}
+<div class="ticket-board-filters" style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+    <label for="ticket-board-filter-priority" class="sr-only">Filter by priority</label>
+    <select id="ticket-board-filter-priority" class="form-input" style="max-width:220px;">
+        <option value="all">All priorities</option>
+        <option value="urgent">Urgent</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="none">No priority</option>
+    </select>
+
+    <label for="ticket-board-filter-assignee" class="sr-only">Filter by assignee</label>
+    <select id="ticket-board-filter-assignee" class="form-input" style="max-width:240px;">
+        <option value="all">All assignees</option>
+        {% for available_user in available_users %}
+        <option value="{{ available_user.username }}">{{ available_user.username }}</option>
+        {% endfor %}
+        <option value="unassigned">Unassigned</option>
+    </select>
+</div>
 <div id="ticket-board" class="ticket-board"></div>
 {% else %}
 <div id="ticket-list"></div>
@@ -264,6 +284,8 @@
                         {{ (assignee.username if assignee else "") | tojson }},
                         {% endfor %}
                     ],
+                    subticketCount: {{ ticket.subticket_count | default(0) | tojson }},
+                    subticketDoneCount: {{ ticket.subticket_done_count | default(0) | tojson }},
                     createdAt: {{ ticket.created_at | tojson }},
                     project: {{ ticket.project | tojson }},
                     onClick: () => { window.location.href = '/tickets/{{ ticket.project }}/{{ ticket.id }}'; }

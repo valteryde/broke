@@ -1073,6 +1073,24 @@ def _(c=auth_client):
         assert b"ticket-board" in response.data
 
 
+@test("Tickets board view exposes priority and assignee filter controls")
+def _(c=auth_client):
+    response = c.get("/tickets?view=board")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"ticket-board-filter-priority" in response.data
+        assert b"ticket-board-filter-assignee" in response.data
+
+
+@test("Tickets board view includes subticket progress metadata in JS payload")
+def _(c=auth_client):
+    response = c.get("/tickets?view=board")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"subticketCount" in response.data
+        assert b"subticketDoneCount" in response.data
+
+
 @test("Tickets page includes local storage view preference hook")
 def _(c=auth_client):
     response = c.get("/tickets")
