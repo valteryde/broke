@@ -242,6 +242,25 @@ def _(c=auth_client, f=fake, project=test_project):
         assert child.id.encode() in response.data
 
 
+@test("Ticket detail hides subticket section when no subtickets exist")
+def _(c=auth_client, f=fake, project=test_project):
+    ticket = Ticket.create(
+        id=f"{project.id}-{int(time.time() * 1000000)}-NO-SUBS",
+        title=f"Solo {f.word()}",
+        description="Standalone ticket",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+
+    response = c.get(f"/tickets/{project.id}/{ticket.id}")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"<h3>Subtickets</h3>" not in response.data
+        assert b"No subtickets yet." not in response.data
+
+
 @test("Ticket detail shows subticket progress rollup")
 def _(c=auth_client, f=fake, project=test_project):
     parent = Ticket.create(
@@ -1078,8 +1097,7 @@ def _(c=auth_client):
     response = c.get("/tickets?view=board")
     assert response.status_code in [200, 302]
     if response.status_code == 200:
-        assert b"ticket-board-filter-priority" in response.data
-        assert b"ticket-board-filter-assignee" in response.data
+        assert b"ticket-board-filters" in response.data
 
 
 @test("Tickets board view includes subticket progress metadata in JS payload")

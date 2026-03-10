@@ -656,11 +656,13 @@ def timeline_view(user: User):
     days = _parse_timeline_days(request.args.get("days"))
     detail_mode = _parse_timeline_detail(request.args.get("detail"))
     data = build_timeline_events(project_id=None, days=days, detailed=detail_mode)
+    summary = build_reports_summary(days=30)
 
     return render_template(
         "timeline.jinja2",
         user=user,
-        page="timeline",
+        page="reports",
+        summary=summary,
         projects=list(Project.select().order_by(Project.name)),
         project=None,
         events=data["events"][:50],  # Limit initial load
@@ -698,11 +700,13 @@ def timeline_project_view(user: User, project_id: str):
     days = _parse_timeline_days(request.args.get("days"))
     detail_mode = _parse_timeline_detail(request.args.get("detail"))
     data = build_timeline_events(project_id=project_id, days=days, detailed=detail_mode)
+    summary = build_reports_summary(days=30)
 
     return render_template(
         "timeline.jinja2",
         user=user,
-        page="timeline",
+        page="reports",
+        summary=summary,
         projects=list(Project.select().order_by(Project.name)),
         project=project,
         events=data["events"][:50],
@@ -733,13 +737,7 @@ def timeline_project_view(user: User, project_id: str):
 @news_bp.route("/reports")
 @protected
 def reports_view(user: User):
-    summary = build_reports_summary(days=30)
-    return render_template(
-        "reports.jinja2",
-        user=user,
-        page="reports",
-        summary=summary,
-    )
+    return redirect("/timeline")
 
 
 @news_bp.route("/reports/export.csv")

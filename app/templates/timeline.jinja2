@@ -1,13 +1,13 @@
 {% extends "dashboard.jinja2" %}
 
-{% block title %}Timeline | Broke{% endblock %}
+{% block title %}Reports | Broke{% endblock %}
 
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/timeline.css') }}">
 {% endblock %}
 
 {% block path %}
-    <span><i class="ph ph-git-commit"></i> Timeline</span>
+    <span><i class="ph ph-chart-bar"></i> Reports</span>
     {% if project %}
         <i class="ph ph-caret-right"></i>
         <a href="/timeline/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
@@ -17,6 +17,33 @@
 {% block content %}
 
 <div class="timeline-container">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <div>
+            <h1 style="margin:0;"><i class="ph ph-chart-bar"></i> Reports & Timeline</h1>
+            <p style="margin:0.3rem 0 0 0;opacity:0.75;">Operational rollups and activity flow in one place.</p>
+        </div>
+        <a class="btn btn-secondary" href="/reports/export.csv"><i class="ph ph-download-simple"></i> Export CSV</a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-bottom:1rem;">
+        <article class="card" style="padding:0.85rem;">
+            <h3 style="margin:0;font-size:0.9rem;opacity:0.75;">Tickets Created</h3>
+            <p style="font-size:1.2rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.tickets_created }}</p>
+        </article>
+        <article class="card" style="padding:0.85rem;">
+            <h3 style="margin:0;font-size:0.9rem;opacity:0.75;">Tickets Closed</h3>
+            <p style="font-size:1.2rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.tickets_closed }}</p>
+        </article>
+        <article class="card" style="padding:0.85rem;">
+            <h3 style="margin:0;font-size:0.9rem;opacity:0.75;">Intake Backlog</h3>
+            <p style="font-size:1.2rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.triage_backlog }}</p>
+        </article>
+        <article class="card" style="padding:0.85rem;">
+            <h3 style="margin:0;font-size:0.9rem;opacity:0.75;">Unresolved Errors</h3>
+            <p style="font-size:1.2rem;font-weight:700;margin:0.3rem 0 0 0;">{{ summary.unresolved_errors }}</p>
+        </article>
+    </div>
+
     <!-- Header with Summary Stats -->
     <div class="timeline-header">
         <div class="header-left">

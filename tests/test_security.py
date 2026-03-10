@@ -162,6 +162,29 @@ def _():
             os.environ["FLASK_ENV"] = previous_env
 
 
+@test("create_app CSP allows external font sources for icon fonts")
+def _():
+    """CSP should include font-src for HTTPS icon/font CDNs."""
+    from app.utils.app import create_app
+
+    previous_env = os.environ.get("FLASK_ENV")
+    os.environ["FLASK_ENV"] = "testing"
+
+    try:
+        app = create_app()
+        with app.test_client() as client:
+            response = client.get("/login")
+
+        csp = response.headers.get("Content-Security-Policy") or ""
+        assert "font-src" in csp
+        assert "https:" in csp
+    finally:
+        if previous_env is None:
+            os.environ.pop("FLASK_ENV", None)
+        else:
+            os.environ["FLASK_ENV"] = previous_env
+
+
 @test("Users have unique emails")
 def _(f=fake):
     """Test email uniqueness constraint"""

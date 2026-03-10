@@ -16,61 +16,62 @@
 
 {% block content %}
 
-<div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-bottom:0.75rem;">
-    <a class="btn btn-secondary" href="/api/tickets/{{ ticket.id }}/export?format=markdown">
-        <i class="ph ph-file-text"></i> Export Markdown
+<div class="ticket-top-actions" aria-label="Ticket actions">
+    <a class="ticket-icon-action" href="/api/tickets/{{ ticket.id }}/export?format=markdown" title="Export markdown" aria-label="Export ticket as markdown">
+        <i class="ph ph-file-text"></i>
     </a>
-    <a class="btn btn-secondary" href="/api/tickets/{{ ticket.id }}/export?format=json">
-        <i class="ph ph-brackets-curly"></i> Export JSON
+    <a class="ticket-icon-action" href="/api/tickets/{{ ticket.id }}/export?format=json" title="Export JSON" aria-label="Export ticket as JSON">
+        <i class="ph ph-brackets-curly"></i>
     </a>
+    <button class="ticket-icon-action ticket-icon-action-primary ticket-icon-action-labeled" type="button" title="Create subticket" aria-label="Create subticket" onclick="createSubticket()">
+        <i class="ph ph-plus"></i>
+        <span>New Subticket</span>
+    </button>
 </div>
 
-<section class="card" style="padding:0.9rem;margin-bottom:0.75rem;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;">
+<div id="ticket-editor"></div>
+
+{% if parent_ticket or (subtickets and subtickets|length > 0) %}
+<section class="ticket-subtickets-panel">
+    <div class="ticket-subtickets-header">
         <div>
-            <h3 style="margin:0;">Subtickets</h3>
+            <h3>Subtickets</h3>
             {% if parent_ticket %}
-            <p style="margin:0.35rem 0 0 0;opacity:0.75;">
+            <p>
                 Parent:
                 <a href="/tickets/{{ parent_ticket.project }}/{{ parent_ticket.id }}">{{ parent_ticket.id }}</a>
             </p>
             {% endif %}
             {% if subticket_count > 0 %}
-            <p style="margin:0.35rem 0 0 0;opacity:0.85;">
+            <p>
                 <strong>Subticket Progress:</strong> {{ subticket_done_count }}/{{ subticket_count }} done
             </p>
             {% endif %}
         </div>
-        <button class="btn btn-secondary" type="button" onclick="createSubticket()">
-            <i class="ph ph-plus"></i> Create Subticket
-        </button>
     </div>
 
     {% if all_subtickets_done and ticket.status not in ['done', 'closed'] %}
-    <div style="margin:0.75rem 0;padding:0.75rem;background-color:rgba(72,187,120,0.12);border:1px solid rgba(72,187,120,0.3);border-radius:4px;">
-        <p style="margin:0 0 0.5rem 0;"><strong>✓ All subtickets are complete</strong></p>
-        <button class="btn btn-primary" type="button" onclick="closeParentTicket()">
+    <div class="ticket-subtickets-done-callout">
+        <p><strong>All subtickets are complete</strong></p>
+        <button class="btn btn-secondary" type="button" onclick="closeParentTicket()">
             <i class="ph ph-check-circle"></i> Close Parent Ticket
         </button>
     </div>
     {% endif %}
 
     {% if subtickets and subtickets|length > 0 %}
-    <ul style="margin:0.75rem 0 0 1.1rem;display:grid;gap:0.45rem;">
+    <ul class="ticket-subtickets-list">
         {% for child in subtickets %}
         <li>
             <a href="/tickets/{{ child.project }}/{{ child.id }}"><strong>{{ child.id }}</strong></a>
             - {{ child.title }}
-            <span style="opacity:0.7;">({{ child.status }}, {{ child.priority }})</span>
+            <span>({{ child.status }}, {{ child.priority }})</span>
         </li>
         {% endfor %}
     </ul>
-    {% else %}
-    <p style="margin:0.75rem 0 0 0;opacity:0.75;">No subtickets yet.</p>
     {% endif %}
 </section>
-
-<div id="ticket-editor"></div>
+{% endif %}
 
 {% endblock %}
 
@@ -140,6 +141,32 @@
             } catch (error) {
                 console.error('Close ticket error:', error);
                 alert('Failed to close ticket');
+            }
+        }
+
+        function mountTopActionsInSidebar() {
+            const actions = document.querySelector('.ticket-top-actions');
+            const sidebar = document.querySelector('#ticket-editor .ticket-sidebar');
+            if (!actions || !sidebar) return;
+
+            const properties = sidebar.querySelector('.ticket-properties');
+            if (properties) {
+                properties.insertAdjacentElement('afterend', actions);
+            } else {
+                sidebar.appendChild(actions);
+            }
+        }
+
+        function mountSubticketsInSidebar() {
+            const subticketsPanel = document.querySelector('.ticket-subtickets-panel');
+            const sidebar = document.querySelector('#ticket-editor .ticket-sidebar');
+            if (!subticketsPanel || !sidebar) return;
+
+            const actions = sidebar.querySelector('.ticket-top-actions');
+            if (actions) {
+                actions.insertAdjacentElement('afterend', subticketsPanel);
+            } else {
+                sidebar.appendChild(subticketsPanel);
             }
         }
 
@@ -309,6 +336,9 @@
                     // Could open a modal or inline editor
                 }
             });
+
+            mountTopActionsInSidebar();
+            mountSubticketsInSidebar();
         });
     </script>
 {% endblock %}

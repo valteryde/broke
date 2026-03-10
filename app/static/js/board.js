@@ -26,8 +26,6 @@ const TicketBoard = {
         const onCardClick = options.onCardClick || (() => {});
 
         const statuses = this.getStatuses();
-        const priorityFilter = document.getElementById('ticket-board-filter-priority');
-        const assigneeFilter = document.getElementById('ticket-board-filter-assignee');
 
         const normalizedTickets = (tickets || []).map((ticket) => ({
             ...ticket,
@@ -36,26 +34,13 @@ const TicketBoard = {
                 : (statuses.some((s) => s.key === ticket.status) ? ticket.status : 'backlog')
         }));
 
+        let filterController = null;
+
         const applyFilters = (rows) => {
-            const selectedPriority = priorityFilter ? String(priorityFilter.value || 'all') : 'all';
-            const selectedAssignee = assigneeFilter ? String(assigneeFilter.value || 'all') : 'all';
-
-            return rows.filter((ticket) => {
-                if (selectedPriority !== 'all' && String(ticket.urgency || 'none') !== selectedPriority) {
-                    return false;
-                }
-
-                if (selectedAssignee === 'all') {
-                    return true;
-                }
-
-                const assignees = Array.isArray(ticket.assignees) ? ticket.assignees : [];
-                if (selectedAssignee === 'unassigned') {
-                    return assignees.length === 0;
-                }
-
-                return assignees.includes(selectedAssignee);
-            });
+            if (filterController) {
+                return filterController.filteredElements || rows;
+            }
+            return rows;
         };
 
         const render = () => {
@@ -77,26 +62,76 @@ const TicketBoard = {
             }).join('');
 
             container.innerHTML = `<div class="ticket-board-grid">${columnsHtml}</div>`;
+            this.renderAvatars(container);
             this.bindEvents(container, normalizedTickets, onMove, onCardClick, render);
         };
 
-        if (priorityFilter) {
-            priorityFilter.addEventListener('change', render);
+        filterController = this.createFilterController(normalizedTickets, render);
+
+        if (!filterController) {
+            render();
         }
-        if (assigneeFilter) {
-            assigneeFilter.addEventListener('change', render);
+    },
+
+    createFilterController(tickets, onChange) {
+        const filterHost = document.getElementById('ticket-board-filters');
+        if (!filterHost || typeof List === 'undefined' || typeof TicketListConfig === 'undefined') {
+            return null;
         }
 
-        render();
+        const listMountId = 'ticket-board-filter-controller';
+        filterHost.innerHTML = `<div id="${listMountId}"></div>`;
+
+        const filterController = new List(listMountId, {
+            filters: {
+                search: TicketListConfig.filters.search,
+                status: TicketListConfig.filters.status,
+                labels: TicketListConfig.filters.labels,
+                assignees: TicketListConfig.filters.assignees,
+                urgency: TicketListConfig.filters.urgency,
+            },
+            groups: {},
+            syncUrlState: false,
+            renderer: () => {
+                const node = document.createElement('div');
+                node.style.display = 'none';
+                return node;
+            },
+            onClearFilters: (list) => {
+                list.clearAllFilters();
+                const searchInput = filterHost.querySelector('.list-search-input');
+                if (searchInput) {
+                    searchInput.value = '';
+                }
+                if (window.showToast) {
+                    window.showToast('Filters cleared', 'success');
+                }
+            },
+            onClearFiltersLabel: 'Clear Filters',
+            onStateChange: () => {
+                onChange();
+            },
+        });
+
+        filterController.container.style.display = 'none';
+        filterController.addAll(tickets);
+        return filterController;
     },
 
     renderCard(ticket) {
         const safeTitle = ticket.title || '(Untitled)';
-        const priorityLabel = ticket.urgency || 'none';
+        const priorityKey = String(ticket.urgency || 'none');
+        const priorityLabel = priorityKey === 'none' ? 'No priority' : priorityKey;
+        const priorityClass = `ticket-priority-${priorityKey.replace(/[^a-z-]/g, '')}`;
         const assignees = Array.isArray(ticket.assignees) ? ticket.assignees : [];
         const assigneeHtml = assignees.slice(0, 3).map((username) => {
-            const initial = (username || '?').charAt(0).toUpperCase();
-            return `<span title="${username}" style="display:inline-flex;align-items:center;justify-content:center;width:1.2rem;height:1.2rem;border-radius:50%;background:#1f2937;color:#fff;font-size:0.7rem;">${initial}</span>`;
+            const safeUsername = this.escapeHtml(String(username || 'unknown'));
+            return `
+                <span class="ticket-board-assignee-chip" title="${safeUsername}" aria-label="${safeUsername}">
+                    <img src="/avatar/${encodeURIComponent(String(username || 'unknown'))}" alt="${safeUsername}" loading="lazy" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <svg width="18" height="18" data-jdenticon-value="${safeUsername}" style="display:none"></svg>
+                </span>
+            `;
         }).join('');
 
         const subticketCount = Number(ticket.subticketCount || 0);
@@ -106,15 +141,38 @@ const TicketBoard = {
             : '';
 
         return `
-            <article class="ticket-board-card" draggable="true" data-ticket-id="${ticket.id}">
+            <article class="ticket-board-card ${priorityClass}" draggable="true" data-ticket-id="${ticket.id}">
                 <div class="ticket-board-card-id">${ticket.id}</div>
                 <div class="ticket-board-card-title">${safeTitle}</div>
                 <div class="ticket-board-card-meta">${ticket.project}</div>
-                <div class="ticket-board-card-meta">Priority: ${priorityLabel}</div>
+                <div class="ticket-board-card-meta"><span class="ticket-board-priority ${priorityClass}">${priorityLabel}</span></div>
                 ${subticketMeta}
-                <div class="ticket-board-card-assignees" style="display:flex;gap:0.25rem;margin-top:0.35rem;">${assigneeHtml}</div>
+                <div class="ticket-board-card-assignees">${assigneeHtml}</div>
             </article>
         `;
+    },
+
+    renderAvatars(container) {
+        if (!container || !window.jdenticon) {
+            return;
+        }
+
+        try {
+            container.querySelectorAll('svg[data-jdenticon-value]').forEach((svg) => {
+                window.jdenticon.update(svg);
+            });
+        } catch (e) {
+            // Ignore transient render failures from async icon library load.
+        }
+    },
+
+    escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     },
 
     bindEvents(container, tickets, onMove, onCardClick, rerender) {
