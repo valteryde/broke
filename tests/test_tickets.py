@@ -911,6 +911,31 @@ def _(c=auth_client, f=fake):
     assert payload.get("ticket", {}).get("project") == "TRIAGE"
 
 
+@test("/api/tickets/intake/ai/commit accepts explicit intake destination")
+def _(c=auth_client, f=fake):
+    unique_title = f.unique.sentence(nb_words=6)
+    unique_description = f.unique.sentence(nb_words=12)
+    response = c.post(
+        "/api/tickets/intake/ai/commit",
+        data=json.dumps(
+            {
+                "destination": "intake",
+                "suggestion": {
+                    "title": unique_title,
+                    "description": unique_description,
+                    "priority": "low",
+                },
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 201
+    payload = json.loads(response.data)
+    assert payload.get("ticket", {}).get("status") == "intake"
+    assert payload.get("ticket", {}).get("project") == "TRIAGE"
+
+
 @test("/api/tickets/intake/ai/commit creates backlog ticket in project")
 def _(c=auth_client, project=test_project, f=fake):
     unique_title = f.unique.sentence(nb_words=7)

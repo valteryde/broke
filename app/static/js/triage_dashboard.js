@@ -334,7 +334,7 @@
                 <div class="triage-ai-draft-description">${escapeHtml(draft.description || 'No description available yet.')}</div>
                 ${duplicateMarkup}
                 <div class="triage-intake-actions">
-                    <button type="button" class="btn btn-secondary triage-draft-commit-triage" ${readyToCommit ? '' : 'disabled'}><i class="ph ph-tray"></i> Create in Intake</button>
+                    <button type="button" class="btn btn-secondary triage-draft-commit-triage"><i class="ph ph-tray"></i> Create in Intake</button>
                     <button type="button" class="btn btn-primary triage-draft-commit-project ${readyToCommit && hasProject ? '' : 'triage-hidden'}"><i class="ph ph-arrow-square-out"></i> Create in Suggested Project</button>
                 </div>
             </div>
@@ -400,7 +400,12 @@
     }
 
     async function commitAIDraft(destination) {
-        if (!state.draft || !state.readyToCommit) {
+        if (!state.draft) {
+            toast('Start a draft first', 'error');
+            return;
+        }
+
+        if (destination === 'project' && !state.readyToCommit) {
             toast('Complete the chat first so the draft is ready', 'error');
             return;
         }
