@@ -161,7 +161,7 @@ def _dispatch_slack(event: dict, webhook_url: str):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urlrequest.urlopen(req, timeout=5) as response:
+    with urlrequest.urlopen(req, timeout=5) as response:  # nosec: B310 - URL is not user-provided input
         response.read()
 
 
