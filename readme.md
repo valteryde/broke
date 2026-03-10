@@ -2,7 +2,7 @@
   <img src="app/static/images/logo-blue-chopped.png" alt="Broke Logo" width="300">
 </p>
 
-<em>A lightweight ticket and error management system for broke people</em>
+<em>An open-source, self-hosted ticket and error management system for broke people</em>
 <a href="https://broke.dk">broke.dk</a>
 
 [![CI Status](https://github.com/valteryde/broke/actions/workflows/ci.yml/badge.svg)](https://github.com/valteryde/broke/actions/workflows/ci.yml)
@@ -26,21 +26,26 @@
 
 ## About
 
-Broke is a *small* Plane/Linear/Jira ticket and error managing system for broke people.
+Broke is a small open-source alternative to tools like Plane, Linear, Jira, and Sentry for teams that want one simple place for tickets and errors.
 
-When on a small budget, running multiple services like Sentry and Plane can be overkill for small and medium applications. This is where Broke comes in. It's super simple. No boards, sprints or anything that is not essential.
+When running on a tight budget, using multiple services can be overkill. Broke keeps core workflow in one product: ticketing, intake, and error tracking.
 
 It supports multiple teams but only one organization. It's designed to be small — not a Jira equivalent.
 
 ## Features
 
-- 🎫 **Simple Ticket Management** — Create, view, and manage tickets without complexity
-- 🐛 **Error Tracking** — Sentry-compatible error ingestion and management
-- 👥 **Multi-user Support** — Multiple users can collaborate on tickets
-- 🔐 **Secure Authentication** — Password hashing with Argon2
-- 📰 **News Feed** — Stay updated with recent activity
-- 🪶 **Lightweight** — SQLite database, minimal dependencies
-- 🐳 **Docker Ready** — Production-ready Docker setup
+- **Simple Ticket Management** — Create, view, and manage tickets without complexity
+- **Kanban + List Views** — Work the way your team prefers
+- **Subtickets** — Break larger work into smaller linked items
+- **Intake Inbox** — Route incoming issues before they hit active work
+- **Optional AI-Assisted Intake** — Draft and route tickets faster when AI settings are configured
+- **Error Tracking** — Sentry-compatible error ingestion and management
+- **Multi-user Support** — Multiple users can collaborate on tickets
+- **Reports + Timeline** — Activity and operational insights in one place
+- **Secure Authentication** — Password hashing with Argon2
+- **News Feed** — Stay updated with recent activity
+- **Lightweight** — SQLite database, minimal dependencies
+- **Docker Ready** — Production-ready Docker setup
 
 ## Installation
 
