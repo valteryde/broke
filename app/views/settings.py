@@ -285,6 +285,7 @@ def api_update_profile():
 
     return json.dumps({"success": True}), 200
 
+
 @settings_bp.route("/api/settings/profile/avatar", methods=["POST", "DELETE"])
 @protected
 def api_update_avatar(user: User):
@@ -327,6 +328,7 @@ def api_update_avatar(user: User):
         return json.dumps({"success": True}), 200
 
     return json.dumps({"error": "Invalid upload payload"}), 400
+
 
 @settings_bp.route("/api/settings/preferences", methods=["POST"])
 def api_update_preferences():
@@ -503,28 +505,28 @@ def api_update_email_settings(user: User):
 @settings_bp.route("/api/settings/email/test", methods=["POST"])
 @protected
 def api_send_test_email(user: User):
-        """Send a test email using current SMTP configuration (admin only)."""
-        if user.admin != 1:
-                return json.dumps({"error": "Unauthorized. Admins only."}), 403
+    """Send a test email using current SMTP configuration (admin only)."""
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
 
-        data = request.get_json(silent=True) or {}
-        recipient = str(data.get("recipient", "")).strip() or user.email
-        if not recipient:
-                return json.dumps({"error": "Recipient email is required"}), 400
+    data = request.get_json(silent=True) or {}
+    recipient = str(data.get("recipient", "")).strip() or user.email
+    if not recipient:
+        return json.dumps({"error": "Recipient email is required"}), 400
 
-        html = f"""
-        <html>
-            <body>
-                <h2>Broke SMTP Test</h2>
-                <p>Hello {user.username},</p>
-                <p>This is a test email from Broke.</p>
-                <p>If you received this message, your SMTP configuration is working.</p>
-            </body>
-        </html>
-        """
+    html = f"""
+    <html>
+        <body>
+            <h2>Broke SMTP Test</h2>
+            <p>Hello {user.username},</p>
+            <p>This is a test email from Broke.</p>
+            <p>If you received this message, your SMTP configuration is working.</p>
+        </body>
+    </html>
+    """
 
-        mail.send_email(recipient, "Broke SMTP Test Email", html)
-        return json.dumps({"success": True}), 200
+    mail.send_email(recipient, "Broke SMTP Test Email", html)
+    return json.dumps({"success": True}), 200
 
 
 @settings_bp.route("/api/settings/security/password", methods=["POST"])
@@ -720,6 +722,7 @@ def api_invite_team_member(user: User):
         section="team",
     )
 
+
 @settings_bp.route("/api/settings/team/<username>", methods=["DELETE"])
 @protected
 def api_delete_team_member(user: User, username: str):
@@ -777,7 +780,6 @@ def api_set_temporary_password(user: User, username: str):
     target_user.save()
 
     return json.dumps({"success": True, "temporary_password": temp_password}), 200
-
 
 
 @settings_bp.route("/welcome/<token>", methods=["GET", "POST"])

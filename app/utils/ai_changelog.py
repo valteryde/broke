@@ -90,13 +90,13 @@ def summarize_single_ticket(ticket: Ticket, language: str = "English") -> str:
     # Add labels if populated
     if hasattr(ticket, "labels") and ticket.labels:
         ticket_info["labels"] = [
-            l.name for l in ticket.labels if l is not None
+            label.name for label in ticket.labels if label is not None
         ]
 
-    prompt = f"""You are a technical writer helping to build a public changelog. 
+    prompt = f"""You are a technical writer helping to build a public changelog.
 I will give you the raw details of an internal development ticket (title, description, and comments).
 
-Your job is to translate this technical jargon into a single, user-friendly, professional sentence explaining what improved or was fixed for the end-user. 
+Your job is to translate this technical jargon into a single, user-friendly, professional sentence explaining what improved or was fixed for the end-user.
 Do not mention the ticket ID or internal engineering details. Focus on the value delivered to the user.
 
 Output language: {language}
@@ -126,11 +126,11 @@ Ticket Details:
         )
 
         content = response.choices[0].message.content.strip()
-        
+
         # Strip quotes if the LLM wrapped it anyway
         if content.startswith('"') and content.endswith('"'):
             content = content[1:-1]
-            
+
         return content
 
     except openai.APIError as e:

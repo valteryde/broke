@@ -173,6 +173,7 @@ def anon_track(secret: str):
 
     return render_template("anon_track.jinja2", ticket=ticket, project=project)
 
+
 @anon_bp.route("/forgot-password", methods=["GET", "POST"])
 def forgot_password():
     if request.method == "POST":
@@ -193,25 +194,26 @@ def forgot_password():
         return redirect("/login")
     return render_template("forgot_password.jinja2")
 
+
 @anon_bp.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token: str):
     reset_token = PasswordResetToken.get_or_none(PasswordResetToken.token == token)
     if not reset_token:
         flash("Invalid or expired password reset token.", "error")
         return redirect("/login")
-    
+
     # Check expiration (e.g. 24 hours = 86400 seconds)
     if int(time.time()) - reset_token.created_at > 86400:
         reset_token.delete_instance()
         flash("Password reset token has expired.", "error")
         return redirect("/login")
-        
+
     if request.method == "POST":
         password = request.form.get("password", "").strip()
         if len(password) < 8:
             flash("Password must be at least 8 characters.", "error")
             return render_template("reset_password.jinja2", token=token)
-            
+
         user = User.get_or_none(User.username == reset_token.user)
         if user:
             user.password_hash = pyargon2.hash(password, str(user.salt))
@@ -219,11 +221,12 @@ def reset_password(token: str):
             reset_token.delete_instance()
             flash("Password reset successful. Please log in.", "success")
             return redirect("/login")
-            
+
         flash("User not found.", "error")
         return redirect("/login")
-        
+
     return render_template("reset_password.jinja2", token=token)
+
 
 @anon_bp.route("/avatar/<username>")
 def get_avatar(username: str):

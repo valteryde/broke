@@ -8,10 +8,7 @@ from ..utils.models import (
     User,
     Ticket,
     ChangelogRelease,
-    TicketLabelJoin,
     UserTicketJoin,
-    Label,
-    Comment,
 )
 from flask import render_template, request, jsonify, Blueprint, redirect, url_for
 from ..utils.ai_changelog import is_ai_enabled, generate_full_changelog, get_ai_config
@@ -94,12 +91,14 @@ def changelog_view():
     parsed_releases = []
     for release in releases:
         parsed = _parse_release_content(release)
-        
+
         # Fetch contributors for each entry individually
         for entry in parsed["entries"]:
             ticket_id = entry.get("ticket_id")
             if ticket_id:
                 query = (UserTicketJoin
+
+
                          .select(UserTicketJoin.user)
                          .where(UserTicketJoin.ticket == ticket_id))
                 entry["contributors"] = [row.user for row in query]
@@ -132,14 +131,16 @@ def changelog_manage_view(user: User):
     )
 
     return render_template(
+
+
         "changelog_manage.jinja2",
         user=user,
         page="changelog",
         releases=releases,
     )
 
-# ============ Admin Editor Views ============
 
+# ============ Admin Editor Views ============
 @changelog_bp.route("/changelog/new")
 @protected
 def changelog_new_view(user: User):
@@ -152,10 +153,13 @@ def changelog_new_view(user: User):
         "changelog_editor.jinja2",
         user=user,
         page="changelog",
+
+
         release=None,
         available_tickets=available_tickets,
         ai_enabled=ai_enabled,
     )
+
 
 @changelog_bp.route("/changelog/<int:release_id>/edit")
 @protected
@@ -173,19 +177,21 @@ def changelog_edit_view(user: User, release_id: int):
         "changelog_editor.jinja2",
         user=user,
         page="changelog",
+
+
         release=release,
         available_tickets=available_tickets,
         ai_enabled=ai_enabled,
     )
 
-# ============ Admin API Endpoints ============
 
+# ============ Admin API Endpoints ============
 @changelog_bp.route("/api/changelog/tickets", methods=["GET"])
 @protected
 def api_get_available_tickets(user: User):
     """Get available tickets for the changelog editor pool."""
     show_all = request.args.get("all", "false").lower() == "true"
-    
+
     if show_all:
         # Get all done/closed tickets regardless of when they were created
         # Increase limit to show a deeper history
@@ -200,6 +206,7 @@ def api_get_available_tickets(user: User):
         {"id": t.id, "title": t.title} for t in tickets
     ]
     return jsonify({"success": True, "tickets": result})
+
 
 @changelog_bp.route("/api/changelog/generate", methods=["POST"])
 @protected

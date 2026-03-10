@@ -3,6 +3,7 @@ import logging
 import time
 from typing import Iterable
 from urllib import request as urlrequest
+from urllib.parse import urlparse
 
 from .events import bus, EventTypes
 from .mail import send_email
@@ -148,6 +149,10 @@ def _dispatch_email(event: dict, recipients: Iterable[str]):
 
 
 def _dispatch_slack(event: dict, webhook_url: str):
+    parsed = urlparse(str(webhook_url or "").strip())
+    if parsed.scheme.lower() != "https" or not parsed.netloc:
+        raise ValueError("Slack webhook URL must use HTTPS")
+
     text = _build_event_text(event)
     payload = json.dumps({"text": text}).encode("utf-8")
     req = urlrequest.Request(

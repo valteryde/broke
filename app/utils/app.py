@@ -286,7 +286,7 @@ def create_app():  # noqa: C901
     app.register_blueprint(changelog_bp)
 
     # Initialize event subscriptions
-    from . import mail
+    from . import mail  # noqa: F401
     from .notifications import initialize_notification_engine
 
     initialize_notification_engine()
@@ -294,6 +294,7 @@ def create_app():  # noqa: C901
     # Start background update checker
     if os.environ.get("FLASK_ENV") != "testing":
         from .updater import start_update_checker, get_update_info
+
         start_update_checker()
 
         @app.context_processor
@@ -313,6 +314,11 @@ def create_app():  # noqa: C901
 
     # Store global reference
     _app = app
+
+    # Add current_year to template context
+    @app.context_processor
+    def inject_current_year():
+        return {"current_year": datetime.now().year}
 
     return app
 

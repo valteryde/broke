@@ -389,6 +389,10 @@ def _(part=error_project_part):
 
 @test("/api/errors/<id>/status requires authentication")
 def _(c=client, error_group=error_group_fixture):
+    with c.session_transaction() as sess:
+        sess.pop("user_id", None)
+        sess.pop("_csrf_token", None)
+
     response = c.post(
         f"/api/errors/{error_group.id}/status",
         data=json.dumps({"status": "resolved"}),

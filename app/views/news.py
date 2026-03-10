@@ -162,9 +162,9 @@ def news_view(user: User):
     )
 
 
-def build_timeline_events(
+def build_timeline_events(  # noqa: C901
     project_id: str | None = None, days: int = 30, detailed: bool = False
-) -> dict:  # noqa: C901
+) -> dict:
     """
     Build a comprehensive timeline of events across tickets, comments, errors, and updates.
 
