@@ -134,3 +134,38 @@ function openUrlWithArgs(url) {
         }
     });
 })();
+
+// Sidebar Toggle Logic
+(function initSidebar() {
+    function toggleSidebar() {
+        document.body.classList.toggle('sb-open');
+    }
+
+    function closeSidebar() {
+        document.body.classList.remove('sb-open');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const toggleBtn = document.getElementById('sb-toggle');
+        const backdrop = document.getElementById('sb-backdrop');
+        const sidebar = document.querySelector('.sb-wrapper');
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', toggleSidebar);
+        }
+
+        if (backdrop) {
+            backdrop.addEventListener('click', closeSidebar);
+        }
+
+        // Close sidebar when clicking a link inside it on mobile
+        if (sidebar) {
+            sidebar.addEventListener('click', (e) => {
+                const isSidebarLink = e.target.closest('.sb-element') || e.target.closest('.sb-news-inner') || e.target.closest('.sb-logout');
+                if (window.innerWidth <= 768 && isSidebarLink) {
+                    setTimeout(closeSidebar, 100);
+                }
+            });
+        }
+    });
+})();

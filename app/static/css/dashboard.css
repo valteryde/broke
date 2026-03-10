@@ -157,3 +157,90 @@
     text-decoration: none;
     color: black;
 }
+
+/* Mobile Responsiveness */
+.mobile-top-bar {
+    display: none;
+}
+
+.sb-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+    backdrop-filter: blur(2px);
+}
+
+@media (max-width: 768px) {
+    :root {
+        --main-margin: 0px;
+    }
+
+    .mobile-top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 15px;
+        background-color: var(--bg-gray);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        z-index: 1000;
+        /* Lower than backdrop/sidebar */
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .mobile-logo {
+        height: 32px;
+    }
+
+    .sb-toggle-btn {
+        background: transparent;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: black;
+        padding: 5px;
+    }
+
+    body .sb-wrapper {
+        left: calc(-1 * var(--sb-width)) !important;
+        /* Correctly hide by default on mobile */
+        z-index: 1020;
+        /* Highest */
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        height: 100vh;
+        box-shadow: 5px 0 15px rgba(0, 0, 0, 0.1);
+        position: fixed;
+    }
+
+    body.sb-open .sb-wrapper {
+        left: 0 !important;
+    }
+
+    body.sb-open .sb-backdrop {
+        display: block;
+        opacity: 1;
+        z-index: 1015;
+        /* Between top bar and sidebar */
+    }
+
+    #content-wrapper {
+        left: 0;
+        top: 60px;
+        width: 100%;
+        height: calc(100vh - 60px);
+        border-radius: 0;
+        padding: 15px;
+    }
+
+    .sb-news {
+        margin-bottom: 20px;
+    }
+}
