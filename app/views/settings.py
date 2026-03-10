@@ -82,6 +82,11 @@ def settings_view(user: User):
 def settings_section_view(user: User, section: str):  # noqa: C901
     """Render settings page for a specific section"""
 
+    admin_only_sections = {"email", "webhooks", "sentry", "ai"}
+    if section in admin_only_sections and user.admin != 1:
+        flash("Unauthorized. Admins only.", "error")
+        return redirect("/settings/profile")
+
     # Map sections to their display titles
     section_titles = {
         "profile": "Profile",
@@ -129,18 +134,30 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         context["notification_engine"] = get_notification_engine_settings()
 
     elif section == "email":
+        context["smtp_password_configured"] = False
         try:
             setting = GlobalSetting.get(GlobalSetting.key == "smtp_settings")
-            context["smtp_settings"] = json.loads(setting.value)
+            raw = json.loads(setting.value)
+            context["smtp_settings"] = {
+                "host": raw.get("host", ""),
+                "port": raw.get("port", 587),
+                "username": raw.get("username", ""),
+                "password": "",
+                "from": raw.get("from", ""),
+                "use_tls": bool(raw.get("use_tls", True)),
+            }
+            context["smtp_password_configured"] = bool(str(raw.get("password", "")).strip())
         except (DoesNotExist, json.JSONDecodeError):
+            env_password = os.environ.get("SMTP_PASSWORD", "")
             context["smtp_settings"] = {
                 "host": os.environ.get("SMTP_HOST", ""),
                 "port": int(os.environ.get("SMTP_PORT", 587)),
                 "username": os.environ.get("SMTP_USER", ""),
-                "password": os.environ.get("SMTP_PASSWORD", ""),
+                "password": "",
                 "from": os.environ.get("SMTP_FROM", ""),
                 "use_tls": True,
             }
+            context["smtp_password_configured"] = bool(env_password.strip())
 
     elif section == "projects":
         context["projects"] = list(Project.select().order_by(Project.name))
@@ -161,8 +178,8 @@ def settings_section_view(user: User, section: str):  # noqa: C901
     elif section == "webhooks":
         context["projects"] = list(Project.select().order_by(Project.name))
         context["base_url"] = request.host_url.rstrip("/")
-        context["webhook_secret"] = get_webhook_secret()
-        context["github_webhook_secret"] = get_github_webhook_secret()
+        context["webhook_secret_configured"] = bool(get_webhook_secret())
+        context["github_webhook_secret_configured"] = bool(get_github_webhook_secret())
 
         # Outgoing webhooks
         context["outgoing_webhooks"] = list(
@@ -182,8 +199,13 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         try:
             dsn_token = DSNToken.get()
             context["dsn_token"] = dsn_token
+            preview = str(dsn_token.token_preview or "").strip()
+            if not preview and dsn_token.token:
+                preview = str(dsn_token.token)[:8]
+            context["dsn_token_preview"] = preview
         except DoesNotExist:
             context["dsn_token"] = None
+            context["dsn_token_preview"] = ""
 
     elif section == "trash":
         # Fetch deleted tickets
@@ -221,6 +243,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
                 context["ai_settings"] = {
                     **default_ai_settings,
                     **saved,
+                    "api_key": "",
                 }
                 context["ai_settings_source"] = "database"
                 context["ai_settings_api_key_present"] = True
@@ -253,14 +276,9 @@ def settings_section_view(user: User, section: str):  # noqa: C901
 
 
 @settings_bp.route("/api/settings/profile", methods=["POST"])
-def api_update_profile():
+@protected
+def api_update_profile(user: User):
     """Update user profile settings"""
-    from app.utils.security import get_current_user
-
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
-
     data = request.get_json()
 
     # Update email if provided
@@ -331,14 +349,9 @@ def api_update_avatar(user: User):
 
 
 @settings_bp.route("/api/settings/preferences", methods=["POST"])
-def api_update_preferences():
+@protected
+def api_update_preferences(user: User):
     """Update user preferences"""
-    from app.utils.security import get_current_user
-
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
-
     data = request.get_json()
     settings = get_or_create_user_settings(user)
 
@@ -364,14 +377,9 @@ def api_update_preferences():
 
 
 @settings_bp.route("/api/settings/notifications", methods=["POST"])
-def api_update_notifications():
+@protected
+def api_update_notifications(user: User):
     """Update notification settings"""
-    from app.utils.security import get_current_user
-
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
-
     data = request.get_json()
     settings = get_or_create_user_settings(user)
 
@@ -433,11 +441,28 @@ def api_update_anonymous(user: User):
 def api_update_ai(user: User):
     """Update AI configuration (admin only usually, but let's assume they have access to settings)"""
 
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
     data = request.get_json()
+
+    api_key = str(data.get("api_key", "")).strip()
+
+    existing_record = GlobalSetting.get_or_none(GlobalSetting.key == "ai_settings")
+    existing_settings = {}
+    if existing_record and existing_record.value:
+        try:
+            existing_settings = json.loads(existing_record.value)
+        except json.JSONDecodeError:
+            existing_settings = {}
+
+    # Keep previously saved key when the redacted field is left blank.
+    if not api_key and existing_settings.get("api_key"):
+        api_key = str(existing_settings.get("api_key", "")).strip()
 
     # Validate and structure data
     settings = {
-        "api_key": data.get("api_key", "").strip(),
+        "api_key": api_key,
         "base_url": data.get("base_url", "https://api.openai.com/v1").strip(),
         "model": data.get("model", "gpt-4o-mini").strip(),
         "language": data.get("language", "English").strip(),
@@ -453,11 +478,10 @@ def api_update_ai(user: User):
         return json.dumps({"success": True, "message": "AI Integration disabled"}), 200
 
     # Save to GlobalSetting
-    try:
-        setting = GlobalSetting.get(GlobalSetting.key == "ai_settings")
-        setting.value = json.dumps(settings)
-        setting.save()
-    except DoesNotExist:
+    if existing_record:
+        existing_record.value = json.dumps(settings)
+        existing_record.save()
+    else:
         GlobalSetting.create(key="ai_settings", value=json.dumps(settings))
 
     return json.dumps({"success": True, "message": "AI Integration settings saved"}), 200
@@ -483,20 +507,31 @@ def api_update_email_settings(user: User):
     if port <= 0 or port > 65535:
         return json.dumps({"error": "SMTP port is out of range"}), 400
 
+    existing_record = GlobalSetting.get_or_none(GlobalSetting.key == "smtp_settings")
+    existing_settings = {}
+    if existing_record and existing_record.value:
+        try:
+            existing_settings = json.loads(existing_record.value)
+        except json.JSONDecodeError:
+            existing_settings = {}
+
+    password = str(data.get("password", "")).strip()
+    if not password and existing_settings.get("password"):
+        password = str(existing_settings.get("password", "")).strip()
+
     settings = {
         "host": host,
         "port": port,
         "username": str(data.get("username", "")).strip(),
-        "password": str(data.get("password", "")).strip(),
+        "password": password,
         "from": str(data.get("from", "")).strip(),
         "use_tls": bool(data.get("use_tls", True)),
     }
 
-    try:
-        record = GlobalSetting.get(GlobalSetting.key == "smtp_settings")
-        record.value = json.dumps(settings)
-        record.save()
-    except DoesNotExist:
+    if existing_record:
+        existing_record.value = json.dumps(settings)
+        existing_record.save()
+    else:
         GlobalSetting.create(key="smtp_settings", value=json.dumps(settings))
 
     return json.dumps({"success": True}), 200
@@ -530,14 +565,10 @@ def api_send_test_email(user: User):
 
 
 @settings_bp.route("/api/settings/security/password", methods=["POST"])
-def api_change_password():
+@protected
+def api_change_password(user: User):
     """Change user password"""
-    from app.utils.security import get_current_user
     import pyargon2
-
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
 
     data = request.get_json()
     current_password = data.get("current_password", "")
@@ -562,38 +593,35 @@ def api_change_password():
 
 
 @settings_bp.route("/api/settings/webhooks/regenerate-secret", methods=["POST"])
-def api_regenerate_webhook_secret():
+@protected
+def api_regenerate_webhook_secret(user: User):
     """Regenerate webhook secret"""
-    from app.utils.security import get_current_user
 
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
 
     data = request.get_json()
     secret_type = data.get("type", "github")
 
     settings = get_or_create_user_settings(user)
+    new_secret = ""
 
     if secret_type == "github":
-        settings.github_webhook_secret = secrets.token_hex(16)
+        new_secret = secrets.token_hex(16)
+        settings.github_webhook_secret = new_secret
     else:
-        settings.webhook_secret = secrets.token_hex(16)
+        new_secret = secrets.token_hex(16)
+        settings.webhook_secret = new_secret
 
     settings.save()
 
-    return json.dumps({"success": True}), 200
+    return json.dumps({"success": True, "secret": new_secret}), 200
 
 
 @settings_bp.route("/api/settings/webhooks/outgoing", methods=["POST"])
-def api_create_outgoing_webhook():
+@protected
+def api_create_outgoing_webhook(user: User):
     """Create a new outgoing webhook"""
-    from ..utils.security import get_current_user
-
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
-
     data = request.get_json()
     url = data.get("url", "").strip()
     events = data.get("events", [])
@@ -619,14 +647,9 @@ def api_create_outgoing_webhook():
 
 
 @settings_bp.route("/api/settings/webhooks/<int:webhook_id>", methods=["DELETE"])
-def api_delete_webhook(webhook_id: int):
+@protected
+def api_delete_webhook(user: User, webhook_id: int):
     """Delete an outgoing webhook"""
-    from app.utils.security import get_current_user
-
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
-
     try:
         webhook = Webhook.get((Webhook.id == webhook_id) & (Webhook.user == user.username))
         webhook.delete_instance()
@@ -636,14 +659,10 @@ def api_delete_webhook(webhook_id: int):
 
 
 @settings_bp.route("/api/settings/webhooks/<int:webhook_id>/test", methods=["POST"])
-def api_test_webhook(webhook_id: int):
+@protected
+def api_test_webhook(user: User, webhook_id: int):
     """Send a test event to a webhook"""
-    from app.utils.security import get_current_user
     import requests
-
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
 
     try:
         webhook = Webhook.get((Webhook.id == webhook_id) & (Webhook.user == user.username))
@@ -873,13 +892,21 @@ def api_delete_token(user: User, token_id: int):
 def api_create_dsn_token(user: User):
     """Create or replace the DSN token - only one can exist"""
 
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
     # Delete any existing DSN token
     DSNToken.delete().execute()
 
     # Generate secure token
     token = secrets.token_urlsafe(32)
 
-    dsn_token = DSNToken.create(token=token, created_at=int(time.time()))
+    dsn_token = DSNToken.create(
+        token="",
+        token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
+        token_preview=token[:8],
+        created_at=int(time.time()),
+    )
 
     return (
         json.dumps(
@@ -897,6 +924,9 @@ def api_create_dsn_token(user: User):
 @protected
 def api_revoke_dsn_token(user: User):
     """Revoke the DSN token"""
+
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
 
     count = DSNToken.delete().execute()
 
@@ -1030,14 +1060,10 @@ def api_delete_label(user: User, label_name: str):
 
 
 @settings_bp.route("/api/settings/danger/delete-account", methods=["POST"])
-def api_delete_account():
+@protected
+def api_delete_account(user: User):
     """Delete user account"""
-    from app.utils.security import get_current_user
     import pyargon2
-
-    user = get_current_user()
-    if not user:
-        return json.dumps({"error": "Unauthorized"}), 401
 
     data = request.get_json()
     password = data.get("password", "")

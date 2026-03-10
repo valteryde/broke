@@ -453,15 +453,32 @@ window.regenerateSecret = async (type) => {
             body: JSON.stringify({ type })
         });
 
-        if (response.ok) {
-            showToast('Secret regenerated. Please update your GitHub webhook.', 'success');
-            setTimeout(() => location.reload(), 1500);
+        const payload = await response.json();
+
+        if (response.ok && payload.secret) {
+            Modal.show('New Webhook Secret', `
+                <p>Your new webhook secret is shown below. Copy it now - it will not be shown again.</p>
+                <br>
+                <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; word-break: break-all; margin-bottom: 16px;">${payload.secret}</div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="copySecretAndKeepOpen('${payload.secret.replace(/'/g, "\\'")}')">Copy</button>
+                    <button type="button" class="btn btn-primary" onclick="Modal.close(); location.reload();">Done</button>
+                </div>
+            `);
         } else {
-            showToast('Failed to regenerate secret', 'error');
+            showToast(payload.error || 'Failed to regenerate secret', 'error');
         }
     } catch (error) {
-        showToast('Secret regenerated', 'success');
-        setTimeout(() => location.reload(), 1500);
+        showToast('Failed to regenerate secret', 'error');
+    }
+};
+
+window.copySecretAndKeepOpen = async (secret) => {
+    try {
+        await navigator.clipboard.writeText(secret);
+        showToast('Secret copied to clipboard', 'success');
+    } catch (error) {
+        showToast('Failed to copy secret', 'error');
     }
 };
 
@@ -665,9 +682,15 @@ function generateDSNToken() {
     })
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                showToast('DSN token generated', 'success');
-                setTimeout(() => location.reload(), 1000);
+            if (data.success && data.token) {
+                Modal.show('New DSN Token', `
+                    <p>Your new DSN token is shown below. Copy it now - it will not be shown again.</p>
+                    <br>
+                    <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; word-break: break-all; margin-bottom: 16px;">${data.token}</div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" onclick="Modal.close(); location.reload();">Close</button>
+                    </div>
+                `);
             } else {
                 showToast('Failed to generate DSN token', 'error');
             }

@@ -304,7 +304,10 @@ class DSNToken(BaseModel):
 
     id = AutoField(primary_key=True)
 
-    token = CharField()  # Full token (visible)
+    # Legacy plaintext token field kept for backwards compatibility/migration only.
+    token = CharField(null=True)
+    token_hash = CharField(null=True)
+    token_preview = CharField(null=True)
 
     created_at = IntegerField(default=lambda: int(time.time()))
     last_used = IntegerField(null=True)
@@ -375,6 +378,7 @@ def initialize_db():
     database.connect()
     database.create_tables(MODELS, safe=True)
     _ensure_ticket_parent_column()
+    _ensure_dsn_token_columns()
     database.close()
 
 
@@ -389,6 +393,19 @@ def _ensure_ticket_parent_column() -> None:
         database.execute_sql(
             "CREATE INDEX IF NOT EXISTS ticket_parent_ticket_id ON ticket(parent_ticket_id);"
         )
+
+
+def _ensure_dsn_token_columns() -> None:
+    """Backfill schema for DSN token hardening fields on older databases."""
+    columns = [
+        row[1]
+        for row in database.execute_sql("PRAGMA table_info(dsntoken);").fetchall()
+    ]
+
+    if "token_hash" not in columns:
+        database.execute_sql("ALTER TABLE dsntoken ADD COLUMN token_hash TEXT;")
+    if "token_preview" not in columns:
+        database.execute_sql("ALTER TABLE dsntoken ADD COLUMN token_preview TEXT;")
 
 
 def setup_test_data():  # noqa: C901

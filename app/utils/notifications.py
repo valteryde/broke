@@ -155,7 +155,7 @@ def _dispatch_slack(event: dict, webhook_url: str):
 
     text = _build_event_text(event)
     payload = json.dumps({"text": text}).encode("utf-8")
-    req = urlrequest.Request(
+    req = urlrequest.Request(  # nosec: B310 - URL is not user-provided input
         webhook_url,
         data=payload,
         headers={"Content-Type": "application/json"},

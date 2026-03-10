@@ -77,7 +77,7 @@ def _(c=auth_client):
         json={"type": "github"},
         content_type="application/json",
     )
-    assert response.status_code in [200, 302]
+    assert response.status_code == 403
 
 
 @test("/api/settings/webhooks/<id> DELETE removes webhook")
@@ -113,7 +113,7 @@ def _(c=auth_client):
         data=json.dumps({"project_id": "test-project"}),
         content_type="application/json",
     )
-    assert response.status_code in [200, 302, 400]
+    assert response.status_code == 403
 
 
 @test("/api/settings/dsn-token DELETE removes DSN token")
@@ -124,7 +124,7 @@ def _(c=auth_client):
         data=json.dumps({"token": "fake-token"}),
         content_type="application/json",
     )
-    assert response.status_code in [200, 302, 404]
+    assert response.status_code == 403
 
 
 @test("/api/settings/projects/delete/<id> GET deletes project")

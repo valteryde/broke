@@ -5,7 +5,7 @@ import sentry_sdk
 from .config import dogfood_dsn, eat_your_own_dogfood
 import time
 
-if eat_your_own_dogfood:
+if eat_your_own_dogfood and dogfood_dsn:
     sentry_sdk.init(
         dsn=dogfood_dsn,
         traces_sample_rate=1.0

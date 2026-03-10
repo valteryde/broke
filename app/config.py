@@ -1,3 +1,11 @@
 
-eat_your_own_dogfood = True
-dogfood_dsn = "http://555b5CC5XHQmbbN75LiF1mWdkwMuEAdt48T66s3PPSo@192.168.0.157/ingest/1"
+import os
+
+
+eat_your_own_dogfood = os.environ.get("BROKE_EAT_YOUR_OWN_DOGFOOD", "false").strip().lower() in {
+	"1",
+	"true",
+	"yes",
+	"on",
+}
+dogfood_dsn = os.environ.get("BROKE_DOGFOOD_DSN", "").strip()

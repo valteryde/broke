@@ -558,6 +558,24 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
     assert response.status_code == 400
 
 
+@test("Envelope rejects DSN token passed via query parameter")
+def _(c=client, part=sentry_project_part, token=dsn_token):
+    """DSN auth should require headers, not query-string credentials."""
+    event_id = uuid.uuid4().hex
+
+    envelope = f'{{"event_id":"{event_id}"}}\n'
+    envelope += '{"type":"event"}\n'
+    envelope += f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z","platform":"python","level":"error","message":"query token should fail"}}\n'
+
+    response = c.post(
+        f"/ingest/{part.id}/envelope?sentry_key={token.token}",
+        data=envelope.encode("utf-8"),
+        content_type="application/x-sentry-envelope",
+    )
+
+    assert response.status_code == 401
+
+
 @test("Envelope with malformed JSON header")
 def _(c=client, part=sentry_project_part, token=dsn_token):
     """Test handling of malformed JSON in envelope header"""

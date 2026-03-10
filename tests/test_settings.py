@@ -6,7 +6,8 @@ import json
 import io
 import time
 
-from app.utils.models import User, create_user, UserSettings, GlobalSetting
+from app.utils.models import User, create_user, UserSettings, GlobalSetting, DSNToken
+from app.utils.path import data_path
 import pyargon2
 from unittest.mock import patch
 
@@ -124,7 +125,18 @@ def _(c=auth_client):
 
 
 @test("/settings/ai shows environment-backed AI config when DB settings missing")
-def _(c=auth_client):
+def _(c=client, f=fake):
+    admin_username = f"admin_ai_env_{f.uuid4()[:8]}"
+    admin_email = f"admin_ai_env_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
     GlobalSetting.delete().where(GlobalSetting.key == "ai_settings").execute()
 
     with patch.dict(
@@ -146,7 +158,18 @@ def _(c=auth_client):
 
 
 @test("/settings/ai prefers DB config over environment")
-def _(c=auth_client):
+def _(c=client, f=fake):
+    admin_username = f"admin_ai_db_{f.uuid4()[:8]}"
+    admin_email = f"admin_ai_db_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
     payload = json.dumps(
         {
             "api_key": "db-key-abc",
@@ -440,3 +463,224 @@ def _(c=client, f=fake):
     payload = json.loads(response.data)
     assert payload.get("success") is True
     assert send_email_mock.called
+
+
+@test("Non-admin cannot update AI settings")
+def _(c=auth_client):
+    response = c.post(
+        "/api/settings/ai",
+        data=json.dumps(
+            {
+                "api_key": "sk-test-key",
+                "base_url": "https://api.openai.com/v1",
+                "model": "gpt-4o-mini",
+                "language": "English",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+@test("Non-admin cannot create DSN token")
+def _(c=auth_client):
+    response = c.post("/api/settings/dsn-token")
+    assert response.status_code == 403
+
+
+@test("Non-admin cannot revoke DSN token")
+def _(c=auth_client):
+    response = c.delete("/api/settings/dsn-token")
+    assert response.status_code == 403
+
+
+@test("Non-admin cannot regenerate webhook secret")
+def _(c=auth_client):
+    response = c.post(
+        "/api/settings/webhooks/regenerate-secret",
+        data=json.dumps({"type": "github"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 403
+
+
+@test("Admin can regenerate webhook secret and receive it once")
+def _(c=client, f=fake):
+    admin_username = f"admin_regen_{f.uuid4()[:8]}"
+    admin_email = f"admin_regen_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    response = c.post(
+        "/api/settings/webhooks/regenerate-secret",
+        data=json.dumps({"type": "github"}),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    payload = json.loads(response.data)
+    assert payload.get("success") is True
+    assert isinstance(payload.get("secret"), str)
+    assert len(payload.get("secret")) == 32
+
+
+@test("Non-admin cannot access webhooks settings section")
+def _(c=auth_client):
+    response = c.get("/settings/webhooks", follow_redirects=False)
+    assert response.status_code == 302
+
+
+@test("Non-admin cannot access sentry settings section")
+def _(c=auth_client):
+    response = c.get("/settings/sentry", follow_redirects=False)
+    assert response.status_code == 302
+
+
+@test("Non-admin cannot access ai settings section")
+def _(c=auth_client):
+    response = c.get("/settings/ai", follow_redirects=False)
+    assert response.status_code == 302
+
+
+@test("Settings pages do not render raw SMTP password")
+def _(c=client, f=fake):
+    admin_username = f"admin_sec_mail_{f.uuid4()[:8]}"
+    admin_email = f"admin_sec_mail_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    secret_password = "smtp-super-secret-password"
+    smtp_record = GlobalSetting.get_or_none(GlobalSetting.key == "smtp_settings")
+    payload = {
+        "host": "smtp.example.com",
+        "port": 587,
+        "username": "smtp-user",
+        "password": secret_password,
+        "from": "noreply@example.com",
+        "use_tls": True,
+    }
+    if smtp_record:
+        smtp_record.value = json.dumps(payload)
+        smtp_record.save()
+    else:
+        GlobalSetting.create(key="smtp_settings", value=json.dumps(payload))
+
+    response = c.get("/settings/email")
+    assert response.status_code == 200
+    assert secret_password.encode() not in response.data
+
+
+@test("Settings pages do not render raw AI API key")
+def _(c=client, f=fake):
+    admin_username = f"admin_sec_ai_{f.uuid4()[:8]}"
+    admin_email = f"admin_sec_ai_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    ai_secret = "sk-very-secret-ai-key"
+    ai_record = GlobalSetting.get_or_none(GlobalSetting.key == "ai_settings")
+    payload = {
+        "api_key": ai_secret,
+        "base_url": "https://api.openai.com/v1",
+        "model": "gpt-4o-mini",
+        "language": "English",
+    }
+    if ai_record:
+        ai_record.value = json.dumps(payload)
+        ai_record.save()
+    else:
+        GlobalSetting.create(key="ai_settings", value=json.dumps(payload))
+
+    response = c.get("/settings/ai")
+    assert response.status_code == 200
+    assert ai_secret.encode() not in response.data
+
+
+@test("Settings pages do not render raw webhook secret")
+def _(c=client, f=fake):
+    admin_username = f"admin_sec_wh_{f.uuid4()[:8]}"
+    admin_email = f"admin_sec_wh_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    github_secret = "github-webhook-top-secret"
+    with open(data_path("github_webhook_secret.txt"), "w") as secret_file:
+        secret_file.write(github_secret)
+
+    response = c.get("/settings/webhooks")
+    assert response.status_code == 200
+    assert github_secret.encode() not in response.data
+
+
+@test("Settings pages do not render raw DSN token")
+def _(c=client, f=fake):
+    admin_username = f"admin_sec_dsn_{f.uuid4()[:8]}"
+    admin_email = f"admin_sec_dsn_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    raw_token = f"dsn-secret-{int(time.time() * 1000000)}"
+    DSNToken.delete().execute()
+    DSNToken.create(token=raw_token)
+
+    response = c.get("/settings/sentry")
+    assert response.status_code == 200
+    assert raw_token.encode() not in response.data
+
+
+@test("Creating DSN token stores hash instead of raw token")
+def _(c=client, f=fake):
+    admin_username = f"admin_sec_dsn_create_{f.uuid4()[:8]}"
+    admin_email = f"admin_sec_dsn_create_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    response = c.post("/api/settings/dsn-token")
+    assert response.status_code == 200
+
+    payload = json.loads(response.data)
+    assert payload.get("success") is True
+    token_value = payload.get("token")
+    assert isinstance(token_value, str)
+    assert len(token_value) > 20
+
+    record = DSNToken.get_or_none()
+    assert record is not None
+    assert getattr(record, "token_hash", "")
+    assert record.token != token_value

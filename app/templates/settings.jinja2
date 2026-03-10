@@ -460,7 +460,10 @@
 
                         <div class="form-group">
                             <label for="smtp-password">SMTP Password</label>
-                            <input type="password" id="smtp-password" name="password" class="form-input" value="{{ smtp_settings.get('password', '') }}" {% if user.admin != 1 %}disabled{% endif %}>
+                            <input type="password" id="smtp-password" name="password" class="form-input" value="" autocomplete="new-password" {% if user.admin != 1 %}disabled{% endif %}>
+                            {% if smtp_password_configured %}
+                            <span class="form-hint">A password is already configured. Enter a new one only to rotate it.</span>
+                            {% endif %}
                         </div>
 
                         <div class="form-group">
@@ -966,7 +969,7 @@
 
                         <div class="form-group">
                             <label for="ai-api-key">API Key</label>
-                            <input type="password" id="ai-api-key" name="api_key" value="{{ ai_settings.get('api_key', '') }}" class="form-input" placeholder="sk-...">
+                            <input type="password" id="ai-api-key" name="api_key" value="" class="form-input" placeholder="sk-..." autocomplete="new-password">
                             {% if ai_settings_source == 'environment' and ai_settings_api_key_present %}
                             <span class="form-hint">Environment key detected. Leave blank to keep using <code>.env</code>; enter a key here to save one in settings.</span>
                             {% elif ai_settings_source == 'database' and ai_settings_api_key_present %}
@@ -1141,10 +1144,7 @@
                         <div class="webhook-url-section">
                             <label>Secret Token <span class="label-optional">(optional but recommended)</span></label>
                             <div class="dsn-url-wrapper">
-                                <code class="dsn-url">{{ github_webhook_secret }}</code>
-                                <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ github_webhook_secret }}">
-                                    <i class="ph ph-copy"></i>
-                                </button>
+                                <code class="dsn-url">••••••••••••••••</code>
                                 <button class="btn-icon" onclick="regenerateSecret('github')" title="Regenerate">
                                     <i class="ph ph-arrows-clockwise"></i>
                                 </button>
@@ -1261,14 +1261,11 @@
                         {% if dsn_token %}
                         <div class="token-item">
                             <div class="token-info">
-                                <span class="token-name">{{ dsn_token.token }}</span>
+                                <span class="token-name">{{ dsn_token_preview }}********</span>
                                 <span class="token-meta">Created {{ dsn_token.created_at | timestamp_to_date }}</span>
                                 <span class="token-last-used">Last used: {% if dsn_token.last_used %}{{ dsn_token.last_used | timestamp_to_date }}{% else %}Never{% endif %}</span>
                             </div>
                             <div class="token-actions">
-                                <button class="btn-icon" title="Copy" onclick="copyToClipboard(this)" data-url="{{ dsn_token.token }}">
-                                    <i class="ph ph-copy"></i>
-                                </button>
                                 <button class="btn-icon danger" title="Revoke" onclick="revokeDSNToken()">
                                     <i class="ph ph-trash"></i>
                                 </button>
@@ -1316,8 +1313,8 @@
                             <div class="dsn-info">
                                 <span class="dsn-project">{{ part.project.name }} / {{ part.name }}</span>
                                 <div class="dsn-url-wrapper">
-                                    <code class="dsn-url">http://{{ dsn_token.token }}@{{ base_url | replace('http://', '') | replace('https://', '') }}/ingest/{{ part.id }}</code>
-                                    <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="http://{{ dsn_token.token }}@{{ base_url | replace('http://', '') | replace('https://', '') }}/ingest/{{ part.id }}">
+                                    <code class="dsn-url">https://YOUR_DSN_TOKEN@{{ base_url | replace('http://', '') | replace('https://', '') }}/ingest/{{ part.id }}</code>
+                                    <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="https://YOUR_DSN_TOKEN@{{ base_url | replace('http://', '') | replace('https://', '') }}/ingest/{{ part.id }}">
                                         <i class="ph ph-copy"></i>
                                     </button>
                                 </div>

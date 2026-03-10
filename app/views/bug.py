@@ -16,6 +16,7 @@ from peewee import DoesNotExist
 import gzip
 import json
 import hashlib
+import hmac
 import time
 import re
 import base64
@@ -540,7 +541,7 @@ def verify_dsn_token() -> bool:
     The token can be provided in multiple ways:
     1. Basic auth username in Authorization header (Sentry SDK default)
     2. X-Sentry-Auth header
-    3. sentry_key query parameter
+    3. sentry_key query parameter (deprecated, rejected)
     """
     token = None
 
@@ -571,21 +572,35 @@ def verify_dsn_token() -> bool:
                     token = part[11:].strip()  # len('sentry_key=') == 11
                     break
 
-    # Method 3: Query parameter
-    if not token:
-        token = request.args.get("sentry_key")
-
     if not token:
         return False
 
-    # Verify token exists in database
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    # Verify token exists in database (hashed primary path + legacy plaintext fallback).
     try:
-        dsn_token = DSNToken.get(DSNToken.token == token)
+        dsn_token = (
+            DSNToken.select()
+            .where((DSNToken.token_hash == token_hash) | (DSNToken.token == token))
+            .first()
+        )
+        if not dsn_token:
+            return False
+
+        if dsn_token.token_hash:
+            if not hmac.compare_digest(str(dsn_token.token_hash), token_hash):
+                return False
+        elif dsn_token.token:
+            if not hmac.compare_digest(str(dsn_token.token), token):
+                return False
+        else:
+            return False
+
         # Update last used timestamp
         dsn_token.last_used = int(time.time())
         dsn_token.save()
         return True
-    except DoesNotExist:
+    except Exception:
         return False
 
 
