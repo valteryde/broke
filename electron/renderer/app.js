@@ -219,6 +219,20 @@ function hideLogin() {
   loginPasswordEl.value = "";
 }
 
+function closeOpenModal() {
+  if (!backendModalEl.classList.contains("hidden")) {
+    hideForm();
+    return true;
+  }
+
+  if (!loginModalEl.classList.contains("hidden")) {
+    hideLogin();
+    return true;
+  }
+
+  return false;
+}
+
 async function refresh() {
   const payload = await window.brokeDesktop.listProfiles();
   state.profiles = payload.items || [];
@@ -424,6 +438,12 @@ document.querySelectorAll(".icon-option").forEach((btn) => {
     btn.classList.add("active");
     state.selectedIcon = btn.dataset.icon;
   });
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeOpenModal();
+  }
 });
 
 (async function boot() {

@@ -15,6 +15,7 @@ const {
 const SERVICE_NAME = "broke-desktop";
 const PROFILE_FILE = "backends.json";
 const DESKTOP_USER_AGENT = `BrokeDesktop/0.1 ${app.userAgentFallback}`;
+const APP_ICON_PATH = path.join(__dirname, "assets", "app-icon.png");
 
 let mainWindow = null;
 
@@ -301,29 +302,103 @@ async function openBackend(profileId) {
   return { opened: true };
 }
 
+async function showBackendPicker() {
+  await mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+}
+
+function openCurrentInBrowser() {
+  const store = readProfiles();
+  const current = store.items.find((item) => item.id === store.selectedId);
+  if (current && isAllowedExternalUrl(current.backendUrl)) {
+    shell.openExternal(current.backendUrl);
+  }
+}
+
 function buildMenu() {
+  const isMac = process.platform === "darwin";
   const template = [
-    {
-      label: "Broke",
-      submenu: [
-        {
-          label: "Switch Backend",
-          click: async () => {
-            await mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+    ...(isMac
+      ? [
+          {
+            role: "appMenu",
+            submenu: [
+              { role: "about" },
+              { type: "separator" },
+              {
+                label: "Switch Backend",
+                accelerator: "CmdOrCtrl+Shift+B",
+                click: async () => {
+                  await showBackendPicker();
+                },
+              },
+              {
+                label: "Open Current In Browser",
+                accelerator: "CmdOrCtrl+Shift+O",
+                click: () => {
+                  openCurrentInBrowser();
+                },
+              },
+              { type: "separator" },
+              { role: "services" },
+              { type: "separator" },
+              { role: "hide" },
+              { role: "hideOthers" },
+              { role: "unhide" },
+              { type: "separator" },
+              { role: "quit" },
+            ],
           },
-        },
+        ]
+      : [
+          {
+            label: "Broke",
+            submenu: [
+              {
+                label: "Switch Backend",
+                accelerator: "CmdOrCtrl+Shift+B",
+                click: async () => {
+                  await showBackendPicker();
+                },
+              },
+              {
+                label: "Open Current In Browser",
+                accelerator: "CmdOrCtrl+Shift+O",
+                click: () => {
+                  openCurrentInBrowser();
+                },
+              },
+              { type: "separator" },
+              { role: "quit" },
+            ],
+          },
+        ]),
+    { role: "editMenu" },
+    {
+      role: "viewMenu",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
+    {
+      role: "windowMenu",
+      submenu: [
+        { role: "minimize" },
+        { role: "zoom" },
+        ...(isMac ? [{ type: "separator" }, { role: "front" }] : [{ role: "close" }]),
+      ],
+    },
+    {
+      role: "help",
+      submenu: [
         {
           label: "Open Current In Browser",
           click: () => {
-            const store = readProfiles();
-            const current = store.items.find((item) => item.id === store.selectedId);
-            if (current) {
-              shell.openExternal(current.backendUrl);
-            }
+            openCurrentInBrowser();
           },
         },
-        { type: "separator" },
-        { role: "quit" },
       ],
     },
   ];
@@ -339,7 +414,10 @@ function createWindow() {
     minWidth: 980,
     minHeight: 700,
     show: false,
+    icon: APP_ICON_PATH,
     title: "Broke Desktop",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    backgroundColor: "#ece9e4",
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
@@ -536,11 +614,21 @@ ipcMain.handle("app:clear-auth", async (event, profileId) => {
 
 ipcMain.handle("app:switch-instance", async (event) => {
   assertLocalOrCurrentBackendSender(event);
-  await mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  await showBackendPicker();
   return { ok: true };
 });
 
 app.whenReady().then(() => {
+  if (process.platform === "darwin") {
+    app.dock.setIcon(APP_ICON_PATH);
+  }
+
+  app.setAboutPanelOptions({
+    applicationName: "Broke Desktop",
+    applicationVersion: "0.1.0",
+    version: "0.1.0",
+  });
+
   createWindow();
 
   app.on("activate", () => {

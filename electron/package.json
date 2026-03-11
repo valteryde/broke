@@ -23,6 +23,7 @@
     "appId": "com.broke.desktop",
     "productName": "Broke Desktop",
     "files": [
+      "assets/**/*",
       "main.js",
       "security.js",
       "preload.js",
