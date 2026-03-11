@@ -30,12 +30,14 @@
       "renderer/**/*"
     ],
     "mac": {
+      "icon": "assets/app-icon.icns",
       "target": [
         "dmg"
       ],
       "category": "public.app-category.productivity"
     },
     "win": {
+      "icon": "assets/app-icon.ico",
       "target": [
         "nsis"
       ]

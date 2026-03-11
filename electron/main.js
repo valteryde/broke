@@ -15,6 +15,7 @@ const {
 const SERVICE_NAME = "broke-desktop";
 const PROFILE_FILE = "backends.json";
 const DESKTOP_USER_AGENT = `BrokeDesktop/0.1 ${app.userAgentFallback}`;
+const APP_ID = "com.broke.desktop";
 const APP_ICON_PATH = path.join(__dirname, "assets", "app-icon.png");
 
 let mainWindow = null;
@@ -619,6 +620,12 @@ ipcMain.handle("app:switch-instance", async (event) => {
 });
 
 app.whenReady().then(() => {
+  app.setName("Broke Desktop");
+
+  if (process.platform === "win32") {
+    app.setAppUserModelId(APP_ID);
+  }
+
   if (process.platform === "darwin") {
     app.dock.setIcon(APP_ICON_PATH);
   }
