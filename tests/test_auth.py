@@ -53,6 +53,16 @@ def _(c=client):
     assert b'login' in response.data.lower()
 
 
+@test("/login GET bootstraps CSRF for standalone forms")
+def _(c=client):
+    response = c.get('/login')
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'meta name="csrf-token" content="' in body
+    assert 'name="csrf_token"' in body
+
+
 @test("/logout redirects to login")
 def _(c=auth_client):
     """Test logout functionality"""

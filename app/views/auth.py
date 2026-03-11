@@ -4,7 +4,7 @@ Handles login, logout, and callback routes
 """
 
 from flask import Blueprint, render_template, request, redirect, session, flash
-from app.utils.security import authenticate
+from app.utils.security import authenticate, get_csrf_token
 
 # Create auth blueprint
 auth_bp = Blueprint('auth', __name__)
@@ -27,6 +27,7 @@ def callback():
     user = authenticate(username, password)
     if user:
         session['user_id'] = user.username
+        get_csrf_token()
         next_url = request.args.get('next') or '/news'
         return redirect(next_url)
     else:
@@ -38,4 +39,5 @@ def callback():
 def logout():
     """Log out the current user"""
     session.pop('user_id', None)
+    session.pop('_csrf_token', None)
     return redirect('/login')

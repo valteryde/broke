@@ -53,6 +53,15 @@ def _(c=client, project=anon_enabled_project):
     assert b"Submit a Ticket" in response.data
 
 
+@test("/avatar/<username> GET returns SVG fallback when avatar missing")
+def _(c=client):
+    response = c.get(f'/avatar/missing-user-{int(time.time() * 1000000)}')
+
+    assert response.status_code == 200
+    assert response.mimetype == 'image/svg+xml'
+    assert b'<svg' in response.data
+
+
 @test("/anon/<project_id> GET shows submission form")
 def _(c=client, project=anon_enabled_project):
     """Legacy project route should redirect to unified /anon form"""
