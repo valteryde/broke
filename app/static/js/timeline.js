@@ -324,23 +324,161 @@ function formatTimeAgo(timestamp) {
 }
 
 /**
- * Load more events (for infinite scroll or button click)
+ * Load more events via AJAX
  */
-function loadMoreEvents() {
+function initLoadMore() {
     const loadMoreBtn = document.getElementById('load-more');
     if (!loadMoreBtn) return;
-    
-    loadMoreBtn.addEventListener('click', () => {
-        // In a real implementation, this would fetch more events via AJAX
-        // For now, we'll just show the additional events from timelineData
-        loadMoreBtn.innerHTML = '<i class="ph ph-spinner"></i> Loading...';
+
+    let offset = 50; // Initial load was 50
+    const limit = 50;
+    const timelineContainer = document.getElementById('timeline-view');
+    let lastDate = timelineContainer.querySelector('.timeline-date-header:last-of-type .date-full')?.textContent || '';
+
+    loadMoreBtn.addEventListener('click', async () => {
+        loadMoreBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Loading...';
         loadMoreBtn.disabled = true;
-        
-        setTimeout(() => {
-            loadMoreBtn.parentElement.style.display = 'none';
-        }, 1000);
+
+        const params = new URLSearchParams(window.location.search);
+        params.set('offset', offset);
+        params.set('limit', limit);
+        if (timelineData.currentProject) {
+            params.set('project', timelineData.currentProject);
+        }
+
+        try {
+            const response = await fetch(`/api/timeline/events?${params.toString()}`);
+            const data = await response.json();
+
+            if (data.events && data.events.length > 0) {
+                data.events.forEach(event => {
+                    // Check if we need a new date header
+                    if (event.date_full !== lastDate) {
+                        const header = renderDateHeader(event);
+                        timelineContainer.appendChild(header);
+                        lastDate = event.date_full;
+                    }
+
+                    const eventEl = renderEvent(event);
+                    timelineContainer.appendChild(eventEl);
+                });
+
+                offset += data.events.length;
+                
+                if (!data.has_more) {
+                    loadMoreBtn.parentElement.style.display = 'none';
+                } else {
+                    loadMoreBtn.innerHTML = '<i class="ph ph-arrow-down"></i> Load More Events';
+                    loadMoreBtn.disabled = false;
+                }
+
+                // Update jdenticon for new avatars
+                if (window.jdenticon) {
+                    window.jdenticon.update();
+                }
+            } else {
+                loadMoreBtn.parentElement.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error loading more events:', error);
+            loadMoreBtn.innerHTML = '<i class="ph ph-warning"></i> Failed to load. Try again?';
+            loadMoreBtn.disabled = false;
+        }
     });
 }
 
-// Initialize load more
-document.addEventListener('DOMContentLoaded', loadMoreEvents);
+function renderDateHeader(event) {
+    const div = document.createElement('div');
+    div.className = 'timeline-date-header';
+    div.innerHTML = `
+        <div class="date-marker">
+            <span class="date-day">${event.date_day}</span>
+            <span class="date-month">${event.date_month}</span>
+        </div>
+        <div class="date-line"></div>
+        <span class="date-full">${event.date_full}</span>
+    `;
+    return div;
+}
+
+function renderEvent(event) {
+    const div = document.createElement('div');
+    div.className = `timeline-event ${event.type}`;
+    div.dataset.type = event.type;
+    div.dataset.timestamp = event.timestamp;
+
+    let contentHtml = '';
+    if (event.type === 'update_group') {
+        const subEventsHtml = event.events.map(sub => `
+            <div class="timeline-sub-event">
+                <i class="ph ${sub.icon}"></i>
+                <span>${sub.description}</span>
+                <span class="time">${sub.time_str}</span>
+            </div>
+        `).join('');
+        
+        contentHtml = `
+            <details class="timeline-group-details">
+                <summary class="timeline-group-summary">
+                    <i class="ph ph-list"></i>
+                    <span>Show details</span>
+                </summary>
+                <div class="timeline-group-content">${subEventsHtml}</div>
+            </details>
+        `;
+    } else if (event.description) {
+        const truncated = event.description.length > 200 ? event.description.substring(0, 200) + '...' : event.description;
+        contentHtml = `<p class="event-description">${truncated}</p>`;
+    }
+
+    let metaHtml = '';
+    if (event.meta) {
+        if (event.meta.user) {
+            metaHtml += `
+                <span class="meta-item">
+                    <svg width="18" height="18" data-jdenticon-value="${event.meta.user}"></svg>
+                    ${event.meta.user}
+                </span>
+            `;
+        }
+        if (event.meta.project) {
+            metaHtml += `<span class="meta-item"><i class="ph ph-folder"></i> ${event.meta.project}</span>`;
+        }
+        if (event.meta.ticket_id) {
+            metaHtml += `<span class="meta-item"><i class="ph ph-ticket"></i> ${event.meta.ticket_id}</span>`;
+        }
+        if (event.meta.status) {
+            metaHtml += `<span class="meta-item status-${event.meta.status}"><i class="ph ph-circle-fill"></i> ${event.meta.status}</span>`;
+        }
+    }
+
+    const linkHtml = event.link ? `<a href="${event.link}" class="event-link">View details <i class="ph ph-arrow-right"></i></a>` : '';
+
+    div.innerHTML = `
+        <div class="event-connector">
+            <div class="connector-line"></div>
+            <div class="connector-dot ${event.type}">
+                <i class="ph ${event.icon}"></i>
+            </div>
+        </div>
+        <div class="event-card">
+            <div class="event-header">
+                <span class="event-type-badge ${event.type}">${event.type_label}</span>
+                <span class="event-time">${event.time_str}</span>
+            </div>
+            <div class="event-content">
+                <h4 class="event-title">${event.title}</h4>
+                ${contentHtml}
+                <div class="event-meta">${metaHtml}</div>
+            </div>
+            ${linkHtml}
+        </div>
+    `;
+    return div;
+}
+
+// Override or update global init
+document.addEventListener('DOMContentLoaded', () => {
+    // Other inits are already there from original file, but let's ensure ours runs
+    initLoadMore();
+});

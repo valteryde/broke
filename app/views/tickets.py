@@ -32,28 +32,68 @@ def _is_intake_status(value: str | None) -> bool:
     return str(value or "").strip().lower() in INTAKE_STATUSES
 
 
-def populateTickets(tickets: list[Ticket]) -> None:
+from peewee import prefetch
+
+from typing import Any
+
+def populateTickets(tickets_or_query: list[Ticket] | Any, lite: bool = False) -> None:
     """
-    Populates the tickets page with tickets from the database.
-
-    Adds labels, comments, and update messages to each ticket.
-
-    Parameters:
-        tickets (list): List of Ticket objects to populate.
+    Populates the tickets with labels, assignees, and optionally comments/updates.
+    Uses manual batched queries to avoid N+1 problems because the schema uses
+    CharField for relationships instead of ForeignKeyField.
     """
+    if not tickets_or_query:
+        return
 
-    for ticket in tickets:
-        # Fetch and attach labels
-        ticket.labels = [Label.get_or_none(Label.name == tlj.label) for tlj in TicketLabelJoin.select().where(TicketLabelJoin.ticket == ticket.id)]  # type: ignore
+    # If it's a query, we execute it to get a list
+    if not isinstance(tickets_or_query, list):
+        tickets = list(tickets_or_query)
+    else:
+        tickets = tickets_or_query
+        
+    if not tickets:
+        return
 
-        # Fetch and attach comments
-        ticket.comments = [comment for comment in Comment.select().where(Comment.ticket == ticket.id).order_by(Comment.id)]  # type: ignore
+    ticket_dict = {t.id: t for t in tickets if getattr(t, 'id', None)}
+    ticket_ids = list(ticket_dict.keys())
 
-        # Fetch and attach update messages
-        ticket.updates = [update for update in TicketUpdateMessage.select().where(TicketUpdateMessage.ticket == ticket.id).order_by(TicketUpdateMessage.id)]  # type: ignore
+    # Initialize empty lists safely
+    for t in tickets:
+        t.labels = getattr(t, 'labels', [])
+        t.assignees = getattr(t, 'assignees', [])
+        t.comments = getattr(t, 'comments', [])
+        t.updates = getattr(t, 'updates', [])
 
-        # Add assigned users
-        ticket.assignees = [User.get_or_none(User.username == utj.user) for utj in UserTicketJoin.select().where(UserTicketJoin.ticket == ticket.id)]  # type: ignore
+    # 1. Bulk Assignees
+    utjs = UserTicketJoin.select().where(UserTicketJoin.ticket.in_(ticket_ids))
+    user_ids = [utj.user for utj in utjs]
+    if user_ids:
+        users = {u.username: u for u in User.select().where(User.username.in_(user_ids))}
+        for utj in utjs:
+            if utj.ticket in ticket_dict and utj.user in users:
+                ticket_dict[utj.ticket].assignees.append(users[utj.user])
+
+    # 2. Bulk Labels
+    tljs = TicketLabelJoin.select().where(TicketLabelJoin.ticket.in_(ticket_ids))
+    label_ids = [tlj.label for tlj in tljs]
+    if label_ids:
+        labels = {l.name: l for l in Label.select().where(Label.name.in_(label_ids))}
+        for tlj in tljs:
+            if tlj.ticket in ticket_dict and tlj.label in labels:
+                ticket_dict[tlj.ticket].labels.append(labels[tlj.label])
+
+    if not lite:
+        # 3. Bulk Comments
+        comments = Comment.select().where(Comment.ticket.in_(ticket_ids)).order_by(Comment.id)
+        for c in comments:
+            if getattr(c, 'ticket', None) in ticket_dict:
+                ticket_dict[c.ticket].comments.append(c)
+
+        # 4. Bulk Updates
+        updates = TicketUpdateMessage.select().where(TicketUpdateMessage.ticket.in_(ticket_ids)).order_by(TicketUpdateMessage.id)
+        for u in updates:
+            if getattr(u, 'ticket', None) in ticket_dict:
+                ticket_dict[u.ticket].updates.append(u)
 
 
 def populate_ticket_board_meta(tickets: list[Ticket]) -> None:
@@ -99,11 +139,28 @@ def resolve_ticket_view(user: User) -> str:
     return "list"
 
 
+def strip_html(text: str) -> str:
+    """Very simple HTML tag stripper."""
+    if not text:
+        return ""
+    return re.sub(r'<[^>]+>', '', text)
+
+def lite_populate(tickets: list[Ticket]) -> None:
+    """Helper to prepare tickets for overview lists with minimal payload."""
+    populateTickets(tickets, lite=True)
+    for t in tickets:
+        # Strip HTML and truncate description for list view
+        cleaned = strip_html(t.description or "")
+        if len(cleaned) > 500:
+            t.description = cleaned[:500] + "..."
+        else:
+            t.description = cleaned
+
 @tickets_bp.route("/tickets")
 @protected
 def tickets_view(user: User):
     tickets = list(Ticket.select().where((Ticket.active == 1) & (~(Ticket.status.in_(INTAKE_STATUSES)))))
-    populateTickets(tickets)
+    lite_populate(tickets)
     populate_ticket_board_meta(tickets)
     ticket_view = resolve_ticket_view(user)
 
@@ -139,7 +196,7 @@ def project_tickets_view(user: User, project_id: str):
             & (~(Ticket.status.in_(INTAKE_STATUSES)))
         )
     )
-    populateTickets(tickets)
+    lite_populate(tickets)
     populate_ticket_board_meta(tickets)
     ticket_view = resolve_ticket_view(user)
 
@@ -173,7 +230,7 @@ def triage_view(user: User):
         .where((Ticket.active == 1) & (Ticket.status.in_(INTAKE_STATUSES)))
         .order_by(Ticket.created_at.asc())
     )
-    populateTickets(tickets)
+    lite_populate(tickets)
 
     available_users = User.select().order_by(User.username)
     available_labels = Label.select().order_by(Label.name)
@@ -209,7 +266,7 @@ def triage_project_view(user: User, project_id: str):
             & (Ticket.status.in_(INTAKE_STATUSES))
         ).order_by(Ticket.created_at.asc())
     )
-    populateTickets(tickets)
+    lite_populate(tickets)
 
     available_users = User.select().order_by(User.username)
     available_labels = Label.select().order_by(Label.name)

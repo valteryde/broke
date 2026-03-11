@@ -8,12 +8,38 @@ const TicketBoard = {
         { key: 'done', label: 'Done' }
     ],
 
+    MAX_VISIBLE_TICKETS: 30,
+    collapsedStatuses: JSON.parse(localStorage.getItem('board_collapsed_statuses') || '[]'),
+    expandedColumns: new Set(), // Session-based 'Show all' state
+    renderTimer: null,
+    rerenderCb: null,
+
     getStatuses() {
         const page = window.ticketPageContext || 'tickets';
         if (page === 'triage' || page === 'intake') {
             return this.statuses;
         }
         return this.statuses.filter((status) => status.key !== 'intake');
+    },
+
+    saveCollapsed() {
+        localStorage.setItem('board_collapsed_statuses', JSON.stringify(this.collapsedStatuses));
+    },
+
+    toggleCollapse(statusKey) {
+        const index = this.collapsedStatuses.indexOf(statusKey);
+        if (index > -1) {
+            this.collapsedStatuses.splice(index, 1);
+        } else {
+            this.collapsedStatuses.push(statusKey);
+        }
+        this.saveCollapsed();
+        if (this.rerenderCb) this.rerenderCb();
+    },
+
+    showAll(statusKey) {
+        this.expandedColumns.add(statusKey);
+        if (this.rerenderCb) this.rerenderCb();
     },
 
     init(containerId, tickets, options = {}) {
@@ -44,33 +70,68 @@ const TicketBoard = {
         };
 
         const render = () => {
-            const visibleTickets = applyFilters(normalizedTickets);
-            const columnsHtml = statuses.map((status) => {
-                const items = visibleTickets.filter((ticket) => ticket.status === status.key);
-                const cards = items.map((ticket) => this.renderCard(ticket)).join('');
-                return `
-                    <section class="ticket-board-column" data-status="${status.key}">
-                        <header class="ticket-board-column-header">
-                            <h3>${status.label}</h3>
-                            <span>${items.length}</span>
-                        </header>
-                        <div class="ticket-board-column-body" data-drop-zone="${status.key}">
-                            ${cards}
-                        </div>
-                    </section>
-                `;
-            }).join('');
-
-            container.innerHTML = `<div class="ticket-board-grid">${columnsHtml}</div>`;
-            this.renderAvatars(container);
-            this.bindEvents(container, normalizedTickets, onMove, onCardClick, render);
+            // Debounce the render call
+            if (this.renderTimer) clearTimeout(this.renderTimer);
+            this.renderTimer = setTimeout(() => this.doRender(container, normalizedTickets, statuses, applyFilters, onMove, onCardClick, render), 16);
         };
+
+        this.rerenderCb = render;
 
         filterController = this.createFilterController(normalizedTickets, render);
 
         if (!filterController) {
             render();
         }
+    },
+
+    doRender(container, normalizedTickets, statuses, applyFilters, onMove, onCardClick, rerender) {
+        const visibleTickets = applyFilters(normalizedTickets);
+        const columnsHtml = statuses.map((status) => {
+            const isCollapsed = this.collapsedStatuses.includes(status.key);
+            const items = visibleTickets.filter((ticket) => ticket.status === status.key);
+            
+            let bodyHtml = '';
+            let footerHtml = '';
+            const statusClass = isCollapsed ? 'is-collapsed' : '';
+            const collapseIcon = isCollapsed ? 'ph ph-caret-double-right' : 'ph ph-caret-double-left';
+
+            if (!isCollapsed) {
+                const limit = this.expandedColumns.has(status.key) ? this.MAX_VISIBLE_TICKETS : this.MAX_VISIBLE_TICKETS;
+                // Wait, if expanded, we want items.length
+                const actualLimit = this.expandedColumns.has(status.key) ? items.length : this.MAX_VISIBLE_TICKETS;
+                const visibleItems = items.slice(0, actualLimit);
+                const cards = visibleItems.map((ticket) => this.renderCard(ticket)).join('');
+                bodyHtml = `<div class="ticket-board-column-body" data-drop-zone="${status.key}">${cards}</div>`;
+                
+                if (items.length > this.MAX_VISIBLE_TICKETS && !this.expandedColumns.has(status.key)) {
+                    footerHtml = `
+                        <div class="ticket-board-column-footer">
+                            <button class="btn-show-all" onclick="TicketBoard.showAll('${status.key}')">
+                                Show all ${items.length} tickets
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+
+            return `
+                <section class="ticket-board-column ${statusClass}" data-status="${status.key}">
+                    <header class="ticket-board-column-header">
+                        <button class="column-collapse-btn" onclick="TicketBoard.toggleCollapse('${status.key}')" title="${isCollapsed ? 'Expand' : 'Collapse'}">
+                            <i class="${collapseIcon}"></i>
+                        </button>
+                        <h3>${status.label}</h3>
+                        <span>${items.length}</span>
+                    </header>
+                    ${bodyHtml}
+                    ${footerHtml}
+                </section>
+            `;
+        }).join('');
+
+        container.innerHTML = `<div class="ticket-board-grid">${columnsHtml}</div>`;
+        this.renderAvatars(container);
+        this.bindEvents(container, normalizedTickets, onMove, onCardClick, rerender);
     },
 
     createFilterController(tickets, onChange) {
@@ -119,7 +180,7 @@ const TicketBoard = {
     },
 
     renderCard(ticket) {
-        const safeTitle = ticket.title || '(Untitled)';
+        const safeTitle = (ticket.title || '(Untitled)').replace(/"/g, '&quot;');
         const priorityKey = String(ticket.urgency || 'none');
         const priorityLabel = priorityKey === 'none' ? 'No priority' : priorityKey;
         const priorityClass = `ticket-priority-${priorityKey.replace(/[^a-z-]/g, '')}`;

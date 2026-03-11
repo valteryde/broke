@@ -188,3 +188,69 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Collapsed column styles */
+.ticket-board-column.is-collapsed {
+    min-height: auto;
+    width: 60px;
+    flex: 0 0 60px;
+}
+
+.ticket-board-column.is-collapsed .ticket-board-column-body {
+    display: none;
+}
+
+.ticket-board-column.is-collapsed .ticket-board-column-header {
+    flex-direction: column;
+    padding: 15px 5px;
+    align-items: center;
+    gap: 15px;
+}
+
+.ticket-board-column.is-collapsed .ticket-board-column-header h3 {
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* Pagination styles */
+.ticket-board-column-footer {
+    padding: 10px;
+    border-top: 1px dashed #e2e8f0;
+    display: flex;
+    justify-content: center;
+}
+
+.btn-show-all {
+    background: transparent;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-show-all:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.column-collapse-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.column-collapse-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}

@@ -396,7 +396,8 @@
         const timelineData = {
             events: {{ events_json | safe }},
             activityByDay: {{ activity_by_day | safe }},
-            currentProject: {{ ("'" + project.id + "'") | safe if project else 'null' }}
+            currentProject: {{ ("'" + project.id + "'") | safe if project else 'null' }},
+            detailMode: {{ 'true' if detail_mode else 'false' }}
         };
     </script>
     <script src="{{ url_for('static', filename='js/timeline.js') }}"></script>
