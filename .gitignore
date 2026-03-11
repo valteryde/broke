@@ -64,3 +64,7 @@ logs/*
 *.log
 *.pot
 *.mo
+electron/node_modules/
+electron/dist/
+electron/release/
+electron/.cache/

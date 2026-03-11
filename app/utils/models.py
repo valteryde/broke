@@ -57,6 +57,28 @@ class PasswordResetToken(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
 
 
+class DesktopHandshakeToken(BaseModel):
+    token = CharField(primary_key=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+    expires_at = IntegerField()
+    used = IntegerField(default=0)
+
+
+class DeviceToken(BaseModel):
+    id = AutoField(primary_key=True)
+    user = ForeignKeyField(User, backref="device_tokens")
+    device_id = CharField(index=True)
+    device_name = CharField()
+    token_hash = CharField(index=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+    expires_at = IntegerField()
+    last_used = IntegerField(null=True)
+    revoked = IntegerField(default=0)
+
+    class Meta:  # type: ignore
+        indexes = ((('user', 'device_id', 'revoked'), False),)
+
+
 class Project(BaseModel):
     id = CharField(primary_key=True)
     name = CharField()
@@ -371,6 +393,8 @@ MODELS = [
     # Changelog models
     ChangelogRelease,
     PasswordResetToken,
+    DesktopHandshakeToken,
+    DeviceToken,
 ]
 
 

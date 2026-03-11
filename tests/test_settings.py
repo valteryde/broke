@@ -124,6 +124,23 @@ def _(c=auth_client):
         assert b"Email Service" in response.data
 
 
+@test("/settings/updates shows desktop download action")
+def _(c=auth_client):
+    response = c.get("/settings/updates")
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"/desktop/download" in response.data
+
+
+@test("/settings/updates hides desktop download action for Electron client")
+def _(c=auth_client):
+    response = c.get("/settings/updates", headers={"User-Agent": "BrokeDesktop/0.1"})
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b"/desktop/download" not in response.data
+        assert b"Download Broke Desktop" not in response.data
+
+
 @test("/settings/ai shows environment-backed AI config when DB settings missing")
 def _(c=client, f=fake):
     admin_username = f"admin_ai_env_{f.uuid4()[:8]}"

@@ -1,0 +1,43 @@
+{
+  "name": "broke-desktop",
+  "version": "0.1.0",
+  "description": "Broke Desktop client",
+  "main": "main.js",
+  "author": "Broke",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "package:mac": "electron-builder --mac dmg",
+    "package:win": "electron-builder --win nsis",
+    "package": "electron-builder"
+  },
+  "dependencies": {
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "electron": "^36.0.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.broke.desktop",
+    "productName": "Broke Desktop",
+    "files": [
+      "main.js",
+      "security.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}

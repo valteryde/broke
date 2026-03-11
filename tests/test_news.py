@@ -17,6 +17,23 @@ def _(c=auth_client):
     assert response.status_code in [200, 302]
 
 
+@test("/news shows logout link in regular web client")
+def _(c=auth_client):
+    response = c.get('/news')
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b'href="/logout"' in response.data
+
+
+@test("/news shows switch instance action in desktop client")
+def _(c=auth_client):
+    response = c.get('/news', headers={'User-Agent': 'BrokeDesktop/0.1'})
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert b'Switch instance' in response.data
+        assert b'href="/logout"' not in response.data
+
+
 @test("/news POST creates news entry")
 def _(c=auth_client, f=fake):
     """Test creating a news entry"""

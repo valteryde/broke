@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Broke Desktop</title>
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+    />
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="standalone-body">
+    <header class="standalone-header">
+      <div class="standalone-header-inner"></div>
+    </header>
+
+    <main class="standalone-main">
+      <div class="standalone-container wide-container">
+        <div id="status" class="status hidden"></div>
+
+        <section class="desktop-hero">
+          <div class="desktop-hero-copy">
+            <h1>Broke Instances</h1>
+            <p class="desktop-hero-text">
+              Add your team's Broke instances, log in once, and switch between them instantly.
+            </p>
+          </div>
+          <div class="desktop-hero-panel">
+            <div class="hero-stat">
+              <span class="hero-stat-label">Saved backends</span>
+              <strong id="hero-backend-count">0</strong>
+            </div>
+            <div class="hero-stat hero-stat-secondary">
+              <span class="hero-stat-label">Current target</span>
+              <strong id="hero-current-backend">None selected</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-container desktop-settings-shell">
+          <aside class="settings-sidebar">
+            <div class="settings-nav-section">
+              <h3 class="nav-section-title">Desktop</h3>
+              <button id="new-backend-btn" class="settings-nav-item desktop-add-backend-btn" type="button">
+                <i class="ph ph-plus"></i>
+                <span>Add Backend</span>
+              </button>
+            </div>
+
+            <div class="settings-nav-section">
+              <h3 class="nav-section-title">Instances</h3>
+              <div id="backend-list" class="backend-nav-list"></div>
+            </div>
+          </aside>
+
+          <section class="settings-content">
+            <div class="settings-section">
+              <div class="section-header">
+                <h1>Backends</h1>
+                <p class="section-description">Add, validate, and switch between your Broke instances.</p>
+              </div>
+
+              <div id="backend-detail" class="backend-detail"></div>
+
+              <div id="backend-modal" class="modal hidden">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h2 id="backend-form-title">Add Backend</h2>
+                    <button type="button" id="modal-close-btn" class="modal-close" aria-label="Close">
+                      <i class="ph ph-x"></i>
+                    </button>
+                  </div>
+                  <form id="backend-form" autocomplete="off">
+                    <div class="modal-body">
+                      <p class="card-description">Validate the backend handshake before saving it locally.</p>
+
+                      <label>
+                        Name
+                        <input id="backend-name" required maxlength="60" placeholder="Production EU" />
+                      </label>
+                      <label>
+                        URL
+                        <input id="backend-url" required placeholder="https://broke.example.com" />
+                      </label>
+                      <div>
+                        <label style="display: block; margin-bottom: 8px;">Icon (optional)</label>
+                        <div class="icon-picker">
+                          <button type="button" class="icon-option" data-icon="" data-label="Default" aria-label="Default icon" title="Default">
+                            <i class="ph ph-question"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="cloud" data-label="Cloud" aria-label="Cloud icon" title="Cloud">
+                            <i class="ph ph-cloud"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="server" data-label="Server" aria-label="Server icon" title="Server">
+                            <i class="ph ph-server"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="globe" data-label="Globe" aria-label="Globe icon" title="Globe">
+                            <i class="ph ph-globe"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="network" data-label="Network" aria-label="Network icon" title="Network">
+                            <i class="ph ph-network"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="database" data-label="Database" aria-label="Database icon" title="Database">
+                            <i class="ph ph-database"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="monitor" data-label="Monitor" aria-label="Monitor icon" title="Monitor">
+                            <i class="ph ph-monitor"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="desktop" data-label="Desktop" aria-label="Desktop icon" title="Desktop">
+                            <i class="ph ph-desktop"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="laptop" data-label="Laptop" aria-label="Laptop icon" title="Laptop">
+                            <i class="ph ph-laptop"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="smartphone" data-label="Smartphone" aria-label="Smartphone icon" title="Smartphone">
+                            <i class="ph ph-smartphone"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="wrench" data-label="Wrench" aria-label="Wrench icon" title="Wrench">
+                            <i class="ph ph-wrench"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="gear" data-label="Gear" aria-label="Gear icon" title="Gear">
+                            <i class="ph ph-gear"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="cog" data-label="Cog" aria-label="Cog icon" title="Cog">
+                            <i class="ph ph-cog"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="rocket" data-label="Rocket" aria-label="Rocket icon" title="Rocket">
+                            <i class="ph ph-rocket"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="leaf" data-label="Leaf" aria-label="Leaf icon" title="Leaf">
+                            <i class="ph ph-leaf"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="heart" data-label="Heart" aria-label="Heart icon" title="Heart">
+                            <i class="ph ph-heart"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="star" data-label="Star" aria-label="Star icon" title="Star">
+                            <i class="ph ph-star"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="bolt" data-label="Bolt" aria-label="Bolt icon" title="Bolt">
+                            <i class="ph ph-bolt"></i>
+                          </button>
+                          <button type="button" class="icon-option" data-icon="target" data-label="Target" aria-label="Target icon" title="Target">
+                            <i class="ph ph-target"></i>
+                          </button>
+                        </div>
+                      </div>
+                      <label>
+                        Notes (optional)
+                        <textarea id="backend-notes" rows="3" placeholder="Customer-facing instance"></textarea>
+                      </label>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" id="cancel-form-btn" class="btn btn-secondary">Cancel</button>
+                      <button type="submit" class="btn btn-primary">Validate & Save</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div id="login-modal" class="modal hidden">
+                <div class="modal-backdrop"></div>
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h2>Connect Device</h2>
+                    <button type="button" id="login-modal-close-btn" class="modal-close" aria-label="Close">
+                      <i class="ph ph-x"></i>
+                    </button>
+                  </div>
+                  <form id="login-form" autocomplete="off">
+                    <div class="modal-body">
+                      <p id="login-target" class="card-description"></p>
+
+                      <label>
+                        Username
+                        <input id="login-username" required />
+                      </label>
+                      <label>
+                        Password
+                        <input id="login-password" type="password" required />
+                      </label>
+                      <label>
+                        Device Name
+                        <input id="login-device-name" required />
+                      </label>
+                    </div>
+
+                    <div class="modal-footer">
+                      <button type="button" id="cancel-login-btn" class="btn btn-secondary">Cancel</button>
+                      <button type="submit" class="btn btn-primary">Login Once</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>

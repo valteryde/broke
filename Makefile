@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test coverage lint security clean docker-build docker-up docker-down checks format
+.PHONY: help install install-dev test coverage lint security clean docker-build docker-up docker-down checks format electron-install electron-dev electron-build electron-package-mac electron-package-win
 
 # Default target
 help:
@@ -15,6 +15,11 @@ help:
 	@echo "  make docker-build  - Build Docker image"
 	@echo "  make docker-up     - Start services with docker-compose"
 	@echo "  make docker-down   - Stop services"
+	@echo "  make electron-install - Install Electron dependencies"
+	@echo "  make electron-dev     - Run Electron app in development"
+	@echo "  make electron-build   - Build desktop installers"
+	@echo "  make electron-package-mac - Build macOS dmg"
+	@echo "  make electron-package-win - Build Windows installer"
 
 # Installation
 install:
@@ -127,3 +132,19 @@ dev: clean install-dev format lint test
 # CI simulation (runs what CI will run)
 ci: clean lint security test coverage
 	@echo "CI checks complete!"
+
+# Electron desktop client
+electron-install:
+	cd electron && npm install
+
+electron-dev:
+	cd electron && npm run dev
+
+electron-build:
+	cd electron && npm run package
+
+electron-package-mac:
+	cd electron && npm run package:mac
+
+electron-package-win:
+	cd electron && npm run package:win

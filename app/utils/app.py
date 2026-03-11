@@ -273,8 +273,14 @@ def create_app():  # noqa: C901
 
         return {"csrf_token": get_csrf_token()}
 
+    @app.context_processor
+    def inject_client_runtime_flags():
+        user_agent = str(flask.request.headers.get("User-Agent") or "")
+        is_desktop_client = "BrokeDesktop/" in user_agent
+        return {"is_desktop_client": is_desktop_client}
+
     # Register blueprints
-    from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp, anon_bp, changelog_bp
+    from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp, anon_bp, changelog_bp, desktop_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(tickets_bp)
@@ -284,6 +290,7 @@ def create_app():  # noqa: C901
     app.register_blueprint(webhooks_bp)
     app.register_blueprint(anon_bp)
     app.register_blueprint(changelog_bp)
+    app.register_blueprint(desktop_bp)
 
     # Initialize event subscriptions
     from . import mail  # noqa: F401
