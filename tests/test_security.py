@@ -2,6 +2,8 @@
 from ward import test
 from tests.fixtures import fake
 import os
+from pathlib import Path
+from unittest.mock import patch
 
 
 @test("create_user creates user with hashed password")
@@ -88,6 +90,48 @@ def _():
             os.environ.pop("BROKE_SECRET_KEY", None)
         else:
             os.environ["BROKE_SECRET_KEY"] = previous
+        if previous_env is None:
+            os.environ.pop("FLASK_ENV", None)
+        else:
+            os.environ["FLASK_ENV"] = previous_env
+
+
+@test("create_app uses stable fallback secret key across instances")
+def _():
+    """Fallback secret key should remain stable when env secrets are not configured."""
+    from app.utils.app import create_app
+
+    previous_secret = os.environ.get("BROKE_SECRET_KEY")
+    previous_flask_secret = os.environ.get("FLASK_SECRET_KEY")
+    previous_env = os.environ.get("FLASK_ENV")
+    temp_secret_file = Path("/tmp/broke-test-secret-key.txt")
+
+    os.environ.pop("BROKE_SECRET_KEY", None)
+    os.environ.pop("FLASK_SECRET_KEY", None)
+    os.environ["FLASK_ENV"] = "testing"
+
+    try:
+        if temp_secret_file.exists():
+            temp_secret_file.unlink()
+
+        with patch("app.utils.app.data_path", return_value=temp_secret_file):
+            app_one = create_app()
+            app_two = create_app()
+
+        assert app_one.secret_key
+        assert app_one.secret_key == app_two.secret_key
+        assert temp_secret_file.exists()
+    finally:
+        if temp_secret_file.exists():
+            temp_secret_file.unlink()
+        if previous_secret is None:
+            os.environ.pop("BROKE_SECRET_KEY", None)
+        else:
+            os.environ["BROKE_SECRET_KEY"] = previous_secret
+        if previous_flask_secret is None:
+            os.environ.pop("FLASK_SECRET_KEY", None)
+        else:
+            os.environ["FLASK_SECRET_KEY"] = previous_flask_secret
         if previous_env is None:
             os.environ.pop("FLASK_ENV", None)
         else:

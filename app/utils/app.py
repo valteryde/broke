@@ -7,6 +7,7 @@ from flask_caching import Cache
 import tomllib
 import os
 import secrets
+from .path import data_path
 
 # Global app instance (for backwards compatibility during migration)
 _app = None
@@ -61,6 +62,20 @@ def get_app_codename_from_toml():
         return "Parsing Error"
 
 
+def _persistent_fallback_secret_key() -> str:
+    secret_path = data_path("flask-secret-key.txt")
+    secret_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if secret_path.exists():
+        existing = secret_path.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+
+    generated = secrets.token_urlsafe(64)
+    secret_path.write_text(generated, encoding="utf-8")
+    return generated
+
+
 def create_app():  # noqa: C901
     """
     Application factory function for creating Flask app instances.
@@ -79,11 +94,11 @@ def create_app():  # noqa: C901
 
     app = flask.Flask("Broke")
 
-    # Secret key precedence: BROKE_SECRET_KEY -> FLASK_SECRET_KEY -> random process key.
+    # Secret key precedence: BROKE_SECRET_KEY -> FLASK_SECRET_KEY -> persisted local key.
     secret_key = (
         os.environ.get("BROKE_SECRET_KEY")
         or os.environ.get("FLASK_SECRET_KEY")
-        or secrets.token_urlsafe(64)
+        or _persistent_fallback_secret_key()
     )
     app.secret_key = secret_key
 
