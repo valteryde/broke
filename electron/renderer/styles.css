@@ -742,6 +742,7 @@ select:focus {
 
 .desktop-add-backend-btn:hover {
   background: var(--logo-blue-dark);
+  color: white;
 }
 
 .backend-nav-item {

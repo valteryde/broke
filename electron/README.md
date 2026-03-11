@@ -35,6 +35,48 @@ make electron-package-mac
 make electron-package-win
 ```
 
+## GitHub Actions packaging
+
+This repo includes a dedicated workflow at `.github/workflows/desktop-release.yml`.
+
+- After `CI - Code Quality & Tests` succeeds for a push to `main`, it builds unsigned desktop installers and publishes a rolling GitHub prerelease tagged `desktop-latest`
+
+The rolling release contains:
+
+- macOS: `.dmg`
+- Windows: `.exe`
+
+Stable asset URLs use the `desktop-latest` release tag:
+
+- `https://github.com/<owner>/<repo>/releases/download/desktop-latest/broke-desktop-mac.dmg`
+- `https://github.com/<owner>/<repo>/releases/download/desktop-latest/broke-desktop-setup.exe`
+
+The current workflow produces unsigned installers. For production distribution, add signing secrets and platform icon files (`.icns` and `.ico`).
+
+## Direct downloads from your Broke site
+
+If you want `/desktop/download` on your Broke instance to send users straight to an installer, use the rolling GitHub release asset URLs rather than Actions artifacts.
+
+Use one of these approaches instead:
+
+- Host the installer files on the same server and set:
+  - `BROKE_DESKTOP_INSTALLER_MAC_PATH`
+  - `BROKE_DESKTOP_INSTALLER_WINDOWS_PATH`
+- Or publish the installers at stable public URLs, such as the rolling GitHub release, and set:
+  - `BROKE_DESKTOP_INSTALLER_MAC_URL`
+  - `BROKE_DESKTOP_INSTALLER_WINDOWS_URL`
+
+Optional filename overrides:
+
+- `BROKE_DESKTOP_INSTALLER_MAC_NAME`
+- `BROKE_DESKTOP_INSTALLER_WINDOWS_NAME`
+
+Behavior:
+
+- `/desktop/download` auto-detects macOS vs Windows from the browser user agent
+- `?platform=mac` or `?platform=windows` can override detection
+- If no platform-specific installer is configured, it falls back to the legacy single installer path or release URL
+
 Or directly:
 
 ```bash

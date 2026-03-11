@@ -23,6 +23,18 @@ desktop_bp = Blueprint("desktop", __name__)
 
 HANDSHAKE_TTL_SECONDS = 300
 DEVICE_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30
+PLATFORM_ENV_SUFFIX = {
+    "mac": "MAC",
+    "windows": "WINDOWS",
+}
+PLATFORM_ALIASES = {
+    "darwin": "mac",
+    "mac": "mac",
+    "macos": "mac",
+    "osx": "mac",
+    "win": "windows",
+    "windows": "windows",
+}
 
 
 def _sha256(value: str) -> str:
@@ -58,6 +70,30 @@ def _desktop_release_url() -> str:
     ).strip()
 
 
+def _normalized_platform(value: str) -> str:
+    return PLATFORM_ALIASES.get(str(value or "").strip().lower(), "")
+
+
+def _request_platform() -> str:
+    explicit = _normalized_platform(request.args.get("platform") or "")
+    if explicit:
+        return explicit
+
+    user_agent = (request.headers.get("User-Agent") or "").lower()
+    if "windows" in user_agent:
+        return "windows"
+    if "macintosh" in user_agent or "mac os x" in user_agent:
+        return "mac"
+    return ""
+
+
+def _desktop_platform_value(platform: str, key: str) -> str:
+    suffix = PLATFORM_ENV_SUFFIX.get(platform)
+    if not suffix:
+        return ""
+    return os.environ.get(f"BROKE_DESKTOP_INSTALLER_{suffix}_{key}", "").strip()
+
+
 def _desktop_installer_path() -> str:
     return os.environ.get("BROKE_DESKTOP_INSTALLER_PATH", "").strip()
 
@@ -67,6 +103,13 @@ def _desktop_installer_name(path: str) -> str:
     if configured:
         return configured
     return os.path.basename(path)
+
+
+def _desktop_platform_installer_name(platform: str, path: str) -> str:
+    configured = _desktop_platform_value(platform, "NAME")
+    if configured:
+        return configured
+    return _desktop_installer_name(path)
 
 
 @desktop_bp.route("/api/desktop/handshake", methods=["GET"])
@@ -115,6 +158,20 @@ def desktop_bootstrap_payload():
 
 @desktop_bp.route("/desktop/download", methods=["GET"])
 def desktop_download():
+    platform = _request_platform()
+    platform_installer_url = _desktop_platform_value(platform, "URL")
+    if platform_installer_url:
+        return "", 302, {"Location": platform_installer_url}
+
+    platform_installer_path = _desktop_platform_value(platform, "PATH")
+    if platform_installer_path and os.path.isfile(platform_installer_path):
+        return send_file(
+            platform_installer_path,
+            as_attachment=True,
+            download_name=_desktop_platform_installer_name(platform, platform_installer_path),
+            mimetype="application/octet-stream",
+        )
+
     installer_path = _desktop_installer_path()
     if installer_path and os.path.isfile(installer_path):
         return send_file(

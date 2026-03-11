@@ -54,7 +54,9 @@
             <span class="brand-title">Broke</span> 
             #}
 
+            {% if not is_desktop_client %}
             <img src="{{ url_for('static', filename='images/logov2_wo_bg.png') }}" alt="Logo" class="sb-logo-icon">
+            {% endif %}
 
             <!-- <i class="ph ph-arrow-square-left"></i> -->
         </div>
