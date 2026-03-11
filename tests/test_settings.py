@@ -35,6 +35,16 @@ def _(c=auth_client):
     assert response.status_code in [200, 302]
 
 
+@test("/settings/profile GET renders JS avatar fallback markup")
+def _(c=auth_client, user=auth_user):
+    response = c.get("/settings/profile")
+
+    assert response.status_code in [200, 302]
+    if response.status_code == 200:
+        assert f'data-jdenticon-value="{user.username}"'.encode() in response.data
+        assert f'/avatar/{user.username}'.encode() in response.data
+
+
 @test("/settings/projects GET shows projects")
 def _(c=auth_client):
     """Test projects settings page"""

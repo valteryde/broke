@@ -140,7 +140,10 @@
                     <h3>Avatar</h3>
                     <p class="card-description">Upload a custom profile picture</p>
                     <div class="avatar-section">
-                        <img src="/avatar/{{ user.username }}" onerror="this.onerror=null; this.insertAdjacentHTML('afterend','<svg width=\'80\' height=\'80\' data-jdenticon-value=\'{{ user.username }}\' class=\'avatar-preview\'></svg>'); var fallback=this.nextElementSibling; this.remove(); if(window.jdenticon && fallback){ jdenticon.update(fallback); }" class="avatar-preview" width="80" height="80" style="border-radius: 50%; object-fit: cover;">
+                        <span class="avatar-stack avatar-stack-80" aria-hidden="true">
+                            <svg width="80" height="80" data-jdenticon-value="{{ user.username }}" class="avatar-preview"></svg>
+                            <img src="/avatar/{{ user.username }}" alt="{{ user.username }} avatar" class="avatar-preview" width="80" height="80" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
+                        </span>
                         <div class="avatar-info">
                             <span class="avatar-username">{{ user.username }}</span>
                             <div style="margin-top: 5px; display: flex; gap: 8px; flex-wrap: wrap;">
@@ -707,7 +710,10 @@
                         {% for member in team_members %}
                         <div class="team-member">
                             <div class="member-info">
-                                <img src="/avatar/{{ member.username }}" onerror="this.onerror=null; this.outerHTML='<svg width=\'40\' height=\'40\' data-jdenticon-value=\'{{ member.username }}\'></svg>'; if(window.jdenticon) jdenticon.update();" width="40" height="40" style="border-radius: 50%; object-fit: cover;">
+                                <span class="avatar-stack avatar-stack-40" aria-hidden="true">
+                                    <svg width="40" height="40" data-jdenticon-value="{{ member.username }}"></svg>
+                                    <img src="/avatar/{{ member.username }}" alt="{{ member.username }} avatar" width="40" height="40" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
+                                </span>
                                 <div class="member-details">
                                     <span class="member-name">
                                         {{ member.username }}

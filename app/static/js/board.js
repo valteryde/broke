@@ -128,8 +128,8 @@ const TicketBoard = {
             const safeUsername = this.escapeHtml(String(username || 'unknown'));
             return `
                 <span class="ticket-board-assignee-chip" title="${safeUsername}" aria-label="${safeUsername}">
-                    <img src="/avatar/${encodeURIComponent(String(username || 'unknown'))}" alt="${safeUsername}" loading="lazy" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='block';">
-                    <svg width="18" height="18" data-jdenticon-value="${safeUsername}" style="display:none"></svg>
+                    <svg width="18" height="18" data-jdenticon-value="${safeUsername}"></svg>
+                    <img src="/avatar/${encodeURIComponent(String(username || 'unknown'))}" alt="${safeUsername}" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
                 </span>
             `;
         }).join('');

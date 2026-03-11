@@ -103,6 +103,7 @@
 }
 
 .ticket-board-assignee-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -119,6 +120,16 @@
   height: 100%;
   display: block;
   object-fit: cover;
+}
+
+.ticket-board-assignee-chip img {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.ticket-board-assignee-chip img.is-loaded {
+  opacity: 1;
 }
 
 .ticket-priority-urgent {

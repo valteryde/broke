@@ -104,7 +104,10 @@
         </div>
 
          <div class="sb-bottom">
-            <img src="/avatar/{{ user.username }}" onerror="this.onerror=null; this.insertAdjacentHTML('afterend','<svg width=\'40\' height=\'40\' data-jdenticon-value=\'{{ user.username }}\'></svg>'); var fallback=this.nextElementSibling; this.remove(); if(window.jdenticon && fallback){ jdenticon.update(fallback); }" width="40" height="40" style="border-radius: 50%; object-fit: cover;">
+            <span class="avatar-stack avatar-stack-40" aria-hidden="true">
+                <svg width="40" height="40" data-jdenticon-value="{{ user.username }}"></svg>
+                <img src="/avatar/{{ user.username }}" alt="{{ user.username }} avatar" width="40" height="40" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
+            </span>
             <span>{{ user.username }}</span>
             {% if is_desktop_client %}
             <a href="#" class="sb-logout" title="Switch instance" onclick="if (window.brokeDesktop && window.brokeDesktop.switchInstance) { window.brokeDesktop.switchInstance(); } return false;">

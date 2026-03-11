@@ -4,8 +4,6 @@ from flask import Blueprint, render_template, request, redirect, jsonify
 import time
 import json
 import secrets
-import hashlib
-import html
 from ..utils.app import limiter
 from typing import Literal
 from flask import flash, send_from_directory
@@ -31,22 +29,6 @@ def _find_avatar_file(avatar_dir: str, username: str) -> str | None:
         if os.path.exists(candidate):
             return f"{username}{ext}"
     return None
-
-
-def _avatar_placeholder_svg(username: str) -> str:
-    safe_username = (username or "user").strip() or "user"
-    initial = html.escape(safe_username[:1].upper())
-    title = html.escape(safe_username)
-    palette = [
-        "#0f766e",
-        "#1d4ed8",
-        "#7c3aed",
-        "#c2410c",
-        "#be123c",
-        "#047857",
-    ]
-    color = palette[hashlib.sha256(safe_username.lower().encode("utf-8")).digest()[0] % len(palette)]
-    return f"""<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"128\" height=\"128\" viewBox=\"0 0 128 128\" role=\"img\" aria-label=\"Avatar placeholder for {title}\"><rect width=\"128\" height=\"128\" rx=\"64\" fill=\"{color}\"/><text x=\"50%\" y=\"50%\" dominant-baseline=\"central\" text-anchor=\"middle\" fill=\"white\" font-family=\"Arial, sans-serif\" font-size=\"54\" font-weight=\"700\">{initial}</text></svg>"""
 
 
 def get_anon_settings():
@@ -252,7 +234,4 @@ def get_avatar(username: str):
     avatar_file = _find_avatar_file(avatar_dir, username)
     if avatar_file:
         return send_from_directory(avatar_dir, avatar_file)
-
-    response = Response(_avatar_placeholder_svg(username), mimetype="image/svg+xml")
-    response.headers["Cache-Control"] = "public, max-age=300"
-    return response
+    return "", 404
