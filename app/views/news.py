@@ -610,15 +610,15 @@ def build_reports_summary(days: int = 30) -> dict:
     # Error counts per project
     error_query = (ErrorGroup.select(Project.id.alias('project_id'), ErrorGroup.status, fn.COUNT(ErrorGroup.id).alias('count'))
                   .join(ProjectPart).join(Project)
-                  .group_by(Project.id, ErrorGroup.status))
+                  .group_by(Project.id, ErrorGroup.status)).dicts()
     
     unresolved_error_counts = {}
     resolved_error_counts = {}
     for r in error_query:
-        if r.status == 'unresolved':
-            unresolved_error_counts[str(r.project_id)] = r.count
+        if r['status'] == 'unresolved':
+            unresolved_error_counts[str(r['project_id'])] = r['count']
         else:
-            resolved_error_counts[str(r.project_id)] = r.count
+            resolved_error_counts[str(r['project_id'])] = r['count']
 
     project_rows = []
     for project in Project.select().order_by(Project.name):
