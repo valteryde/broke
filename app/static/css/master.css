@@ -45,8 +45,31 @@ h6 {
   font-family: 'Space Grotesk Variable', sans-serif;
 }
 
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
 body {
   background-color: var(--bg-gray);
+  -webkit-app-region: drag;
+}
+
+/* Exclude interactive elements and main content from window dragging */
+#content-wrapper,
+.sb-element,
+.sb-bottom,
+.sb-news,
+.sb-header .ph,
+.global-search-panel,
+.modal-content,
+button,
+a,
+input,
+textarea,
+select,
+.no-drag {
+  -webkit-app-region: no-drag;
 }
 
 .ph {
@@ -87,7 +110,9 @@ body {
 }
 
 input[type="color"] {
+  appearance: none;
   -webkit-appearance: none;
+  -moz-appearance: none;
   border: none;
   padding: 0;
   width: 40px;
@@ -102,10 +127,6 @@ input[type="color"]::-webkit-color-swatch-wrapper {
 
 input[type="color"]::-webkit-color-swatch {
   border: none;
-}
-
-input[type="color"] {
-  appearance: none;
 }
 
 input[type="color"]::-moz-color-swatch {

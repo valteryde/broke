@@ -160,6 +160,8 @@ def create_app():  # noqa: C901
 
     @app.errorhandler(500)
     def internal_error(error):
+        import traceback
+        traceback.print_exc()
         return (
             flask.render_template(
                 "error_message.jinja2", error_code=500, error_message="Internal server error"
