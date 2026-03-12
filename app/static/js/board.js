@@ -53,12 +53,12 @@ const TicketBoard = {
 
         const statuses = this.getStatuses();
 
-        const normalizedTickets = (tickets || []).map((ticket) => ({
-            ...ticket,
-            status: ticket.status === 'triage'
-                ? 'intake'
-                : (statuses.some((s) => s.key === ticket.status) ? ticket.status : 'backlog')
-        }));
+        const normalizedTickets = (tickets || [])
+            .map((ticket) => ({
+                ...ticket,
+                status: ticket.status === 'triage' ? 'intake' : ticket.status
+            }))
+            .filter((ticket) => statuses.some((s) => s.key === ticket.status));
 
         let filterController = null;
 
