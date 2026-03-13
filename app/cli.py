@@ -435,6 +435,17 @@ def cmd_create_user(args):
     print(f"User '{user.username}' created.")
 
 
+def cmd_upgrade_user(args):
+    """Upgrade a user to admin"""
+    try:
+        user = User.get(User.username == args.username)
+        user.admin = 1
+        user.save()
+        print(f"User '{user.username}' upgraded to admin.")
+    except User.DoesNotExist:
+        print(f"Error: User '{args.username}' not found.")
+
+
 def cmd_import_linear(args):
     """Import from Linear"""
     import_from_linear(args.api_key)
@@ -455,6 +466,11 @@ def main():
         "--admin", type=int, choices=[0, 1], default=0, help="Admin flag (0 or 1, default: 0)"
     )
     user_parser.set_defaults(func=cmd_create_user)
+
+    # upgrade-user command
+    upgrade_parser = subparsers.add_parser("upgrade-user", help="Upgrade a user to admin")
+    upgrade_parser.add_argument("username", help="Username of the user to upgrade")
+    upgrade_parser.set_defaults(func=cmd_upgrade_user)
 
     # import command with subcommands
     import_parser = subparsers.add_parser("import", help="Import data from external services")
