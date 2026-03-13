@@ -65,13 +65,22 @@ def _get_last_published_timestamp():
 
 
 def _get_available_tickets(since_timestamp=0, limit=50):
-    """Get done/closed tickets since a given timestamp."""
-    query = Ticket.select().where(
-        (Ticket.active == 1)
-        & (Ticket.status.in_(["done", "closed"]))
-    )
+    """Get tickets that were created or updated since a given timestamp."""
+    from ..utils.models import TicketUpdateMessage, Comment
+    
+    query = Ticket.select().where(Ticket.active == 1)
+    
     if since_timestamp > 0:
-        query = query.where(Ticket.created_at >= since_timestamp)
+        # Get IDs of tickets that have recent updates or comments
+        recent_updates = TicketUpdateMessage.select(TicketUpdateMessage.ticket).where(TicketUpdateMessage.created_at >= since_timestamp)
+        recent_comments = Comment.select(Comment.ticket).where(Comment.created_at >= since_timestamp)
+        
+        # Filter tickets to those created recently OR having recent updates/comments
+        query = query.where(
+            (Ticket.created_at >= since_timestamp) |
+            (Ticket.id.in_(recent_updates)) |
+            (Ticket.id.in_(recent_comments))
+        )
 
     return list(query.order_by(Ticket.created_at.desc()).limit(limit))
 
@@ -193,7 +202,7 @@ def api_get_available_tickets(user: User):
     show_all = request.args.get("all", "false").lower() == "true"
 
     if show_all:
-        # Get all done/closed tickets regardless of when they were created
+        # Get all active tickets regardless of when they were created
         # Increase limit to show a deeper history
         tickets = _get_available_tickets(since_timestamp=0, limit=200)
     else:
