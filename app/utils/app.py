@@ -12,7 +12,8 @@ from .path import data_path, path
 
 # Global app instance (for backwards compatibility during migration)
 _app = None
-limiter = None
+# Bound to the app in create_app(); must exist before view modules import @limiter.limit.
+limiter = Limiter(get_remote_address)
 cache = None
 
 
@@ -240,7 +241,7 @@ def create_app():  # noqa: C901
         return response
 
     # Initialize Flask-Caching with Redis backend
-    global cache, limiter
+    global cache
 
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
@@ -254,13 +255,9 @@ def create_app():  # noqa: C901
     app.config.from_mapping(cache_config)
     cache = Cache(app)
 
-    # Initialize rate limiter using Redis storage
-    limiter = Limiter(
-        key_func=get_remote_address,
-        app=app,
-        # default_limits=["2000 per day", "500 per hour"],
-        storage_uri=redis_url,
-    )
+    # Rate limiter: extension object is created at import time so @limiter.limit works in views.
+    app.config["RATELIMIT_STORAGE_URI"] = redis_url
+    limiter.init_app(app)
 
     # Server-side sessions: the browser cookie is only a signed session id. Payload
     # (user_id, etc.) lives in Redis (prod/dev) or a temp dir (tests). This avoids
