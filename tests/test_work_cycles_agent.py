@@ -81,6 +81,8 @@ def _(auth_client=auth_client, test_ticket=test_ticket):
 
 @test("Agent token can post comment", tags=["api"])
 def _(auth_client=auth_client, test_ticket=test_ticket):
+    from app.utils.models import Comment
+
     mint = auth_client.post("/api/settings/agent-tokens", json={})
     assert mint.status_code == 201
     payload = mint.get_json()
@@ -93,6 +95,11 @@ def _(auth_client=auth_client, test_ticket=test_ticket):
         json={"body": "from agent"},
     )
     assert r.status_code == 201
+    data = r.get_json()
+    cid = data.get("comment_id")
+    assert cid is not None
+    row = Comment.get_by_id(cid)
+    assert int(getattr(row, "via_agent", 0) or 0) == 1
 
     AgentToken.delete_by_id(token_id)
 

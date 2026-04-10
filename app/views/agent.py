@@ -6,13 +6,33 @@ import time
 
 from flask import Blueprint, jsonify, request
 
-from ..utils.agent_auth import agent_api_protected, agent_token_allows_ticket
+from ..utils.agent_auth import agent_api_protected, agent_token_allows_ticket, authenticate_agent_bearer
 from ..utils.events import EventTypes, bus
 from ..utils.models import Comment, Ticket, TicketUpdateMessage, User
 from ..utils.ticket_markdown import build_ticket_export_payload
 from .tickets import extract_and_save_images
 
 agent_bp = Blueprint("agent", __name__)
+
+
+@agent_bp.route("/api/agent/ping", methods=["GET"])
+def agent_ping():
+    """Cheap connectivity check for delegate tokens (no ticket id in URL)."""
+    _row, user, err = authenticate_agent_bearer()
+    if err:
+        return err
+    assert user is not None
+    uname = user.username if hasattr(user, "username") else str(user)
+    return (
+        jsonify(
+            {
+                "ok": True,
+                "broke_agent_api": True,
+                "username": uname,
+            }
+        ),
+        200,
+    )
 
 
 @agent_bp.route("/api/agent/tickets/<ticket_id>/comments", methods=["POST"])
@@ -35,6 +55,7 @@ def agent_post_comment(user: User, agent_token, ticket_id: str):
         user=user.username,
         body=processed,
         created_at=int(time.time()),
+        via_agent=1,
     )
 
     TicketUpdateMessage.create(

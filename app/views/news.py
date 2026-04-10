@@ -104,11 +104,12 @@ def news_view(user: User):
     # Add recent comments
     recent_comments = Comment.select().order_by(Comment.created_at.desc()).limit(15)
     for comment in recent_comments:
+        agent_comment = bool(getattr(comment, "via_agent", 0) or 0)
         activities.append(
             {
                 "type": "comment",
                 "icon": "ph-chat-circle",
-                "user": comment.user.username,
+                "user": "Agent" if agent_comment else comment.user.username,
                 "action": f"commented on {comment.ticket}",
                 "text": comment.body,
                 "time_ago": time_ago(comment.created_at),
@@ -165,8 +166,8 @@ def news_view(user: User):
 
 
 def build_timeline_events(  # noqa: C901
-    project_id: str | None = None, 
-    days: int = 30, 
+    project_id: str | None = None,
+    days: int = 30,
     detailed: bool = False,
     offset: int = 0,
     limit: int = 50
@@ -204,7 +205,7 @@ def build_timeline_events(  # noqa: C901
         ticket_query = ticket_query.where(Ticket.project == project_id)
     if cutoff > 0:
         ticket_query = ticket_query.where(Ticket.created_at >= cutoff)
-    
+
     # We fetch them to a list for manual batching
     tickets = list(ticket_query)
     ticket_dict = {t.id: t for t in tickets if getattr(t, 'id', None)}
@@ -219,12 +220,12 @@ def build_timeline_events(  # noqa: C901
             for utj in utjs:
                 if utj.ticket in ticket_dict and utj.user in users:
                     user_activity[utj.user] += 1
-    
+
     # Bulk Labels (for stats)
     for t in tickets:
         if not hasattr(t, "labels"):
             t.labels = []
-            
+
     if ticket_ids:
         tljs = TicketLabelJoin.select().where(TicketLabelJoin.ticket.in_(ticket_ids))
         label_ids = [tlj.label for tlj in tljs]
@@ -262,7 +263,7 @@ def build_timeline_events(  # noqa: C901
         comment_query = Comment.select()
         if cutoff > 0:
             comment_query = comment_query.where(Comment.created_at >= cutoff)
-        
+
         comments = list(comment_query)
         # Fetch tickets and users for comments in bulk
         c_ticket_ids = [c.ticket for c in comments if c.ticket]
@@ -270,7 +271,7 @@ def build_timeline_events(  # noqa: C901
             c_tickets = {t.id: t for t in Ticket.select(Ticket.id, Ticket.project).where(Ticket.id.in_(c_ticket_ids))}
         else:
             c_tickets = {}
-            
+
         c_user_ids = [c.user_id for c in comments if c.user_id]
         if c_user_ids:
             c_users = {u.username: u for u in User.select(User.username).where(User.username.in_(c_user_ids))}
@@ -281,15 +282,20 @@ def build_timeline_events(  # noqa: C901
             c_ticket = c_tickets.get(comment.ticket)
             if not c_ticket:
                 continue
-                
+
             # Filter by project if specified
             if project_id and c_ticket.project != project_id:
                 continue
 
             date_parts = format_date_parts(comment.created_at)
             activity_by_day[date_parts["date_key"]] += 1
-            
-            username = c_users[comment.user_id].username if comment.user_id in c_users else str(comment.user_id)
+
+            via_agent = bool(getattr(comment, "via_agent", 0) or 0)
+            username = (
+                "Agent"
+                if via_agent
+                else (c_users[comment.user_id].username if comment.user_id in c_users else str(comment.user_id))
+            )
             user_activity[username] += 1
 
             events.append(
@@ -301,7 +307,7 @@ def build_timeline_events(  # noqa: C901
                     "description": comment.body[:200] if comment.body else None,
                     "timestamp": comment.created_at,
                     "link": f"/tickets/{c_ticket.project}/{comment.ticket}",
-                    "meta": {"user": username, "ticket_id": comment.ticket},
+                    "meta": {"user": username, "ticket_id": comment.ticket, "via_agent": via_agent},
                     **date_parts,
                 }
             )
@@ -310,7 +316,7 @@ def build_timeline_events(  # noqa: C901
     update_query = TicketUpdateMessage.select()
     if cutoff > 0:
         update_query = update_query.where(TicketUpdateMessage.created_at >= cutoff)
-    
+
     updates = list(update_query)
     u_ticket_ids = [u.ticket for u in updates if u.ticket]
     if u_ticket_ids:
@@ -322,7 +328,7 @@ def build_timeline_events(  # noqa: C901
         u_ticket = u_tickets.get(update.ticket)
         if not u_ticket:
             continue
-            
+
         if project_id and u_ticket.project != project_id:
             continue
 
@@ -352,7 +358,7 @@ def build_timeline_events(  # noqa: C901
     error_query = ErrorGroup.select()
     if cutoff > 0:
         error_query = error_query.where(ErrorGroup.last_seen >= cutoff)
-    
+
     errors_prefetched = prefetch(error_query, ProjectPart.select(), Project.select())
 
     for error in errors_prefetched:
@@ -435,7 +441,7 @@ def build_timeline_events(  # noqa: C901
 
     # Total events before pagination
     total_events_count = len(final_events)
-    
+
     # Paginate
     paginated_events = final_events[offset : offset + limit]
 
@@ -463,7 +469,7 @@ def build_timeline_events(  # noqa: C901
             labels = [l.name for l in t.labels]
             if "bug" in labels: bug_tickets += 1
             elif "feature" in labels: feature_tickets += 1
-        
+
         other_tickets = total - bug_tickets - feature_tickets
         effort_bugs = (bug_tickets / total * 100) if total > 0 else 0
         effort_features = (feature_tickets / total * 100) if total > 0 else 0
@@ -524,12 +530,12 @@ def api_timeline_events(user: User):
     detail_mode = _parse_timeline_detail(request.args.get("detail"))
     offset = int(request.args.get("offset", 0))
     limit = int(request.args.get("limit", 50))
-    
+
     data = build_timeline_events(
-        project_id=project_id, 
-        days=days, 
-        detailed=detail_mode, 
-        offset=offset, 
+        project_id=project_id,
+        days=days,
+        detailed=detail_mode,
+        offset=offset,
         limit=limit
     )
     return Response(json.dumps(data), mimetype="application/json")
@@ -581,7 +587,7 @@ def build_reports_summary(days: int = 30) -> dict:
     # 1. Global counts
     tickets_created = Ticket.select().where((Ticket.active == 1) & (Ticket.created_at >= cutoff)).count()
     tickets_closed = Ticket.select().where((Ticket.active == 1) & (Ticket.status.in_(closed_statuses)) & (Ticket.created_at >= cutoff)).count()
-    
+
     unresolved_errors = ErrorGroup.select().where(ErrorGroup.status == "unresolved").count()
     resolved_errors = ErrorGroup.select().where(ErrorGroup.status == "resolved").count()
 
@@ -611,7 +617,7 @@ def build_reports_summary(days: int = 30) -> dict:
     error_query = (ErrorGroup.select(Project.id.alias('project_id'), ErrorGroup.status, fn.COUNT(ErrorGroup.id).alias('count'))
                   .join(ProjectPart).join(Project)
                   .group_by(Project.id, ErrorGroup.status)).dicts()
-    
+
     unresolved_error_counts = {}
     resolved_error_counts = {}
     for r in error_query:

@@ -1319,6 +1319,7 @@ def add_comment(user: User, ticket_id: str):
                     "user": user.username,
                     "body": comment.body,
                     "created_at": comment.created_at,
+                    "via_agent": bool(getattr(comment, "via_agent", 0) or 0),
                 },
             }
         ),

@@ -54,6 +54,10 @@ def send_email(to_email, subject, html_content):
         )
         return
 
+    smtp_from = (smtp_from or "").strip() or (smtp_user if "@" in smtp_user else "") or os.environ.get(
+        "SMTP_FROM", "noreply@broke.dk"
+    ).strip()
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = smtp_from
@@ -62,13 +66,26 @@ def send_email(to_email, subject, html_content):
     part1 = MIMEText(html_content, "html")
     msg.attach(part1)
 
+    port = int(smtp_port)
+    host_lower = smtp_host.strip().lower()
+    is_local = host_lower in ("localhost", "127.0.0.1")
+    # Port 465 uses implicit TLS (SSL from connect); STARTTLS on 465 will not work.
+    use_implicit_ssl = port == 465
+
     try:
-        server = smtplib.SMTP(smtp_host, int(smtp_port))
-        server.ehlo()
-        if use_tls and smtp_host not in ["localhost", "127.0.0.1"]:
-            server.starttls()
-            if smtp_user and smtp_password:
-                server.login(smtp_user, smtp_password)
+        if use_implicit_ssl:
+            server = smtplib.SMTP_SSL(smtp_host, port)
+            server.ehlo()
+        else:
+            server = smtplib.SMTP(smtp_host, port)
+            server.ehlo()
+            if use_tls and not is_local:
+                server.starttls()
+                server.ehlo()
+
+        if smtp_user and smtp_password:
+            server.login(smtp_user, smtp_password)
+
         server.sendmail(smtp_from, to_email, msg.as_string())
         server.quit()
         logger.info(f"Email sent to {to_email}")

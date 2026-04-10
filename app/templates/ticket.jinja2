@@ -17,10 +17,10 @@
 {% block content %}
 
 <div class="ticket-top-actions" aria-label="Ticket actions">
-    <a class="ticket-icon-action" href="/api/tickets/{{ ticket.id }}/export?format=markdown" title="Export markdown" aria-label="Export ticket as markdown">
+    <a class="ticket-icon-action" href="/api/tickets/{{ ticket.id }}/export?format=markdown" title="Export markdown" aria-label="Export ticket as markdown" target="_blank" rel="noopener noreferrer">
         <i class="ph ph-file-text"></i>
     </a>
-    <a class="ticket-icon-action" href="/api/tickets/{{ ticket.id }}/export?format=json" title="Export JSON" aria-label="Export ticket as JSON">
+    <a class="ticket-icon-action" href="/api/tickets/{{ ticket.id }}/export?format=json" title="Export JSON" aria-label="Export ticket as JSON" target="_blank" rel="noopener noreferrer">
         <i class="ph ph-brackets-curly"></i>
     </a>
     <button class="ticket-icon-action ticket-icon-action-primary ticket-icon-action-labeled" type="button" title="Create subticket" aria-label="Create subticket" onclick="createSubticket()">
@@ -218,6 +218,7 @@
             const currentUser = {
                 id: '{{ user.username }}',
                 username: '{{ user.username }}',
+                name: '{{ user.username }}',
                 avatar: null
             };
 
@@ -229,9 +230,11 @@
                     author: {
                         id: '{{ comment.user.username }}',
                         username: '{{ comment.user.username }}',
+                        name: '{{ comment.user.username }}',
                         avatar: "<svg width='40' height='40' data-jdenticon-value='{{ comment.user.username }}'></svg>"
                     },
                     type: 'comment',
+                    viaAgent: {% if comment.via_agent %}true{% else %}false{% endif %},
                     content: `{{ comment.body | default("", true) | safe }}`,
                     createdAt: {{ comment.created_at }} * 1000
                 },
@@ -240,14 +243,10 @@
                 {
                     id: '{{ update.id }}',
                     message : `{{ update.message | default("", true) | safe }}`,
-                    icon : 'ph-ph-{{ update.icon }}',
+                    icon : {{ (update.icon or 'ph ph-pencil') | tojson }},
                     createdAt: {{ update.created_at }} * 1000,
-                    type: 'update'
-                    // ticket = CharField()
-                    // title = CharField()
-                    // icon = CharField()
-                    // message = CharField()
-
+                    type: 'update',
+                    viaAgent: {% if '(agent)' in (update.message or '') %}true{% else %}false{% endif %}
                 },
                 {% endfor %}
             ]
@@ -313,6 +312,9 @@
                             const data = await response.json();
                             // Update comment with real ID from server
                             comment.id = data.comment.id;
+                            if (typeof data.comment.via_agent === 'boolean') {
+                                comment.viaAgent = data.comment.via_agent;
+                            }
                         } else {
                             console.error('Failed to add comment:', await response.json());
                         }

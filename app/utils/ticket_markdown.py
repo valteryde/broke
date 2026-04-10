@@ -55,6 +55,7 @@ def build_ticket_export_payload(ticket_id: str) -> dict[str, Any] | None:
                 "user": comment.user.username,
                 "body": comment.body,
                 "created_at": comment.created_at,
+                "via_agent": bool(getattr(comment, "via_agent", 0) or 0),
             }
             for comment in comments
         ],
@@ -114,9 +115,10 @@ def ticket_payload_to_markdown(payload: dict[str, Any]) -> str:
 
     if comments:
         for comment in comments:
+            who = "Agent" if comment.get("via_agent") else comment["user"]
             markdown_lines.extend(
                 [
-                    f"### {comment['user']} ({comment['created_at']})",
+                    f"### {who} ({comment['created_at']})",
                     "",
                     str(comment.get("body") or ""),
                     "",

@@ -38,7 +38,7 @@
 </div>
 
 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
-    <a class="btn btn-secondary" href="/api/work-cycles/{{ cycle.id }}/export?format=markdown"><i class="ph ph-download-simple"></i> Markdown</a>
+    <a class="btn btn-secondary" href="/api/work-cycles/{{ cycle.id }}/export?format=markdown" target="_blank" rel="noopener noreferrer"><i class="ph ph-download-simple"></i> Markdown</a>
     <button type="button" class="btn btn-secondary" id="wc-copy-md"><i class="ph ph-copy"></i> Copy markdown</button>
     <a class="btn btn-secondary" href="/tickets?view=board&cycle={{ cycle.id }}"><i class="ph ph-kanban"></i> Open as board</a>
 </div>

@@ -430,6 +430,32 @@ function createWindow() {
   mainWindow.webContents.setUserAgent(DESKTOP_USER_AGENT);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    const store = readProfiles();
+    const current = store.items.find((item) => item.id === store.selectedId);
+    if (current && isAllowedNavigationUrl(url, current.backendUrl)) {
+      const child = new BrowserWindow({
+        width: 900,
+        height: 700,
+        minWidth: 400,
+        minHeight: 300,
+        show: false,
+        icon: APP_ICON_PATH,
+        title: "Broke Desktop",
+        backgroundColor: "#ece9e4",
+        webPreferences: {
+          contextIsolation: true,
+          sandbox: true,
+          nodeIntegration: false,
+          preload: path.join(__dirname, "preload.js"),
+        },
+      });
+      child.webContents.setUserAgent(DESKTOP_USER_AGENT);
+      child.once("ready-to-show", () => {
+        child.show();
+      });
+      child.loadURL(url);
+      return { action: "deny" };
+    }
     if (isAllowedExternalUrl(url)) {
       shell.openExternal(url);
     }

@@ -1,4 +1,4 @@
-"""One-shot paste pack for an external AI: full ticket context + real Bearer token + copy-paste curls."""
+"""One-shot paste pack for an external AI: full ticket context + real Bearer token + HTTP examples."""
 
 from __future__ import annotations
 
@@ -49,6 +49,35 @@ def mint_ticket_delegate_token(*, user: "User", ticket: "Ticket") -> tuple[str, 
     return raw, at
 
 
+def _python_broke_client(base: str, token: str, tid: str) -> str:
+    """stdlib only — runs in ChatGPT Code Interpreter, Colab, local Python, many agent sandboxes."""
+    return (
+        "import json, ssl, urllib.error, urllib.request\n"
+        "\n"
+        f"BASE = {repr(base)}\n"
+        f"TOKEN = {repr(token)}\n"
+        f"TICKET_ID = {repr(tid)}\n"
+        "\n"
+        "def broke(method, path, data=None):\n"
+        '    url = BASE.rstrip("/") + path\n'
+        "    body = None if data is None else json.dumps(data).encode('utf-8')\n"
+        "    req = urllib.request.Request(url, data=body, method=method)\n"
+        '    req.add_header("Authorization", "Bearer " + TOKEN)\n'
+        "    if body is not None:\n"
+        '        req.add_header("Content-Type", "application/json")\n'
+        "    ctx = ssl.create_default_context()\n"
+        "    try:\n"
+        "        with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:\n"
+        '            return resp.status, resp.read().decode("utf-8", errors="replace")\n'
+        "    except urllib.error.HTTPError as e:\n"
+        '        return e.code, e.read().decode("utf-8", errors="replace")\n'
+        "\n"
+        "# Run immediately; paste stdout back to the user if they need proof.\n"
+        'print("ping:", broke("GET", "/api/agent/ping"))\n'
+        'print("status_in_progress:", broke("PATCH", "/api/agent/tickets/" + TICKET_ID, {"status": "in-progress"}))\n'
+    )
+
+
 def build_ai_delegate_pack_markdown(
     *,
     payload: dict[str, Any],
@@ -57,7 +86,8 @@ def build_ai_delegate_pack_markdown(
     expires_at_epoch: int,
 ) -> str:
     """
-    Written for the AI as the reader. Single copy-paste block: context + working curl one-liners.
+    Written for the AI as the reader. Leads with Python (often executable in-product);
+    curl is fallback. States clearly that text-only replies do not update Broke.
     """
     base = base_url.rstrip("/")
     tid = str(payload.get("id") or "")
@@ -78,8 +108,10 @@ def build_ai_delegate_pack_markdown(
     if len(full_md) > _MAX_EMBED_CHARS:
         full_md = full_md[:_MAX_EMBED_CHARS] + "\n\n…(truncated for paste size)"
 
-    # One-line curls — no shell line continuations (copy-paste friendly).
     esc = bearer_token.replace("'", "'\\''")
+    py_block = _python_broke_client(base, bearer_token, tid)
+
+    curl_ping = f"curl -sS -g '{base}/api/agent/ping' -H 'Authorization: Bearer {esc}'"
     curl_status = (
         f"curl -sS -X PATCH '{base}/api/agent/tickets/{tid}' "
         f"-H 'Authorization: Bearer {esc}' -H 'Content-Type: application/json' "
@@ -102,33 +134,42 @@ def build_ai_delegate_pack_markdown(
     )
 
     lines = [
-        "# Broke — delegated ticket (read this whole message)",
+        "# Broke — delegated ticket",
         "",
-        "You are expected to **do the work** (research, coding, analysis) and to **update Broke** over HTTP using the token below. The human pastes this once; you drive the ticket to completion.",
+        "## CRITICAL (read before doing anything else)",
         "",
-        "## Rules",
+        "**Talking about Broke is not the same as updating Broke.** If you only reply in prose and never perform an HTTP request, **the ticket in Broke will not change**.",
         "",
-        f"- **Base URL:** `{base}`",
-        f"- **Ticket id:** `{tid}`",
-        f"- **Bearer token** (secret, expires {exp_s}):",
+        "1. **If your environment can run Python** (ChatGPT *Advanced data analysis / Code interpreter*, Google Colab, a local terminal, Cursor agent, etc.): run the **entire** Python block in the next section **first**. You should see HTTP status `200` and JSON for `ping`, then for `status_in_progress`.",
+        "2. **If your environment can run shell only**: run the **ping** `curl` first, then the **in-progress** `curl`.",
+        "3. **If you cannot run code or shell at all** (plain chat with no tools): **stop** and tell the user clearly: *I cannot reach your Broke server from here.* Give them the **ping** `curl` to run locally and ask them to paste the response back; then continue only after they confirm `200`.",
+        "4. **Do not** claim the ticket was updated in Broke unless you actually received a successful HTTP response from this host.",
         "",
-        f"`{bearer_token}`",
+        "---",
         "",
-        "- Use **only** the `curl` examples below (or equivalent HTTP) against this host. Start work → set status `in-progress` → comment progress → finish → set `done` or `in-review`.",
-        "- You may **append** to the description with `description_append`; do not assume you can replace the whole description via this API.",
+        "## Step 1 — Run this Python (preferred; standard library only)",
         "",
-        "## Quick ticket summary",
+        "Execute the whole block as one script. It verifies the token and sets status to `in-progress`.",
         "",
-        f"- **Title:** {title}",
-        f"- **Project:** `{project}`",
-        f"- **Status (current):** `{status}`",
-        f"- **Priority:** `{priority}`",
+        "```python",
+        py_block.rstrip(),
+        "```",
         "",
-        "### Description (plain text)",
+        'Then use `broke("PATCH", "/api/agent/tickets/" + TICKET_ID, {"status": "done"})` when finished. For comments:',
         "",
-        desc_plain or "_(empty)_",
+        "```python",
+        'print("comment:", broke("POST", "/api/agent/tickets/" + TICKET_ID + "/comments", {"body": "Your text here"}))',
+        "```",
         "",
-        "## Copy-paste `curl` (token already filled — run in a terminal)",
+        "---",
+        "",
+        "## Step 2 — Or use `curl` (terminal)",
+        "",
+        "**Ping (must return JSON with ok:true):**",
+        "",
+        "```bash",
+        curl_ping,
+        "```",
         "",
         "**Mark in progress:**",
         "",
@@ -154,11 +195,32 @@ def build_ai_delegate_pack_markdown(
         curl_append,
         "```",
         "",
-        "Other `status` values include: `backlog`, `todo`, `in-progress`, `in-review`, `done`, `closed`.",
+        f"Other `status` values: `backlog`, `todo`, `in-progress`, `in-review`, `done`, `closed`.",
+        "",
+        "---",
+        "",
+        "## Credentials (also embedded in script/curl above)",
+        "",
+        f"- **Base URL:** `{base}`",
+        f"- **Ticket id:** `{tid}`",
+        f"- **Bearer token** (expires {exp_s}): `{bearer_token}`",
+        "",
+        "---",
+        "",
+        "## Quick ticket summary",
+        "",
+        f"- **Title:** {title}",
+        f"- **Project:** `{project}`",
+        f"- **Status (current):** `{status}`",
+        f"- **Priority:** `{priority}`",
+        "",
+        "### Description (plain text)",
+        "",
+        desc_plain or "_(empty)_",
         "",
         "## Full ticket export (Markdown from Broke)",
         "",
-        "Use this for labels, assignees, comments thread, subtickets, and history.",
+        "Use this for labels, assignees, comments, subtickets, and history.",
         "",
         "---BEGIN-TICKET-EXPORT---",
         full_md,

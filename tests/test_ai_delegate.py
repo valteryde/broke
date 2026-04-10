@@ -40,21 +40,19 @@ def _(auth_client=auth_client, test_ticket=test_ticket):
         assert "YOUR_TOKEN" not in text
         # Bearer appears as code line and inside curl
         assert "Authorization: Bearer" in text
-
-        mint = auth_client.post("/api/settings/agent-tokens", json={})
-        assert mint.status_code == 201
-        outer = mint.get_json()["token"]
-
-        lines = text.splitlines()
-        bearer_line = next(
-            (ln for ln in lines if ln.startswith("`") and "http" not in ln and len(ln) > 40), None
-        )
-        assert bearer_line
-        inner = bearer_line.strip("`").strip()
-        assert inner != outer
+        assert "urllib.request" in text
 
         m = re.search(r"-H 'Authorization: Bearer ([^']+)'", text)
-        assert m and m.group(1) == inner
+        assert m
+        inner = m.group(1)
+        assert len(inner) > 20
+
+        ping = auth_client.get(
+            "/api/agent/ping",
+            headers={"Authorization": f"Bearer {inner}"},
+        )
+        assert ping.status_code == 200
+        assert ping.get_json().get("ok") is True
 
         agent = auth_client.patch(
             f"/api/agent/tickets/{test_ticket.id}",

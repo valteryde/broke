@@ -238,6 +238,8 @@ class Comment(BaseModel):
     user = ForeignKeyField(User, backref="comments")
     body = CharField()
     created_at = IntegerField(default=lambda: int(time.time()))
+    # 1 when posted via the agent API (display as AI/agent, not the token owner).
+    via_agent = IntegerField(default=0)
 
     class Meta:  # type: ignore
         indexes = ((("ticket", "user"), False),)
@@ -437,6 +439,7 @@ def initialize_db():
     _ensure_ticket_parent_column()
     _ensure_work_cycle_schema()
     _ensure_ai_delegate_column()
+    _ensure_comment_via_agent_column()
     _ensure_agent_token_ticket_id_column()
     _ensure_dsn_token_columns()
     database.close()
@@ -466,6 +469,12 @@ def _ensure_ai_delegate_column() -> None:
     columns = [row[1] for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()]
     if "ai_delegate" not in columns:
         database.execute_sql("ALTER TABLE ticket ADD COLUMN ai_delegate INTEGER DEFAULT 0;")
+
+
+def _ensure_comment_via_agent_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(comment);").fetchall()]
+    if "via_agent" not in columns:
+        database.execute_sql("ALTER TABLE comment ADD COLUMN via_agent INTEGER DEFAULT 0;")
 
 
 def _ensure_agent_token_ticket_id_column() -> None:

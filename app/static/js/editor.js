@@ -98,6 +98,7 @@ class TicketEditor {
             <div class="ticket-page">
                 <div class="ticket-main">
                     ${this.renderHeader()}
+                    ${this.renderAiDelegateMainCta()}
                     ${this.renderDescription()}
                     ${this.renderActivity()}
                 </div>
@@ -112,15 +113,60 @@ class TicketEditor {
     }
 
     renderHeader() {
+        const aiOn = !!this.ticket.aiDelegate;
         return `
             <div class="ticket-header">
-                <input
-                    type="text"
-                    class="ticket-title"
-                    value="${this.escapeHtml(this.ticket.title || '')}"
-                    placeholder="Enter ticket title..."
-                    data-field="title"
-                />
+                <div class="ticket-header-primary">
+                    <input
+                        type="text"
+                        class="ticket-title"
+                        value="${this.escapeHtml(this.ticket.title || '')}"
+                        placeholder="Enter ticket title..."
+                        data-field="title"
+                    />
+                    <button
+                        type="button"
+                        class="ticket-ai-delegate-nudge ticket-ai-delegate-main-toggle"
+                        style="display: ${aiOn ? 'none' : 'inline-flex'}"
+                        title="Enable AI handoff — scoped token and paste for an external agent"
+                        aria-pressed="false"
+                    >
+                        <i class="ph ph-robot" aria-hidden="true"></i>
+                        <span>Hand off</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    renderAiDelegateMainCta() {
+        const on = !!this.ticket.aiDelegate;
+        return `
+            <div class="ticket-ai-delegate-strip-wrap" style="display: ${on ? 'block' : 'none'}">
+                <div class="ticket-ai-delegate-strip" aria-label="External AI handoff">
+                    <div class="ticket-ai-delegate-strip-inner">
+                        <div class="ticket-ai-delegate-mark" aria-hidden="true">
+                            <i class="ph ph-robot"></i>
+                        </div>
+                        <div class="ticket-ai-delegate-maincol">
+                            <div class="ticket-ai-delegate-strip-body">
+                                <div class="ticket-ai-delegate-voice">
+                                    <span class="ticket-ai-delegate-eyebrow ticket-ai-delegate-eyebrow--live">Live</span>
+                                    <p class="ticket-ai-delegate-lede">Every copy mints a fresh token. Paste once into your agent and let it rip.</p>
+                                </div>
+                                <div class="ticket-ai-delegate-bar-actions">
+                                    <button type="button" class="ticket-ai-delegate-fire ticket-ai-delegate-main-copy">
+                                        <i class="ph ph-sparkle"></i>
+                                        Mint &amp; copy
+                                    </button>
+                                    <button type="button" class="ticket-ai-delegate-chill ticket-ai-delegate-main-off">
+                                        Stand down
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -130,9 +176,11 @@ class TicketEditor {
             <div class="ticket-description">
 
                 <div class="ticket-editor-container">
-                    <div class="ticket-save-indicator">
-                        <i class="ph ph-circle-notch"></i>
-                        <span>Saving...</span>
+                    <div class="ticket-description-save-row" aria-live="polite">
+                        <div class="ticket-save-indicator">
+                            <i class="ph ph-circle-notch"></i>
+                            <span>Saving...</span>
+                        </div>
                     </div>
                     <div id="ticket-description-editor" class="ticket-editor"></div>
                 </div>
@@ -199,23 +247,6 @@ class TicketEditor {
                         <i class="ph ph-caret-down"></i>
                     </button>
                 </div>` : ''}
-
-                <!-- External AI (orchestrator handoff — no full ticket in snippet) -->
-                <div class="ticket-property ticket-property-ai-delegate">
-                    <div class="ticket-property-label">External AI</div>
-                    <button type="button" class="ticket-property-btn ticket-ai-delegate-toggle ${this.ticket.aiDelegate ? 'ticket-ai-delegate-on' : ''}" aria-pressed="${this.ticket.aiDelegate ? 'true' : 'false'}">
-                        <i class="ph ph-robot"></i>
-                        <span class="property-value">${this.ticket.aiDelegate ? 'Let AI do it — on' : 'Let AI do it — off'}</span>
-                    </button>
-                    <div class="ticket-ai-delegate-panel" style="display: ${this.ticket.aiDelegate ? 'block' : 'none'};">
-                        <p class="ticket-ai-delegate-hint"><strong>Copy the whole box</strong> into your AI once. Broke mints a <strong>real token</strong> each time you load/refresh — it includes full ticket context and ready-to-run <code>curl</code> lines (no line-ending backslashes). Revoke old tokens under Settings → Agent tokens if you regenerate often.</p>
-                        <textarea readonly class="form-input ticket-ai-delegate-text" rows="16" spellcheck="false" placeholder="Turn on above to load text…"></textarea>
-                        <div class="ticket-ai-delegate-actions">
-                            <button type="button" class="btn btn-secondary btn-sm" id="ai-delegate-copy">Copy</button>
-                            <button type="button" class="btn btn-secondary btn-sm" id="ai-delegate-refresh">Reload</button>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Due Date -->
                 <div class="ticket-property">
@@ -374,16 +405,23 @@ class TicketEditor {
     }
 
     renderComment(comment) {
-        const isOwn = comment.author.username === this.currentUser.username;
+        const viaAgent = !!comment.viaAgent;
+        const isOwn = !viaAgent && comment.author.username === this.currentUser.username;
+        const displayAuthor = viaAgent
+            ? 'Agent'
+            : (comment.author.name || comment.author.username || '');
+        const avatarInner = viaAgent
+            ? '<div class="update-icon"><i class="ph ph-robot"></i></div>'
+            : `<svg width="40" height="40" data-jdenticon-value="${this.escapeHtml(comment.author.username)}"></svg>`;
 
         return `
-            <div class="ticket-activity-item" data-comment-id="${comment.id}">
+            <div class="ticket-activity-item${viaAgent ? ' ticket-activity-item--agent-comment' : ''}" data-comment-id="${comment.id}">
                 <div class="ticket-activity-avatar">
-                    <svg width="40" height="40" data-jdenticon-value="${this.escapeHtml(comment.author.username)}"></svg>
+                    ${avatarInner}
                 </div>
                 <div class="ticket-activity-content">
                     <div class="ticket-activity-meta">
-                        <span class="ticket-activity-author">${this.escapeHtml(comment.author.name)}</span>
+                        <span class="ticket-activity-author">${this.escapeHtml(displayAuthor)}</span>
                         <span class="ticket-activity-time">${this.formatRelativeTime(comment.createdAt)}</span>
                     </div>
                     <div class="ticket-comment-body">
@@ -434,7 +472,7 @@ class TicketEditor {
                     <div class="ticket-update-group-items" id="${groupId}">
                         ${group.items.map(item => `
                             <div class="ticket-update-item-row">
-                                <i class="ph ${item.icon || 'ph-pencil'}"></i>
+                                <i class="${this.escapeHtml(item.icon || 'ph ph-pencil')}"></i>
                                 <span>${this.escapeHtml(item.message)}</span>
                                 <span class="update-time">${this.formatRelativeTime(item.createdAt)}</span>
                             </div>
@@ -446,16 +484,17 @@ class TicketEditor {
     }
 
     renderUpdate(update) {
+        const agent = !!update.viaAgent;
         return `
             <div class="ticket-activity-item">
                 <div class="ticket-activity-avatar">
                     <div class="update-icon">
-                        <i class="ph ${update.icon}"></i>
+                        <i class="${this.escapeHtml(update.icon || 'ph ph-pencil')}"></i>
                     </div>
                 </div>
                 <div class="ticket-activity-content">
                     <div class="ticket-activity-meta">
-                         <span class="ticket-activity-author">Update</span>
+                        <span class="ticket-activity-author">${agent ? 'Agent' : 'Update'}</span>
                         <span class="ticket-activity-time">${this.formatRelativeTime(update.createdAt)}</span>
                     </div>
                     <div class="ticket-update">
@@ -679,34 +718,21 @@ class TicketEditor {
 
     initAiDelegateHandoff() {
         this.container.addEventListener('click', async (e) => {
-            const toggle = e.target.closest('.ticket-ai-delegate-toggle');
-            if (toggle) {
+            if (e.target.closest('.ticket-ai-delegate-main-toggle')) {
                 e.preventDefault();
-                await this.toggleAiDelegate();
+                if (!this.ticket.aiDelegate) await this.toggleAiDelegate();
                 return;
             }
-            if (e.target.id === 'ai-delegate-copy') {
+            if (e.target.closest('.ticket-ai-delegate-main-off')) {
                 e.preventDefault();
-                const ta = this.container.querySelector('.ticket-ai-delegate-text');
-                if (ta && ta.value) {
-                    try {
-                        await navigator.clipboard.writeText(ta.value);
-                        if (window.showToast) window.showToast('Copied handoff', 'success');
-                    } catch (err) {
-                        ta.select();
-                        document.execCommand('copy');
-                    }
-                }
+                if (this.ticket.aiDelegate) await this.toggleAiDelegate();
                 return;
             }
-            if (e.target.id === 'ai-delegate-refresh') {
+            if (e.target.closest('.ticket-ai-delegate-main-copy')) {
                 e.preventDefault();
-                if (this.ticket.aiDelegate) this.loadAiDelegateMarkdown();
+                await this.copyAiDelegatePackToClipboard();
             }
         });
-        if (this.ticket.aiDelegate) {
-            this.loadAiDelegateMarkdown();
-        }
     }
 
     async toggleAiDelegate() {
@@ -739,31 +765,24 @@ class TicketEditor {
     }
 
     refreshAiDelegateUI() {
-        const btn = this.container.querySelector('.ticket-ai-delegate-toggle');
-        const panel = this.container.querySelector('.ticket-ai-delegate-panel');
-        const val = btn && btn.querySelector('.property-value');
-        if (btn) {
-            btn.classList.toggle('ticket-ai-delegate-on', !!this.ticket.aiDelegate);
-            btn.setAttribute('aria-pressed', this.ticket.aiDelegate ? 'true' : 'false');
-        }
-        if (val) {
-            val.textContent = this.ticket.aiDelegate ? 'Let AI do it — on' : 'Let AI do it — off';
-        }
-        if (panel) {
-            panel.style.display = this.ticket.aiDelegate ? 'block' : 'none';
-        }
-        if (this.ticket.aiDelegate) {
-            this.loadAiDelegateMarkdown();
-        } else {
-            const ta = this.container.querySelector('.ticket-ai-delegate-text');
-            if (ta) ta.value = '';
+        const on = !!this.ticket.aiDelegate;
+        const wrap = this.container.querySelector('.ticket-ai-delegate-strip-wrap');
+        if (wrap) wrap.style.display = on ? 'block' : 'none';
+        const nudge = this.container.querySelector('.ticket-ai-delegate-nudge');
+        if (nudge) {
+            nudge.style.display = on ? 'none' : 'inline-flex';
+            nudge.setAttribute('aria-pressed', 'false');
         }
     }
 
-    async loadAiDelegateMarkdown() {
-        const ta = this.container.querySelector('.ticket-ai-delegate-text');
-        if (!ta) return;
-        ta.value = 'Generating paste (minting API token)…';
+    async copyAiDelegatePackToClipboard() {
+        if (!this.ticket.aiDelegate) return;
+        const btn = this.container.querySelector('.ticket-ai-delegate-main-copy');
+        const label = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph ph-circle-notch"></i> Minting…';
+        }
         try {
             const r = await fetch(`/api/tickets/${this.ticket.id}/ai-delegate-pack`, {
                 method: 'POST',
@@ -777,12 +796,27 @@ class TicketEditor {
             });
             if (!r.ok) {
                 const err = await r.json().catch(() => ({}));
-                ta.value = err.error || `Error (${r.status})`;
+                if (window.showToast) window.showToast(err.error || `Could not copy (${r.status})`, 'error');
+                else alert(err.error || `Could not copy (${r.status})`);
                 return;
             }
-            ta.value = await r.text();
+            const text = await r.text();
+            try {
+                await navigator.clipboard.writeText(text);
+                if (window.showToast) window.showToast('Packed — paste it into your agent.', 'success');
+            } catch (_clipErr) {
+                if (window.showToast) window.showToast('Could not copy to clipboard', 'error');
+                else alert('Could not copy to clipboard');
+            }
         } catch (err) {
-            ta.value = 'Could not generate pack';
+            console.error(err);
+            if (window.showToast) window.showToast('Could not load handoff', 'error');
+            else alert('Could not load handoff');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = label;
+            }
         }
     }
 
@@ -993,6 +1027,7 @@ class TicketEditor {
             type: 'comment',
             id: 'temp-' + Date.now(),
             author: this.currentUser,
+            viaAgent: false,
             content: content,
             createdAt: new Date().toISOString()
         };
