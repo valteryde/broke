@@ -259,7 +259,8 @@ def _(c=client):
         content_type="multipart/form-data",
         follow_redirects=False,
     )
-    assert response.status_code == 302
+    # /api/* uses 401 for unauthenticated clients (see protected); 302 is for non-API routes.
+    assert response.status_code == 401
 
 
 @test("/api/settings/profile/avatar accepts uploaded file")
