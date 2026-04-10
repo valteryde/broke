@@ -1,17 +1,19 @@
+import logging
+import time
+import uuid
+
+import pyargon2
 from peewee import (
-    Model,
-    CharField,
-    IntegerField,
-    SqliteDatabase,
-    ForeignKeyField,
     AutoField,
+    CharField,
+    ForeignKeyField,
+    IntegerField,
+    Model,
+    SqliteDatabase,
     TextField,
 )
+
 from .path import data_path
-import time
-import logging
-import uuid
-import pyargon2
 
 logger = logging.getLogger(__name__)
 logger.info(f"Database path: {data_path('app.db')}")
@@ -33,7 +35,6 @@ class User(BaseModel):
 
 
 def create_user(username: str, password, email: str, admin: int = 0):
-
     User.create_table(safe=True)
 
     salt = uuid.uuid4().hex
@@ -76,7 +77,7 @@ class DeviceToken(BaseModel):
     revoked = IntegerField(default=0)
 
     class Meta:  # type: ignore
-        indexes = ((('user', 'device_id', 'revoked'), False),)
+        indexes = ((("user", "device_id", "revoked"), False),)
 
 
 class Project(BaseModel):
@@ -189,6 +190,18 @@ class Error(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
 
 
+class WorkCycle(BaseModel):
+    """Time-boxed focus period for grouping tickets (no sprint/scrum terminology in UI)."""
+
+    id = AutoField(primary_key=True)
+    name = CharField()
+    goal = TextField(null=True)
+    project = CharField(null=True, index=True)  # null = workspace-wide
+    starts_at = IntegerField(null=True)
+    ends_at = IntegerField(null=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
 class Ticket(BaseModel):
     id = CharField(primary_key=True)
 
@@ -205,6 +218,8 @@ class Ticket(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
     active = IntegerField(default=1)
     parent_ticket_id = CharField(null=True, index=True)
+    work_cycle_id = IntegerField(null=True, index=True)
+    ai_delegate = IntegerField(default=0)
 
     anonymous_secret = CharField(null=True, unique=True)
 
@@ -321,6 +336,22 @@ class APIToken(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
 
 
+class AgentToken(BaseModel):
+    """Short-lived Bearer tokens for agents (Cursor, scripts) — no CSRF; scope-limited."""
+
+    id = AutoField(primary_key=True)
+    user = ForeignKeyField(User, backref="agent_tokens")
+
+    token_hash = CharField(index=True)
+    token_preview = CharField()
+    expires_at = IntegerField(index=True)
+    scopes = TextField(default="[]")  # JSON array, e.g. ["comment:write","ticket:write"]
+    project = CharField(null=True, index=True)
+    work_cycle_id = IntegerField(null=True, index=True)
+    ticket_id = CharField(null=True, index=True)  # when set, token is limited to this ticket only
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
 class DSNToken(BaseModel):
     """Single DSN token for Sentry SDK authentication - only one can exist at a time"""
 
@@ -367,6 +398,7 @@ class ChangelogRelease(BaseModel):
 
 MODELS = [
     User,
+    WorkCycle,
     Ticket,
     UserTicketJoin,
     Project,
@@ -387,6 +419,7 @@ MODELS = [
     Webhook,
     WebhookDelivery,
     APIToken,
+    AgentToken,
     DSNToken,
     GlobalSetting,
     NotificationEventLog,
@@ -402,16 +435,16 @@ def initialize_db():
     database.connect()
     database.create_tables(MODELS, safe=True)
     _ensure_ticket_parent_column()
+    _ensure_work_cycle_schema()
+    _ensure_ai_delegate_column()
+    _ensure_agent_token_ticket_id_column()
     _ensure_dsn_token_columns()
     database.close()
 
 
 def _ensure_ticket_parent_column() -> None:
     """Backfill schema for older databases that predate parent_ticket_id."""
-    columns = [
-        row[1]
-        for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()
-    ]
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()]
     if "parent_ticket_id" not in columns:
         database.execute_sql("ALTER TABLE ticket ADD COLUMN parent_ticket_id TEXT;")
         database.execute_sql(
@@ -419,12 +452,34 @@ def _ensure_ticket_parent_column() -> None:
         )
 
 
+def _ensure_work_cycle_schema() -> None:
+    """Add ticket.work_cycle_id for DBs created before the field existed (table from create_tables)."""
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()]
+    if "work_cycle_id" not in columns:
+        database.execute_sql("ALTER TABLE ticket ADD COLUMN work_cycle_id INTEGER;")
+        database.execute_sql(
+            "CREATE INDEX IF NOT EXISTS ticket_work_cycle_id ON ticket(work_cycle_id);"
+        )
+
+
+def _ensure_ai_delegate_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()]
+    if "ai_delegate" not in columns:
+        database.execute_sql("ALTER TABLE ticket ADD COLUMN ai_delegate INTEGER DEFAULT 0;")
+
+
+def _ensure_agent_token_ticket_id_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(agenttoken);").fetchall()]
+    if "ticket_id" not in columns:
+        database.execute_sql("ALTER TABLE agenttoken ADD COLUMN ticket_id TEXT;")
+        database.execute_sql(
+            "CREATE INDEX IF NOT EXISTS agenttoken_ticket_id ON agenttoken(ticket_id);"
+        )
+
+
 def _ensure_dsn_token_columns() -> None:
     """Backfill schema for DSN token hardening fields on older databases."""
-    columns = [
-        row[1]
-        for row in database.execute_sql("PRAGMA table_info(dsntoken);").fetchall()
-    ]
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(dsntoken);").fetchall()]
 
     if "token_hash" not in columns:
         database.execute_sql("ALTER TABLE dsntoken ADD COLUMN token_hash TEXT;")
@@ -434,9 +489,10 @@ def _ensure_dsn_token_columns() -> None:
 
 def setup_test_data():  # noqa: C901
     # Function to setup test data in the database
+    import random
+
     import pyargon2
     from faker import Faker
-    import random
 
     def random_time():
         """Generate a random timestamp within the past year"""

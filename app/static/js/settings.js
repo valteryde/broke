@@ -673,6 +673,66 @@ function deleteToken(tokenId) {
         });
 }
 
+function generateAgentToken() {
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+    if (window.BROKE_CSRF_TOKEN) {
+        headers['X-CSRF-Token'] = window.BROKE_CSRF_TOKEN;
+    }
+    fetch('/api/settings/agent-tokens', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.token) {
+                const curl = data.curl_example || '';
+                Modal.show(
+                    'New agent token',
+                    `
+                <p>Copy the token once and store it in your environment (e.g. <code>BROKE_AGENT_TOKEN</code>). Do not paste it into AI chats.</p>
+                <br>
+                <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; word-break: break-all; margin-bottom: 16px;">${data.token}</div>
+                ${curl ? `<p><strong>Example</strong></p><pre style="white-space:pre-wrap;font-size:12px;background:#f3f4f6;padding:8px;border-radius:4px;">${curl.replace(/</g, '&lt;')}</pre>` : ''}
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" onclick="Modal.close(); location.reload();">Done</button>
+                </div>
+            `
+                );
+            } else {
+                showToast(data.error || 'Failed to mint agent token', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('Failed to mint agent token', 'error');
+        });
+}
+
+function deleteAgentToken(tokenId) {
+    if (!confirm('Revoke this agent token?')) {
+        return;
+    }
+    const headers = {};
+    if (window.BROKE_CSRF_TOKEN) {
+        headers['X-CSRF-Token'] = window.BROKE_CSRF_TOKEN;
+    }
+    fetch(`/api/settings/agent-tokens/${tokenId}`, {
+        method: 'DELETE',
+        headers,
+    })
+        .then((response) => {
+            if (response.ok) {
+                showToast('Agent token revoked', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast('Failed to revoke', 'error');
+            }
+        })
+        .catch(() => showToast('Failed to revoke', 'error'));
+}
+
 
 // ============ DSN Token Functions ============
 

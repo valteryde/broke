@@ -1,0 +1,257 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}{{ cycle.name }} | Sprints | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/work_cycle_diagram.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+    <style>
+        .wc-cycle-tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
+        details.settings-card > summary { list-style: none; }
+        details.settings-card > summary::-webkit-details-marker { display: none; }
+    </style>
+{% endblock %}
+
+{% block path %}
+    <a href="/work-cycles"><i class="ph ph-calendar-dots"></i> Sprints</a>
+    <i class="ph ph-caret-right"></i>
+    <span>{{ cycle.name }}</span>
+{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 0.25rem;">{{ cycle.name }}</h1>
+<p class="card-description" style="margin-bottom: 0.75rem;">
+    {% if cycle.goal %}{{ cycle.goal }}{% endif %}
+    <br>{{ cycle_stats.total }} ticket{% if cycle_stats.total != 1 %}s{% endif %} in this sprint · {{ cycle_stats.active }} open · {{ cycle_stats.done }} done
+    {% if cycle.project %}<br><span style="color:#666;">Legacy tag: project {{ cycle.project }} (tickets are not limited to this project)</span>{% endif %}
+</p>
+
+<div class="settings-card" style="margin-bottom: 1rem;">
+    <div class="card-section">
+        <h3 style="margin-top:0;"><i class="ph ph-magnifying-glass"></i> Add tickets to this sprint</h3>
+        <p class="card-description">Search by ticket id or title (any project). Click a result to add it.</p>
+        <div class="form-group" style="margin-bottom:8px;">
+            <input type="search" id="wc-ticket-search" class="form-input" placeholder="Search tickets…" autocomplete="off">
+        </div>
+        <div id="wc-search-results" class="wc-search-results" aria-live="polite"></div>
+    </div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+    <a class="btn btn-secondary" href="/api/work-cycles/{{ cycle.id }}/export?format=markdown"><i class="ph ph-download-simple"></i> Markdown</a>
+    <button type="button" class="btn btn-secondary" id="wc-copy-md"><i class="ph ph-copy"></i> Copy markdown</button>
+    <a class="btn btn-secondary" href="/tickets?view=board&cycle={{ cycle.id }}"><i class="ph ph-kanban"></i> Open as board</a>
+</div>
+
+<div class="wc-diagram" role="region" aria-label="Sprint flow by status">
+    <div class="wc-diagram-caption">Flow — left to right is how work tends to move (each ticket stays in its real status)</div>
+    {% if cycle_stats.total == 0 %}
+    <div class="wc-diagram-empty-cycle">
+        No tickets in this sprint yet. Use <strong>Add tickets</strong> above, or set the sprint from any ticket’s sidebar.
+    </div>
+    {% endif %}
+    <div class="wc-diagram-track">
+        {% for lane in board_lanes %}
+        {% if not loop.first %}
+        <div class="wc-diagram-edge" aria-hidden="true"><i class="ph ph-arrow-right"></i></div>
+        {% endif %}
+        <div class="wc-diagram-stage">
+            <div class="wc-diagram-stage-header">
+                <span class="wc-diagram-stage-dot" style="border-color: {{ lane.color }};"></span>
+                <span class="wc-diagram-stage-label">{{ lane.label }}</span>
+                <span class="wc-diagram-stage-count">{{ lane.tickets|length }} ticket{% if lane.tickets|length != 1 %}s{% endif %}</span>
+            </div>
+            <div class="wc-diagram-tickets">
+                {% for t in lane.tickets %}
+                <div class="wc-diagram-ticket-wrap">
+                    <a href="/tickets/{{ t.project }}/{{ t.id }}" class="wc-diagram-ticket">
+                        <div class="wc-diagram-ticket-id">{{ t.id }} <span class="wc-diagram-proj">{{ t.project }}</span></div>
+                        <div class="wc-diagram-ticket-title">{{ t.title }}</div>
+                        <div class="wc-diagram-ticket-meta">
+                            <span class="wc-diagram-priority ticket-priority-{{ t.priority }}">{{ t.priority }}</span>
+                            {% if t.assignees %}
+                            <span class="wc-diagram-assignees">
+                                {% for a in t.assignees %}
+                                <span title="{{ a.username }}">
+                                    <svg width="22" height="22" data-jdenticon-value="{{ a.username }}"></svg>
+                                </span>
+                                {% endfor %}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    <button type="button" class="wc-diagram-remove" data-ticket-id="{{ t.id|e }}" title="Remove from sprint">×</button>
+                </div>
+                {% else %}
+                {% if cycle_stats.total > 0 %}
+                <div class="wc-diagram-empty-lane">None here</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<details class="settings-card" style="margin-top: 1.25rem;">
+    <summary class="card-section" style="cursor: pointer; list-style: none; font-weight: 600;">
+        <span style="margin-right: 6px;">▸</span> Edit sprint name &amp; goal
+    </summary>
+    <div class="card-section" style="border-top: 1px dashed #ccc;">
+        <form id="wc-edit-form" class="settings-form">
+            <div class="form-group">
+                <label for="wc-edit-name">Name</label>
+                <input type="text" id="wc-edit-name" class="form-input" value="{{ cycle.name }}">
+            </div>
+            <div class="form-group">
+                <label for="wc-edit-goal">Goal</label>
+                <textarea id="wc-edit-goal" class="form-input" rows="2">{{ cycle.goal or '' }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-danger" id="wc-delete" style="margin-left:8px;">Delete sprint</button>
+        </form>
+    </div>
+</details>
+
+<script src="{{ url_for('static', filename='js/work_cycles.js') }}"></script>
+<script>
+(function () {
+    const cycleId = {{ cycle.id }};
+    const csrf = () => window.BROKE_CSRF_TOKEN || '';
+
+    function postTickets(body) {
+        return fetch('/api/work-cycles/' + cycleId + '/tickets', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-Token': csrf()
+            },
+            body: JSON.stringify(body)
+        });
+    }
+
+    let searchTimer = null;
+    const searchInput = document.getElementById('wc-ticket-search');
+    const searchResults = document.getElementById('wc-search-results');
+
+    function renderSearchResults(rows) {
+        if (!searchResults) return;
+        searchResults.textContent = '';
+        if (!rows.length) {
+            const p = document.createElement('p');
+            p.className = 'card-description';
+            p.style.margin = '0';
+            p.textContent = 'No matches.';
+            searchResults.appendChild(p);
+            return;
+        }
+        rows.forEach(function (r) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'wc-search-hit';
+            btn.dataset.id = r.id;
+            const idSpan = document.createElement('span');
+            idSpan.className = 'wc-search-hit-id';
+            idSpan.textContent = r.id;
+            const meta = document.createElement('span');
+            meta.className = 'wc-search-hit-meta';
+            meta.textContent = r.project || '';
+            const title = document.createElement('span');
+            title.className = 'wc-search-hit-title';
+            title.textContent = r.title || '';
+            btn.appendChild(idSpan);
+            btn.appendChild(meta);
+            btn.appendChild(title);
+            btn.addEventListener('click', async function () {
+                const tid = btn.dataset.id;
+                const res = await postTickets({ add: [tid] });
+                const data = await res.json().catch(function () { return {}; });
+                if (!res.ok) {
+                    alert(data.error || 'Could not add ticket');
+                    return;
+                }
+                if (window.showToast) showToast('Added to sprint', 'success');
+                location.reload();
+            });
+            searchResults.appendChild(btn);
+        });
+    }
+
+    searchInput?.addEventListener('input', function () {
+        const q = searchInput.value.trim();
+        clearTimeout(searchTimer);
+        if (q.length < 2) {
+            if (searchResults) searchResults.innerHTML = '';
+            return;
+        }
+        searchTimer = setTimeout(async function () {
+            const r = await fetch('/api/search?q=' + encodeURIComponent(q) + '&limit=20', {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            const data = await r.json().catch(function () { return {}; });
+            renderSearchResults(data.results || []);
+        }, 200);
+    });
+
+    document.querySelectorAll('.wc-diagram-remove').forEach(function (btn) {
+        btn.addEventListener('click', async function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const tid = btn.getAttribute('data-ticket-id');
+            if (!tid || !confirm('Remove this ticket from the sprint?')) return;
+            const r = await postTickets({ remove: [tid] });
+            if (!r.ok) {
+                alert((await r.json().catch(function () { return {}; })).error || 'Remove failed');
+                return;
+            }
+            location.reload();
+        });
+    });
+
+    document.getElementById('wc-copy-md')?.addEventListener('click', async () => {
+        try {
+            const r = await fetch('/api/work-cycles/' + cycleId + '/export?format=markdown');
+            const t = await r.text();
+            await navigator.clipboard.writeText(t);
+            if (window.showToast) showToast('Copied', 'success');
+        } catch (e) {
+            alert('Copy failed');
+        }
+    });
+
+    document.getElementById('wc-edit-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('wc-edit-name').value.trim();
+        const goal = document.getElementById('wc-edit-goal').value.trim();
+        const r = await fetch('/api/work-cycles/' + cycleId, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrf()
+            },
+            body: JSON.stringify({ name, goal: goal || null })
+        });
+        if (r.ok) location.reload();
+        else alert((await r.json().catch(() => ({}))).error || 'Save failed');
+    });
+
+    document.getElementById('wc-delete')?.addEventListener('click', async () => {
+        if (!confirm('Delete this sprint? Tickets will be unassigned from it.')) return;
+        const r = await fetch('/api/work-cycles/' + cycleId, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': csrf() }
+        });
+        if (r.ok) window.location.href = '/work-cycles';
+        else alert('Delete failed');
+    });
+
+    document.querySelector('details.settings-card')?.addEventListener('toggle', function () {
+        const m = this.querySelector('summary span');
+        if (m) m.textContent = this.open ? '▾' : '▸';
+    });
+})();
+</script>
+{% endblock %}

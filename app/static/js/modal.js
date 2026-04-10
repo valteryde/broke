@@ -1,11 +1,11 @@
 /**
  * Modal Component
  * Reusable modal dialog system
- * 
+ *
  * Usage:
  * Modal.show('Title', '<form>...</form>', { onClose: () => {} });
  * Modal.close();
- * 
+ *
  * Or use the class-based approach for more control:
  * const modal = new Modal({
  *     title: 'My Modal',
@@ -17,6 +17,9 @@
  */
 
 class Modal {
+    /** @type {Modal | null} */
+    static activeInstance = null;
+
     constructor(options = {}) {
         this.title = options.title || '';
         this.content = options.content || '';
@@ -39,7 +42,7 @@ class Modal {
     }
 
     show() {
-        // Remove any existing modal
+        // Remove any existing modal (including listeners on the previous instance)
         Modal.close();
 
         this.element = document.createElement('div');
@@ -59,6 +62,7 @@ class Modal {
         `;
 
         document.body.appendChild(this.element);
+        Modal.activeInstance = this;
 
         // Close button handler
         const closeBtn = this.element.querySelector('.modal-close-btn');
@@ -92,6 +96,10 @@ class Modal {
     }
 
     close() {
+        if (Modal.activeInstance === this) {
+            Modal.activeInstance = null;
+        }
+
         if (this.element) {
             this.element.remove();
             this.element = null;
@@ -138,6 +146,10 @@ class Modal {
     }
 
     static close() {
+        if (Modal.activeInstance) {
+            Modal.activeInstance.close();
+            return;
+        }
         const existingOverlay = document.querySelector('.modal-overlay');
         if (existingOverlay) {
             existingOverlay.remove();

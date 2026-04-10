@@ -164,6 +164,30 @@ const TicketListConfig = {
                 { value: 'low', label: 'Low', icon: 'ph-cell-signal-low' }
             ]
         },
+        workCycle: {
+            label: 'Sprint',
+            icon: 'ph-calendar-dots',
+            filter: (element, values) => {
+                if (!values || values.length === 0) return true;
+                const wc = element.workCycleId;
+                const key = wc == null || wc === '' ? '__none__' : String(wc);
+                return values.includes(key);
+            },
+            getOptions: () => {
+                const rows = window.availableWorkCycles || [];
+                const opts = rows.map((c) => ({
+                    value: String(c.id),
+                    label: c.name,
+                    icon: 'ph-calendar-dots'
+                }));
+                opts.unshift({
+                    value: '__none__',
+                    label: 'No cycle',
+                    icon: 'ph-x'
+                });
+                return opts;
+            }
+        },
         dateRange: {
             label: 'Date Range',
             icon: 'ph-calendar',

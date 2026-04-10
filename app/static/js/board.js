@@ -89,7 +89,7 @@ const TicketBoard = {
         const columnsHtml = statuses.map((status) => {
             const isCollapsed = this.collapsedStatuses.includes(status.key);
             const items = visibleTickets.filter((ticket) => ticket.status === status.key);
-            
+
             let bodyHtml = '';
             let footerHtml = '';
             const statusClass = isCollapsed ? 'is-collapsed' : '';
@@ -102,7 +102,7 @@ const TicketBoard = {
                 const visibleItems = items.slice(0, actualLimit);
                 const cards = visibleItems.map((ticket) => this.renderCard(ticket)).join('');
                 bodyHtml = `<div class="ticket-board-column-body" data-drop-zone="${status.key}">${cards}</div>`;
-                
+
                 if (items.length > this.MAX_VISIBLE_TICKETS && !this.expandedColumns.has(status.key)) {
                     footerHtml = `
                         <div class="ticket-board-column-footer">
@@ -150,6 +150,7 @@ const TicketBoard = {
                 labels: TicketListConfig.filters.labels,
                 assignees: TicketListConfig.filters.assignees,
                 urgency: TicketListConfig.filters.urgency,
+                workCycle: TicketListConfig.filters.workCycle,
             },
             groups: {},
             syncUrlState: false,

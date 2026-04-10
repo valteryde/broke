@@ -1,0 +1,38 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}Agent integration | Broke{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-robot"></i> Agent integration</span>
+{% endblock %}
+
+{% block content %}
+<h1>Agent integration</h1>
+<p>Use short-lived <strong>agent tokens</strong> from <a href="/settings/api">Settings → API &amp; Tokens</a> so tools can call Broke without browser cookies.</p>
+
+<h2>Environment</h2>
+<ul>
+    <li><code>BROKE_BASE_URL</code> — your instance root (e.g. <code>https://broke.example.com</code>)</li>
+    <li><code>BROKE_AGENT_TOKEN</code> — secret from “Mint agent token”; do not paste into model chats</li>
+</ul>
+
+<h2>Example: comment</h2>
+<pre style="background:#f3f4f6;padding:1rem;border-radius:6px;overflow:auto;">curl -sS -X POST "$BROKE_BASE_URL/api/agent/tickets/TICKET-ID/comments" \
+  -H "Authorization: Bearer $BROKE_AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"body":"Progress update…"}'</pre>
+
+<h2>Example: patch ticket</h2>
+<pre style="background:#f3f4f6;padding:1rem;border-radius:6px;overflow:auto;">curl -sS -X PATCH "$BROKE_BASE_URL/api/agent/tickets/TICKET-ID" \
+  -H "Authorization: Bearer $BROKE_AGENT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"in-progress","description_append":"\\n\\nAgent note: …"}'</pre>
+
+<h2>Git commit messages</h2>
+<p>When GitHub webhooks are configured, commits can link to tickets: <code>fix TICKET-ID</code>, <code>ref TICKET-ID</code> (optional <code>#</code> before the id).</p>
+
+<h2>Optional MCP</h2>
+<p>Any MCP server can wrap these HTTP calls with tools that read <code>BROKE_AGENT_TOKEN</code> from MCP <code>env</code> in Cursor. No changes to the Broke desktop app are required.</p>
+
+<p><a href="/settings/api">← Back to API settings</a></p>
+{% endblock %}

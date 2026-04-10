@@ -3,40 +3,45 @@ Settings Views and API Endpoints
 Handles user preferences, webhooks, and workspace configuration
 """
 
+import hashlib
+import json
 import os
-from ..utils.security import protected
+import re
+import secrets
+import time
+import uuid
+
+import pyargon2
+from flask import Blueprint, flash, jsonify, redirect, render_template, request
+from peewee import DoesNotExist
+
+from ..utils import mail
+from ..utils.agent_auth import DEFAULT_AGENT_TTL_SECONDS
+from ..utils.ai_changelog import get_ai_config
 from ..utils.models import (
-    User,
-    UserSettings,
-    Project,
-    Label,
+    AgentToken,
     APIToken,
-    Webhook,
     DSNToken,
     GlobalSetting,
-    UserCreateToken,
+    Label,
+    Project,
     ProjectPart,
     Ticket,
+    User,
+    UserCreateToken,
+    UserSettings,
+    Webhook,
     WebhookDelivery,
-    data_path,
+    WorkCycle,
     create_user,
+    data_path,
 )
-from flask import redirect, render_template, request, flash, Blueprint
-from ..utils.reltime import time_ago
-from peewee import DoesNotExist
-import json
-import hashlib
-import time
-import secrets
-import re
-import uuid
-import pyargon2
-from ..utils import mail
-from ..utils.ai_changelog import get_ai_config
 from ..utils.notifications import (
     get_notification_engine_settings,
     save_notification_engine_settings,
 )
+from ..utils.reltime import time_ago
+from ..utils.security import protected
 
 # Create blueprint
 settings_bp = Blueprint("settings", __name__)
@@ -75,6 +80,16 @@ def _delete_existing_avatar_files(avatar_dir: str, username: str):
 def settings_view(user: User):
     """Default settings view - redirects to profile"""
     return redirect("/settings/profile")
+
+
+@settings_bp.route("/docs/agent-integration")
+@protected
+def docs_agent_integration(user: User):
+    return render_template(
+        "docs_agent_integration.jinja2",
+        user=user,
+        page="settings",
+    )
 
 
 @settings_bp.route("/settings/<section>")
@@ -174,6 +189,12 @@ def settings_section_view(user: User, section: str):  # noqa: C901
             .where(APIToken.user == user.username)
             .order_by(APIToken.created_at.desc())
         )
+        context["agent_tokens"] = list(
+            AgentToken.select()
+            .where(AgentToken.user == user.username)
+            .order_by(AgentToken.created_at.desc())
+        )
+        context["agent_base_url"] = request.host_url.rstrip("/")
 
     elif section == "webhooks":
         context["projects"] = list(Project.select().order_by(Project.name))
@@ -264,7 +285,8 @@ def settings_section_view(user: User, section: str):  # noqa: C901
                 context["ai_settings"] = default_ai_settings
 
     elif section == "updates":
-        from ..utils.updater import get_update_info, is_auto_check_enabled, get_sidecar_status
+        from ..utils.updater import get_sidecar_status, get_update_info, is_auto_check_enabled
+
         context["update_info"] = get_update_info()
         context["auto_check_enabled"] = is_auto_check_enabled()
         context["sidecar_status"] = get_sidecar_status()
@@ -757,7 +779,7 @@ def api_delete_team_member(user: User, username: str):
 
         # Keep the user row for history references (comments, update authors),
         # but revoke access and clear user-specific settings/integrations.
-        from ..utils.models import UserSettings, Webhook, APIToken, UserTicketJoin
+        from ..utils.models import APIToken, UserSettings, UserTicketJoin, Webhook
 
         UserSettings.delete().where(UserSettings.user == username).execute()
         Webhook.delete().where(Webhook.user == username).execute()
@@ -807,7 +829,6 @@ def welcome_new_member(token: str):
 
     # Verify the token
     try:
-
         invite = UserCreateToken.get(
             UserCreateToken.token == hashlib.sha256(token.encode()).hexdigest()
         )
@@ -882,6 +903,111 @@ def api_delete_token(user: User, token_id: int):
         return json.dumps({"success": True}), 200
     except DoesNotExist:
         return json.dumps({"error": "Token not found"}), 404
+
+
+# ============ Agent token endpoints (Bearer, short-lived) ============
+@settings_bp.route("/api/settings/agent-tokens", methods=["GET"])
+@protected
+def api_list_agent_tokens(user: User):
+    rows = list(
+        AgentToken.select()
+        .where(AgentToken.user == user.username)
+        .order_by(AgentToken.created_at.desc())
+    )
+    out = []
+    for row in rows:
+        try:
+            scopes = json.loads(row.scopes or "[]")
+        except json.JSONDecodeError:
+            scopes = []
+        out.append(
+            {
+                "id": row.id,
+                "token_preview": row.token_preview,
+                "expires_at": row.expires_at,
+                "scopes": scopes,
+                "project": row.project,
+                "work_cycle_id": row.work_cycle_id,
+                "created_at": row.created_at,
+            }
+        )
+    return jsonify({"tokens": out}), 200
+
+
+@settings_bp.route("/api/settings/agent-tokens", methods=["POST"])
+@protected
+def api_create_agent_token(user: User):
+    data = request.get_json(silent=True) or {}
+    ttl = int(data.get("ttl_seconds") or DEFAULT_AGENT_TTL_SECONDS)
+    ttl = max(300, min(ttl, 30 * 24 * 3600))
+
+    scopes = data.get("scopes")
+    if not scopes:
+        scopes = ["comment:write", "ticket:write", "ticket:read"]
+    if not isinstance(scopes, list) or not all(isinstance(x, str) for x in scopes):
+        return jsonify({"error": "scopes must be a list of strings"}), 400
+
+    project_raw = data.get("project")
+    project = str(project_raw).strip() if project_raw else None
+    if project and not Project.get_or_none(Project.id == project):
+        return jsonify({"error": "Unknown project"}), 400
+
+    work_cycle_id = None
+    wcid = data.get("work_cycle_id")
+    if wcid is not None and str(wcid).strip() != "":
+        try:
+            work_cycle_id = int(wcid)
+        except (TypeError, ValueError):
+            return jsonify({"error": "work_cycle_id must be an integer"}), 400
+        if not WorkCycle.get_or_none(WorkCycle.id == work_cycle_id):
+            return jsonify({"error": "Unknown work cycle"}), 400
+
+    raw = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    now = int(time.time())
+
+    at = AgentToken.create(
+        user=user.username,
+        token_hash=token_hash,
+        token_preview=raw[:8],
+        expires_at=now + ttl,
+        scopes=json.dumps(scopes),
+        project=project,
+        work_cycle_id=work_cycle_id,
+        created_at=now,
+    )
+
+    base = request.host_url.rstrip("/")
+    curl = (
+        f'curl -sS -X POST "{base}/api/agent/tickets/TICKET-ID/comments" \\\n'
+        f'  -H "Authorization: Bearer {raw}" \\\n'
+        f'  -H "Content-Type: application/json" \\\n'
+        f'  -d \'{{"body":"Progress update…"}}\''
+    )
+
+    return (
+        jsonify(
+            {
+                "token": raw,
+                "token_id": at.id,
+                "expires_at": at.expires_at,
+                "curl_example": curl,
+                "base_url": base,
+            }
+        ),
+        201,
+    )
+
+
+@settings_bp.route("/api/settings/agent-tokens/<int:token_id>", methods=["DELETE"])
+@protected
+def api_delete_agent_token(user: User, token_id: int):
+    try:
+        row = AgentToken.get((AgentToken.id == token_id) & (AgentToken.user == user.username))
+    except DoesNotExist:
+        return jsonify({"error": "Token not found"}), 404
+    row.delete_instance()
+    return jsonify({"success": True}), 200
 
 
 # ============ DSN Token Endpoints ============
@@ -988,7 +1114,6 @@ def api_delete_project(user: User, project_id: str):
 
         return redirect("/settings/projects")
     except DoesNotExist:
-
         flash("Project not found.", "error")
 
         return redirect("/settings/projects")
@@ -1108,7 +1233,6 @@ def get_or_create_user_settings(user: User) -> "UserSettings":
 
 
 def get_secret_from_txt_file(fpath: str) -> str:
-
     # Get or create settings
     if not os.path.exists(data_path(fpath)):
         with open(data_path(fpath), "w") as f:
@@ -1197,7 +1321,7 @@ def api_apply_update(user: User):
 @protected
 def api_toggle_auto_check(user: User):
     """Toggle automatic update checking"""
-    from ..utils.updater import set_auto_check_enabled, is_auto_check_enabled
+    from ..utils.updater import is_auto_check_enabled, set_auto_check_enabled
 
     data = request.get_json()
     enabled = data.get("enabled", not is_auto_check_enabled())

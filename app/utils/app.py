@@ -1,13 +1,14 @@
-import flask
-from datetime import datetime
-from .path import path
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from flask_caching import Cache
-import tomllib
 import os
 import secrets
-from .path import data_path
+import tomllib
+from datetime import datetime
+
+import flask
+from flask_caching import Cache
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+from .path import data_path, path
 
 # Global app instance (for backwards compatibility during migration)
 _app = None
@@ -90,6 +91,7 @@ def create_app():  # noqa: C901
     # Initialize database tables on app creation (but not during tests)
     if os.environ.get("FLASK_ENV") != "testing":
         from .models import initialize_db
+
         initialize_db()
 
     app = flask.Flask("Broke")
@@ -103,7 +105,9 @@ def create_app():  # noqa: C901
     app.secret_key = secret_key
 
     # Harden session cookie defaults while allowing secure cookies behind TLS deployments.
-    session_cookie_secure = str(os.environ.get("BROKE_SESSION_COOKIE_SECURE", "false")).strip().lower() in {
+    session_cookie_secure = str(
+        os.environ.get("BROKE_SESSION_COOKIE_SECURE", "false")
+    ).strip().lower() in {
         "1",
         "true",
         "yes",
@@ -161,6 +165,7 @@ def create_app():  # noqa: C901
     @app.errorhandler(500)
     def internal_error(error):
         import traceback
+
         traceback.print_exc()
         return (
             flask.render_template(
@@ -219,6 +224,21 @@ def create_app():  # noqa: C901
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         return response
 
+    @app.after_request
+    def commit_csrf_cookie(response):
+        from .security import CSRF_COOKIE_NAME
+
+        if getattr(flask.g, "_csrf_cookie_needs_set", False):
+            response.set_cookie(
+                CSRF_COOKIE_NAME,
+                flask.g._csrf_token_resolved,
+                httponly=False,
+                samesite="Lax",
+                secure=bool(app.config.get("SESSION_COOKIE_SECURE", False)),
+                path="/",
+            )
+        return response
+
     # Initialize Flask-Caching with Redis backend
     global cache, limiter
 
@@ -241,6 +261,26 @@ def create_app():  # noqa: C901
         # default_limits=["2000 per day", "500 per hour"],
         storage_uri=redis_url,
     )
+
+    # Server-side sessions: the browser cookie is only a signed session id. Payload
+    # (user_id, etc.) lives in Redis (prod/dev) or a temp dir (tests). This avoids
+    # fragile client-side session blobs racing or failing to decode between requests.
+    from flask_session import Session
+
+    app.config["SESSION_PERMANENT"] = True
+    app.config["SESSION_USE_SIGNER"] = True
+    if str(os.environ.get("FLASK_ENV", "")).strip().lower() == "testing":
+        import tempfile
+
+        app.config["SESSION_TYPE"] = "filesystem"
+        app.config["SESSION_FILE_DIR"] = tempfile.mkdtemp(prefix="broke_sess_")
+    else:
+        import redis as redis_lib
+
+        app.config["SESSION_TYPE"] = "redis"
+        app.config["SESSION_REDIS"] = redis_lib.from_url(redis_url, decode_responses=False)
+
+    Session(app)
 
     # Sidebar Data Context Processor
     from .sidebar_data import get_sidebar_data
@@ -297,10 +337,24 @@ def create_app():  # noqa: C901
         return {"is_desktop_client": is_desktop_client}
 
     # Register blueprints
-    from ..views import tickets_bp, bug_bp, settings_bp, news_bp, webhooks_bp, auth_bp, anon_bp, changelog_bp, desktop_bp
+    from ..views import (
+        agent_bp,
+        anon_bp,
+        auth_bp,
+        bug_bp,
+        changelog_bp,
+        desktop_bp,
+        news_bp,
+        settings_bp,
+        tickets_bp,
+        webhooks_bp,
+        work_cycles_bp,
+    )
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(tickets_bp)
+    app.register_blueprint(work_cycles_bp)
+    app.register_blueprint(agent_bp)
     app.register_blueprint(bug_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(news_bp)
@@ -317,7 +371,7 @@ def create_app():  # noqa: C901
 
     # Start background update checker
     if os.environ.get("FLASK_ENV") != "testing":
-        from .updater import start_update_checker, get_update_info
+        from .updater import get_update_info, start_update_checker
 
         start_update_checker()
 
@@ -345,7 +399,3 @@ def create_app():  # noqa: C901
         return {"current_year": datetime.now().year}
 
     return app
-
-
-# Legacy support: create default app instance
-app = create_app()

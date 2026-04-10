@@ -6,11 +6,16 @@
 class ShortcutManager {
     constructor() {
         this.shortcuts = {};
-        this.init();
         this.locked = false;
+        this._keydownBound = false;
+        this.init();
     }
 
     init() {
+        if (this._keydownBound) {
+            return;
+        }
+        this._keydownBound = true;
         document.addEventListener('keydown', (e) => this.handleKeyDown(e));
     }
 
@@ -28,7 +33,7 @@ class ShortcutManager {
 
     /**
      * Unregister a shortcut
-     * @param {string} key 
+     * @param {string} key
      */
     unregister(key) {
         delete this.shortcuts[key.toLowerCase()];
@@ -36,7 +41,7 @@ class ShortcutManager {
 
     /**
      * Lock the shortcut manager
-     * @param {boolean} locked 
+     * @param {boolean} locked
      */
     lock(locked) {
         this.locked = locked;

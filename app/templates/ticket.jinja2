@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>  <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a> 
+    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>  <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a>
 {% endblock %}
 
 {% block content %}
@@ -84,11 +84,9 @@
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
     <!-- Ticket editor -->
     <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
-    
+
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/shortcuts.js') }}"></script>
-
 
     <script>
 
@@ -205,16 +203,24 @@
                     },
                     {% endfor %}
                 ],
-                dueDate: '{{ ticket.due_date | default("", true) }}'
+                dueDate: '{{ ticket.due_date | default("", true) }}',
+                workCycleId: {% if ticket.work_cycle_id is not none %}{{ ticket.work_cycle_id }}{% else %}null{% endif %},
+                aiDelegate: {% if ticket.ai_delegate %}true{% else %}false{% endif %}
             };
-            
+
+            const availableWorkCycles = [
+                {% for c in available_work_cycles %}
+                { id: {{ c.id }}, name: {{ c.name | tojson }} },
+                {% endfor %}
+            ];
+
             // Current user (would come from session)
             const currentUser = {
                 id: '{{ user.username }}',
                 username: '{{ user.username }}',
                 avatar: null
             };
-            
+
             // Sample activity (would come from backend)
             const activityData = [
                 {% for comment in comments %}
@@ -241,21 +247,21 @@
                     // title = CharField()
                     // icon = CharField()
                     // message = CharField()
-    
+
                 },
                 {% endfor %}
             ]
-            
+
             // Available options for dropdowns
             const availableUsers = [
-                {% for available_user in available_users %} 
+                {% for available_user in available_users %}
                 {
                     id: '{{ available_user.username }}',
                     username: '{{ available_user.username }}',
                 },
                 {% endfor %}
             ]
-            
+
             const availableLabels = [
                 {% for available_label in available_labels %}
                 {
@@ -273,7 +279,8 @@
                 activity: activityData,
                 availableUsers: availableUsers,
                 availableLabels: availableLabels,
-                
+                availableWorkCycles: availableWorkCycles,
+
                 // Save callback - POST to backend
                 onSave: async (field, value, oldValue) => {
                     console.log('Saving:', field, value);
@@ -283,7 +290,7 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ field, value, oldValue })
                         });
-                        
+
                         if (!response.ok) {
                             console.error('Failed to save:', await response.json());
                         }
@@ -291,7 +298,7 @@
                         console.error('Save error:', error);
                     }
                 },
-                
+
                 // Comment callback - POST to backend
                 onComment: async (content, comment) => {
                     console.log('New comment:', content);
@@ -301,7 +308,7 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ content })
                         });
-                        
+
                         if (response.ok) {
                             const data = await response.json();
                             // Update comment with real ID from server
@@ -313,15 +320,15 @@
                         console.error('Comment error:', error);
                     }
                 },
-                
+
                 // Delete comment callback
                 onDeleteComment: async (commentId) => {
                     console.log('Delete comment:', commentId);
                     try {
-                        const response = await fetch(`/api/comments/${commentId}`, { 
-                            method: 'DELETE' 
+                        const response = await fetch(`/api/comments/${commentId}`, {
+                            method: 'DELETE'
                         });
-                        
+
                         if (!response.ok) {
                             console.error('Failed to delete comment:', await response.json());
                         }
@@ -329,7 +336,7 @@
                         console.error('Delete comment error:', error);
                     }
                 },
-                
+
                 // Edit comment callback
                 onEditComment: (commentId, currentContent) => {
                     console.log('Edit comment:', commentId);

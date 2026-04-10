@@ -1,26 +1,31 @@
-from ..utils.security import protected
+import base64
+import os
+import re
+import time
+import uuid
+from difflib import SequenceMatcher
+
+from flask import Blueprint, jsonify, redirect, render_template, request, send_file
+
+from ..utils.ai_changelog import get_ai_config
+from ..utils.ai_delegate_handoff import build_ai_delegate_pack_markdown, mint_ticket_delegate_token
+from ..utils.ai_intake import suggest_intake_from_message
+from ..utils.events import EventTypes, bus
 from ..utils.models import (
+    Comment,
+    Label,
+    Project,
+    Ticket,
     TicketLabelJoin,
+    TicketUpdateMessage,
     User,
     UserSettings,
-    Ticket,
-    Project,
-    Comment,
-    TicketUpdateMessage,
     UserTicketJoin,
-    Label,
+    WorkCycle,
 )
-from flask import redirect, render_template, request, jsonify, send_file, Blueprint
-import time
-import os
-import base64
-import uuid
-import re
-from difflib import SequenceMatcher
 from ..utils.path import data_path
-from ..utils.events import bus, EventTypes
-from ..utils.ai_intake import suggest_intake_from_message
-from ..utils.ai_changelog import get_ai_config
+from ..utils.security import protected
+from ..utils.ticket_markdown import build_ticket_export_payload, ticket_payload_to_markdown
 
 # Create blueprint
 tickets_bp = Blueprint("tickets", __name__)
@@ -28,13 +33,19 @@ tickets_bp = Blueprint("tickets", __name__)
 INTAKE_STATUSES = {"intake", "triage"}
 
 
+def _work_cycles_for_scope(project_id: str | None) -> list:
+    """All sprints are workspace-wide; tickets from any project may join."""
+    return list(WorkCycle.select().order_by(WorkCycle.created_at.desc()))
+
+
 def _is_intake_status(value: str | None) -> bool:
     return str(value or "").strip().lower() in INTAKE_STATUSES
 
 
+from typing import Any
+
 from peewee import prefetch
 
-from typing import Any
 
 def populateTickets(tickets_or_query: list[Ticket] | Any, lite: bool = False) -> None:
     """
@@ -50,19 +61,19 @@ def populateTickets(tickets_or_query: list[Ticket] | Any, lite: bool = False) ->
         tickets = list(tickets_or_query)
     else:
         tickets = tickets_or_query
-        
+
     if not tickets:
         return
 
-    ticket_dict = {t.id: t for t in tickets if getattr(t, 'id', None)}
+    ticket_dict = {t.id: t for t in tickets if getattr(t, "id", None)}
     ticket_ids = list(ticket_dict.keys())
 
     # Initialize empty lists safely
     for t in tickets:
-        t.labels = getattr(t, 'labels', [])
-        t.assignees = getattr(t, 'assignees', [])
-        t.comments = getattr(t, 'comments', [])
-        t.updates = getattr(t, 'updates', [])
+        t.labels = getattr(t, "labels", [])
+        t.assignees = getattr(t, "assignees", [])
+        t.comments = getattr(t, "comments", [])
+        t.updates = getattr(t, "updates", [])
 
     # 1. Bulk Assignees
     utjs = UserTicketJoin.select().where(UserTicketJoin.ticket.in_(ticket_ids))
@@ -86,13 +97,17 @@ def populateTickets(tickets_or_query: list[Ticket] | Any, lite: bool = False) ->
         # 3. Bulk Comments
         comments = Comment.select().where(Comment.ticket.in_(ticket_ids)).order_by(Comment.id)
         for c in comments:
-            if getattr(c, 'ticket', None) in ticket_dict:
+            if getattr(c, "ticket", None) in ticket_dict:
                 ticket_dict[c.ticket].comments.append(c)
 
         # 4. Bulk Updates
-        updates = TicketUpdateMessage.select().where(TicketUpdateMessage.ticket.in_(ticket_ids)).order_by(TicketUpdateMessage.id)
+        updates = (
+            TicketUpdateMessage.select()
+            .where(TicketUpdateMessage.ticket.in_(ticket_ids))
+            .order_by(TicketUpdateMessage.id)
+        )
         for u in updates:
-            if getattr(u, 'ticket', None) in ticket_dict:
+            if getattr(u, "ticket", None) in ticket_dict:
                 ticket_dict[u.ticket].updates.append(u)
 
 
@@ -106,8 +121,9 @@ def populate_ticket_board_meta(tickets: list[Ticket]) -> None:
         return
 
     subtickets = list(
-        Ticket.select(Ticket.parent_ticket_id, Ticket.status)
-        .where((Ticket.parent_ticket_id.in_(ticket_ids)) & (Ticket.active == 1))
+        Ticket.select(Ticket.parent_ticket_id, Ticket.status).where(
+            (Ticket.parent_ticket_id.in_(ticket_ids)) & (Ticket.active == 1)
+        )
     )
 
     counts: dict[str, int] = {ticket_id: 0 for ticket_id in ticket_ids}
@@ -143,7 +159,8 @@ def strip_html(text: str) -> str:
     """Very simple HTML tag stripper."""
     if not text:
         return ""
-    return re.sub(r'<[^>]+>', '', text)
+    return re.sub(r"<[^>]+>", "", text)
+
 
 def lite_populate(tickets: list[Ticket]) -> None:
     """Helper to prepare tickets for overview lists with minimal payload."""
@@ -156,10 +173,13 @@ def lite_populate(tickets: list[Ticket]) -> None:
         else:
             t.description = cleaned
 
+
 @tickets_bp.route("/tickets")
 @protected
 def tickets_view(user: User):
-    tickets = list(Ticket.select().where((Ticket.active == 1) & (~(Ticket.status.in_(INTAKE_STATUSES)))))
+    tickets = list(
+        Ticket.select().where((Ticket.active == 1) & (~(Ticket.status.in_(INTAKE_STATUSES))))
+    )
     lite_populate(tickets)
     populate_ticket_board_meta(tickets)
     ticket_view = resolve_ticket_view(user)
@@ -176,6 +196,7 @@ def tickets_view(user: User):
         projects=Project.select().distinct().order_by(Project.name),
         available_users=available_users,
         available_labels=available_labels,
+        available_work_cycles=_work_cycles_for_scope(None),
         ticket_view=ticket_view,
         ticket_view_path="/tickets",
         ticket_page_title="Tickets",
@@ -212,6 +233,7 @@ def project_tickets_view(user: User, project_id: str):
         projects=Project.select().distinct().order_by(Project.name),
         available_users=available_users,
         available_labels=available_labels,
+        available_work_cycles=_work_cycles_for_scope(project_id),
         ticket_view=ticket_view,
         ticket_view_path=f"/tickets/{project_id}",
         ticket_page_title="Tickets",
@@ -260,11 +282,13 @@ def triage_view(user: User):
 def triage_project_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
     tickets = list(
-        Ticket.select().where(
+        Ticket.select()
+        .where(
             (Ticket.project == project_id)
             & (Ticket.active == 1)
             & (Ticket.status.in_(INTAKE_STATUSES))
-        ).order_by(Ticket.created_at.asc())
+        )
+        .order_by(Ticket.created_at.asc())
     )
     lite_populate(tickets)
 
@@ -320,6 +344,8 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
     if ticket.parent_ticket_id:
         parent_ticket = Ticket.get_or_none(Ticket.id == ticket.parent_ticket_id)
 
+    work_cycles = list(WorkCycle.select().order_by(WorkCycle.created_at.desc()))
+
     return render_template(
         "ticket.jinja2",
         user=user,
@@ -328,6 +354,7 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         page="tickets",
         available_users=available_users,
         available_labels=available_labels,
+        available_work_cycles=work_cycles,
         comments=comments,
         updates=updates,
         subtickets=subtickets,
@@ -646,7 +673,9 @@ def _build_follow_up_message(missing_fields: list[str], draft: dict) -> str:
     if "impact" in missing_fields:
         questions.append("What is the urgency or user/business impact?")
     if "confidence" in missing_fields:
-        questions.append("I can draft this, but confidence is low. Can you share one more detail so I can improve accuracy?")
+        questions.append(
+            "I can draft this, but confidence is low. Can you share one more detail so I can improve accuracy?"
+        )
 
     return " ".join(questions)
 
@@ -721,10 +750,7 @@ def _find_possible_duplicate_tickets(title: str, description: str, limit: int = 
 
     matches: list[dict] = []
     candidates = (
-        Ticket.select()
-        .where(Ticket.active == 1)
-        .order_by(Ticket.created_at.desc())
-        .limit(400)
+        Ticket.select().where(Ticket.active == 1).order_by(Ticket.created_at.desc()).limit(400)
     )
 
     for candidate in candidates:
@@ -861,11 +887,7 @@ def commit_ai_intake_ticket(user: User):
         priority = "medium"
 
     if destination == "project":
-        project_id = str(
-            data.get("project")
-            or suggestion.get("suggested_project")
-            or ""
-        ).strip()
+        project_id = str(data.get("project") or suggestion.get("suggested_project") or "").strip()
         if not project_id:
             return jsonify({"error": "Project is required for project destination"}), 400
 
@@ -904,18 +926,21 @@ def commit_ai_intake_ticket(user: User):
             details="Ticket created from AI intake",
         )
 
-        return jsonify(
-            {
-                "success": True,
-                "ticket": {
-                    "id": ticket.id,
-                    "title": ticket.title,
-                    "project": ticket.project,
-                    "status": ticket.status,
-                    "priority": ticket.priority,
-                },
-            }
-        ), 201
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "ticket": {
+                        "id": ticket.id,
+                        "title": ticket.title,
+                        "project": ticket.project,
+                        "status": ticket.status,
+                        "priority": ticket.priority,
+                    },
+                }
+            ),
+            201,
+        )
 
     if destination == "triage":
         destination = "intake"
@@ -952,18 +977,21 @@ def commit_ai_intake_ticket(user: User):
         details="Ticket entered intake inbox from AI intake",
     )
 
-    return jsonify(
-        {
-            "success": True,
-            "ticket": {
-                "id": ticket.id,
-                "title": ticket.title,
-                "project": ticket.project,
-                "status": ticket.status,
-                "priority": ticket.priority,
-            },
-        }
-    ), 201
+    return (
+        jsonify(
+            {
+                "success": True,
+                "ticket": {
+                    "id": ticket.id,
+                    "title": ticket.title,
+                    "project": ticket.project,
+                    "status": ticket.status,
+                    "priority": ticket.priority,
+                },
+            }
+        ),
+        201,
+    )
 
 
 @tickets_bp.route("/api/tickets/<ticket_id>", methods=["PUT", "PATCH"])
@@ -1148,6 +1176,98 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
             created_at=int(time.time()),
         )
 
+    elif field == "ai_delegate":
+        if value in (True, 1, "1", "true", "yes"):
+            on = True
+        elif value in (False, 0, "0", "false", "no", None, "", "null"):
+            on = False
+        else:
+            return jsonify({"error": "ai_delegate must be true or false"}), 400
+
+        prev = int(getattr(ticket, "ai_delegate", 0) or 0)
+        ticket.ai_delegate = 1 if on else 0
+
+        if on and prev == 0:
+            if ticket.status in {"backlog", "intake", "triage"}:
+                old_status = ticket.status
+                ticket.status = "todo"
+                TicketUpdateMessage.create(
+                    ticket=ticket_id,
+                    title="Status changed",
+                    icon="ph ph-arrow-right",
+                    message=f"{user.username} set status from {old_status} to todo (Let AI do it)",
+                    created_at=int(time.time()),
+                )
+                bus.emit(
+                    EventTypes.TICKET_STATUS_CHANGED,
+                    ticket_id=ticket.id,
+                    ticket_title=ticket.title,
+                    project=ticket.project,
+                    status="todo",
+                    actor=user.username,
+                    details="Moved to todo for external AI handoff",
+                )
+            TicketUpdateMessage.create(
+                ticket=ticket_id,
+                title="External AI",
+                icon="ph ph-robot",
+                message=f"{user.username} enabled Let AI do it — copy API handoff from the ticket sidebar",
+                created_at=int(time.time()),
+            )
+        elif not on and prev == 1:
+            TicketUpdateMessage.create(
+                ticket=ticket_id,
+                title="External AI",
+                icon="ph ph-robot",
+                message=f"{user.username} turned off Let AI do it",
+                created_at=int(time.time()),
+            )
+
+        ticket.save()
+        return jsonify(
+            {
+                "success": True,
+                "ticket": {
+                    "status": ticket.status,
+                    "ai_delegate": bool(ticket.ai_delegate),
+                },
+            }
+        )
+
+    elif field == "work_cycle_id":
+        if value is None or value == "" or value == "null":
+            if ticket.work_cycle_id:
+                TicketUpdateMessage.create(
+                    ticket=ticket_id,
+                    title="Removed from work cycle",
+                    icon="ph ph-calendar-x",
+                    message=f"{user.username} removed this ticket from the work cycle",
+                    created_at=int(time.time()),
+                )
+            ticket.work_cycle_id = None
+            ticket.save()
+        else:
+            try:
+                cid = int(value)
+            except (TypeError, ValueError):
+                return jsonify({"error": "work_cycle_id must be an integer or null"}), 400
+            cycle = WorkCycle.get_or_none(WorkCycle.id == cid)
+            if not cycle:
+                return jsonify({"error": "Work cycle not found"}), 404
+            old_cid = ticket.work_cycle_id
+            ticket.work_cycle_id = cid
+            ticket.save()
+            msg = f"{user.username} set work cycle to {cycle.name} (#{cid})"
+            if old_cid and old_cid != cid:
+                msg = f"{user.username} moved this ticket to work cycle {cycle.name} (#{cid})"
+            TicketUpdateMessage.create(
+                ticket=ticket_id,
+                title="Work cycle changed",
+                icon="ph ph-calendar",
+                message=msg,
+                created_at=int(time.time()),
+            )
+
     else:
         return jsonify({"error": f"Unknown field: {field}"}), 400
 
@@ -1185,7 +1305,9 @@ def add_comment(user: User, ticket_id: str):
         project=ticket.project,
         status=ticket.status,
         actor=user.username,
-        details=(processed_content[:180] + "...") if len(processed_content) > 180 else processed_content,
+        details=(processed_content[:180] + "...")
+        if len(processed_content) > 180
+        else processed_content,
     )
 
     return (
@@ -1253,8 +1375,7 @@ def api_search(user: User):
     matches = (
         Ticket.select()
         .where(
-            (Ticket.active == 1)
-            & ((Ticket.id.contains(query)) | (Ticket.title.contains(query)))
+            (Ticket.active == 1) & ((Ticket.id.contains(query)) | (Ticket.title.contains(query)))
         )
         .order_by(Ticket.created_at.desc())
         .limit(limit)
@@ -1275,68 +1396,49 @@ def api_search(user: User):
     return jsonify({"results": results}), 200
 
 
+@tickets_bp.route("/api/tickets/<ticket_id>/ai-delegate-pack", methods=["POST"])
+@protected
+def ticket_ai_delegate_pack(user: User, ticket_id: str):
+    """
+    One paste for an external AI: full ticket export + minted Bearer token + working curl one-liners.
+    Mints a new ticket-scoped agent token on each call (revoke extras under Settings → Agent tokens).
+    """
+    ticket = Ticket.get_or_none((Ticket.id == ticket_id) & (Ticket.active == 1))
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    if not int(getattr(ticket, "ai_delegate", 0) or 0):
+        return (
+            jsonify({"error": "Turn on “Let AI do it” on this ticket first"}),
+            400,
+        )
+    payload = build_ticket_export_payload(ticket_id)
+    if not payload:
+        return jsonify({"error": "Ticket not found"}), 404
+    raw, row = mint_ticket_delegate_token(user=user, ticket=ticket)
+    base = request.url_root or "/"
+    text = build_ai_delegate_pack_markdown(
+        payload=payload,
+        base_url=base,
+        bearer_token=raw,
+        expires_at_epoch=row.expires_at,
+    )
+    return (
+        text,
+        200,
+        {
+            "Content-Type": "text/markdown; charset=utf-8",
+            "X-Agent-Token-Id": str(row.id),
+        },
+    )
+
+
 @tickets_bp.route("/api/tickets/<ticket_id>/export", methods=["GET"])
 @protected
 def export_ticket(user: User, ticket_id: str):
     """Export a ticket as JSON or Markdown."""
-    ticket = Ticket.get_or_none(Ticket.id == ticket_id)
-    if not ticket or ticket.active == 0:
+    payload = build_ticket_export_payload(ticket_id)
+    if not payload:
         return jsonify({"error": "Ticket not found"}), 404
-
-    comments = list(Comment.select().where(Comment.ticket == ticket_id).order_by(Comment.created_at.asc()))
-    updates = list(
-        TicketUpdateMessage.select()
-        .where(TicketUpdateMessage.ticket == ticket_id)
-        .order_by(TicketUpdateMessage.created_at.asc())
-    )
-    labels = [row.label for row in TicketLabelJoin.select().where(TicketLabelJoin.ticket == ticket_id)]
-    assignees = [row.user for row in UserTicketJoin.select().where(UserTicketJoin.ticket == ticket_id)]
-    subtickets = list(
-        Ticket.select()
-        .where((Ticket.parent_ticket_id == ticket_id) & (Ticket.active == 1))
-        .order_by(Ticket.created_at.asc())
-    )
-
-    payload = {
-        "id": ticket.id,
-        "title": ticket.title,
-        "description": ticket.description,
-        "project": ticket.project,
-        "status": ticket.status,
-        "priority": ticket.priority,
-        "parent_ticket_id": ticket.parent_ticket_id,
-        "created_at": ticket.created_at,
-        "labels": labels,
-        "assignees": assignees,
-        "comments": [
-            {
-                "id": comment.id,
-                "user": comment.user.username,
-                "body": comment.body,
-                "created_at": comment.created_at,
-            }
-            for comment in comments
-        ],
-        "updates": [
-            {
-                "title": update.title,
-                "icon": update.icon,
-                "message": update.message,
-                "created_at": update.created_at,
-            }
-            for update in updates
-        ],
-        "subtickets": [
-            {
-                "id": child.id,
-                "title": child.title,
-                "status": child.status,
-                "priority": child.priority,
-                "created_at": child.created_at,
-            }
-            for child in subtickets
-        ],
-    }
 
     export_format = str(request.args.get("format", "markdown")).strip().lower()
     if export_format in {"json", "application/json"}:
@@ -1345,64 +1447,7 @@ def export_ticket(user: User, ticket_id: str):
     if export_format not in {"md", "markdown", "text/markdown"}:
         return jsonify({"error": "Unsupported export format"}), 400
 
-    markdown_lines = [
-        f"# Ticket {ticket.id}",
-        "",
-        f"- Title: {ticket.title}",
-        f"- Project: {ticket.project}",
-        f"- Status: {ticket.status}",
-        f"- Priority: {ticket.priority}",
-        f"- Parent Ticket: {ticket.parent_ticket_id or 'None'}",
-        f"- Created At (epoch): {ticket.created_at}",
-        f"- Labels: {', '.join(labels) if labels else 'None'}",
-        f"- Assignees: {', '.join(assignees) if assignees else 'None'}",
-        "",
-        "## Description",
-        "",
-        ticket.description or "",
-        "",
-        "## Comments",
-        "",
-    ]
-
-    if comments:
-        for comment in comments:
-            markdown_lines.extend(
-                [
-                    f"### {comment.user.username} ({comment.created_at})",
-                    "",
-                    comment.body or "",
-                    "",
-                ]
-            )
-    else:
-        markdown_lines.append("No comments.")
-        markdown_lines.append("")
-
-    markdown_lines.append("## Updates")
-    markdown_lines.append("")
-    if updates:
-        for update in updates:
-            markdown_lines.extend(
-                [
-                    f"- **{update.title}** ({update.created_at}): {update.message}",
-                ]
-            )
-    else:
-        markdown_lines.append("No updates.")
-
-    markdown_lines.append("")
-    markdown_lines.append("## Subtickets")
-    markdown_lines.append("")
-    if subtickets:
-        for child in subtickets:
-            markdown_lines.append(
-                f"- {child.id} | {child.title} | {child.status} | {child.priority}"
-            )
-    else:
-        markdown_lines.append("No subtickets.")
-
-    content = "\n".join(markdown_lines)
+    content = ticket_payload_to_markdown(payload)
     return content, 200, {"Content-Type": "text/markdown; charset=utf-8"}
 
 

@@ -1,12 +1,13 @@
 """Tests for ticket management functionality"""
 
-from ward import test
-from tests.fixtures import client, fake, test_project, test_ticket, auth_client, auth_user
 import json
 import time
 from unittest.mock import patch
 
+from ward import test
+
 from app.utils.models import Ticket
+from tests.fixtures import auth_client, auth_user, client, fake, test_project, test_ticket
 
 
 @test("/tickets GET requires authentication")
@@ -61,8 +62,6 @@ def _(c=auth_client, project=test_project):
     triage_ticket = Ticket.create(
         id=f"{project.id}-{unique}-triage",
         title=f"Project triage hidden {unique}",
-
-
         description="triage-in-project",
         status="intake",
         priority="medium",
@@ -103,8 +102,6 @@ def _(c=auth_client, f=fake, project=test_project):
         "description": f.text(),
         "project": project.id,
         "status": "todo",
-
-
         "priority": "medium",
     }
 
@@ -375,8 +372,6 @@ def _(c=auth_client, f=fake):
         follow_redirects=False,
     )
 
-
-
     assert response.status_code == 201
     payload = json.loads(response.data)
     assert payload.get("ticket", {}).get("status") == "intake"
@@ -555,7 +550,9 @@ def _(c=auth_client):
     assert response.status_code in [200, 302]
     if response.status_code == 200:
         assert (b"Quick Intake" in response.data) or (b"AI Intake" in response.data)
-        assert (b"guided chat" in response.data) or (b"assistant will gather details" in response.data)
+        assert (b"guided chat" in response.data) or (
+            b"assistant will gather details" in response.data
+        )
         assert b"Send Selected" not in response.data
 
 
@@ -640,8 +637,8 @@ def _(c=auth_client):
     response = c.get("/triage")
     assert response.status_code in [200, 302]
     if response.status_code == 200:
-        assert b'/static/js/triage_dashboard.js' in response.data
-        assert b'/static/js/lists.js' not in response.data
+        assert b"/static/js/triage_dashboard.js" in response.data
+        assert b"/static/js/lists.js" not in response.data
 
 
 @test("/triage renders triage tickets oldest first")
@@ -1064,7 +1061,7 @@ def _(c=auth_client, ticket=test_ticket):
 
 @test("/api/search requires authentication")
 def _(c=client):
-    c.get('/logout', follow_redirects=False)
+    c.get("/logout", follow_redirects=False)
     response = c.get("/api/search?q=test", follow_redirects=False)
     assert response.status_code in [302, 401]
 
@@ -1203,8 +1200,9 @@ def _(c=auth_client, f=fake, project=test_project):
     c.application.config["WTF_CSRF_ENABLED"] = True
 
     try:
-        with c.session_transaction() as sess:
-            sess["_csrf_token"] = "test-csrf-token-123"
+        from app.utils.security import CSRF_COOKIE_NAME
+
+        c.set_cookie(CSRF_COOKIE_NAME, "test-csrf-token-123", path="/")
 
         response = c.post(
             "/api/tickets",

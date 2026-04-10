@@ -8,13 +8,19 @@ Flow is simple
 
 """
 
-from flask import request, session, url_for, redirect, jsonify, current_app
-from functools import wraps
-from .models import User
-import pyargon2
-from peewee import DoesNotExist
-import secrets
 import hmac
+import secrets
+from functools import wraps
+
+import pyargon2
+from flask import current_app, g, jsonify, redirect, request, session, url_for
+from peewee import DoesNotExist
+
+from .models import User
+
+# CSRF lives in its own cookie so we never write _csrf_token into the signed session
+# cookie (that caused extra re-signing, races with parallel requests, and empty sessions).
+CSRF_COOKIE_NAME = "broke_csrf"
 
 # Usage for the decorator could be like this:
 # @secureroute('/protected')
@@ -81,6 +87,10 @@ def protected(func):
     def wrapper(*args, **kwargs):
         user = get_current_user()
         if not user:
+            # JSON/fetch clients follow redirects and may treat the login HTML as a
+            # successful response; return 401 so the body is predictable JSON.
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Not signed in"}), 401
             login_url = url_for("auth.login", next=request.path)
             return redirect(login_url)
 
@@ -95,12 +105,29 @@ def protected(func):
 
 
 def get_csrf_token() -> str:
-    """Get or create CSRF token for current session."""
-    token = session.get("_csrf_token")
-    if not token:
-        token = secrets.token_urlsafe(32)
-        session["_csrf_token"] = token
+    """CSRF token for templates and X-CSRF-Token. Stored in ``broke_csrf`` cookie only."""
+    if "_csrf_token_resolved" in g:
+        return g._csrf_token_resolved
+
+    # One-time migration off the signed session payload.
+    if "_csrf_token" in session:
+        session.pop("_csrf_token", None)
+
+    existing = (request.cookies.get(CSRF_COOKIE_NAME) or "").strip()
+    if existing:
+        g._csrf_token_resolved = existing
+        return existing
+
+    token = secrets.token_urlsafe(32)
+    g._csrf_token_resolved = token
+    g._csrf_cookie_needs_set = True
     return token
+
+
+def delete_csrf_cookie(response):
+    """Call on logout so stale CSRF values are not reused."""
+    response.delete_cookie(CSRF_COOKIE_NAME, path="/")
+    return response
 
 
 def _request_method_needs_csrf() -> bool:
@@ -149,10 +176,10 @@ def _csrf_valid_for_request() -> bool:
     if not _csrf_enabled():
         return True
 
-    session_token = str(session.get("_csrf_token") or "")
+    cookie_token = (request.cookies.get(CSRF_COOKIE_NAME) or "").strip()
     request_token = _get_request_csrf_token()
 
-    if session_token and request_token and hmac.compare_digest(session_token, request_token):
+    if cookie_token and request_token and hmac.compare_digest(cookie_token, request_token):
         return True
 
     # Compatibility fallback for existing browser forms/fetch calls.

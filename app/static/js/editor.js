@@ -1,7 +1,7 @@
 /*
  * Ticket Editor Class
  * Linear-style ticket editor with invisible Quill editor and comments
- * 
+ *
  * Usage:
  * const editor = new TicketEditor('container-id', {
  *     ticket: {
@@ -64,6 +64,7 @@ class TicketEditor {
         this.initQuillEditors();
         this.initPropertyDropdowns();
         this.initEventListeners();
+        this.initAiDelegateHandoff();
         this.initShortcuts();
     }
 
@@ -113,10 +114,10 @@ class TicketEditor {
     renderHeader() {
         return `
             <div class="ticket-header">
-                <input 
-                    type="text" 
-                    class="ticket-title" 
-                    value="${this.escapeHtml(this.ticket.title || '')}" 
+                <input
+                    type="text"
+                    class="ticket-title"
+                    value="${this.escapeHtml(this.ticket.title || '')}"
                     placeholder="Enter ticket title..."
                     data-field="title"
                 />
@@ -127,7 +128,7 @@ class TicketEditor {
     renderDescription() {
         return `
             <div class="ticket-description">
-                
+
                 <div class="ticket-editor-container">
                     <div class="ticket-save-indicator">
                         <i class="ph ph-circle-notch"></i>
@@ -154,7 +155,7 @@ class TicketEditor {
                         <i class="ph ph-caret-down"></i>
                     </button>
                 </div>
-                
+
                 <!-- Priority -->
                 <div class="ticket-property">
                     <div class="ticket-property-label">Priority</div>
@@ -164,7 +165,7 @@ class TicketEditor {
                         <i class="ph ph-caret-down"></i>
                     </button>
                 </div>
-                
+
                 <!-- Assignees -->
                 <div class="ticket-property">
                     <div class="ticket-property-label">Assignees</div>
@@ -176,7 +177,7 @@ class TicketEditor {
                         <i class="ph ph-caret-down"></i>
                     </button>
                 </div>
-                
+
                 <!-- Labels -->
                 <div class="ticket-property">
                     <div class="ticket-property-label">Labels</div>
@@ -188,7 +189,34 @@ class TicketEditor {
                         <i class="ph ph-caret-down"></i>
                     </button>
                 </div>
-                
+
+                ${(this.options.availableWorkCycles && this.options.availableWorkCycles.length) ? `
+                <div class="ticket-property">
+                    <div class="ticket-property-label">Sprint</div>
+                    <button class="ticket-property-btn" data-property="workCycle">
+                        <i class="ph ph-calendar-dots"></i>
+                        <span class="property-value">${this.renderWorkCycleValue()}</span>
+                        <i class="ph ph-caret-down"></i>
+                    </button>
+                </div>` : ''}
+
+                <!-- External AI (orchestrator handoff — no full ticket in snippet) -->
+                <div class="ticket-property ticket-property-ai-delegate">
+                    <div class="ticket-property-label">External AI</div>
+                    <button type="button" class="ticket-property-btn ticket-ai-delegate-toggle ${this.ticket.aiDelegate ? 'ticket-ai-delegate-on' : ''}" aria-pressed="${this.ticket.aiDelegate ? 'true' : 'false'}">
+                        <i class="ph ph-robot"></i>
+                        <span class="property-value">${this.ticket.aiDelegate ? 'Let AI do it — on' : 'Let AI do it — off'}</span>
+                    </button>
+                    <div class="ticket-ai-delegate-panel" style="display: ${this.ticket.aiDelegate ? 'block' : 'none'};">
+                        <p class="ticket-ai-delegate-hint"><strong>Copy the whole box</strong> into your AI once. Broke mints a <strong>real token</strong> each time you load/refresh — it includes full ticket context and ready-to-run <code>curl</code> lines (no line-ending backslashes). Revoke old tokens under Settings → Agent tokens if you regenerate often.</p>
+                        <textarea readonly class="form-input ticket-ai-delegate-text" rows="16" spellcheck="false" placeholder="Turn on above to load text…"></textarea>
+                        <div class="ticket-ai-delegate-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" id="ai-delegate-copy">Copy</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="ai-delegate-refresh">Reload</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Due Date -->
                 <div class="ticket-property">
                     <div class="ticket-property-label">Due Date</div>
@@ -228,6 +256,50 @@ class TicketEditor {
         `).join('');
     }
 
+    renderWorkCycleValue() {
+        const id = this.ticket.workCycleId;
+        if (id == null || id === '') {
+            return '<span style="color: #999;">None</span>';
+        }
+        const cycles = this.options.availableWorkCycles || [];
+        const c = cycles.find((x) => String(x.id) === String(id));
+        if (c) {
+            return `${this.escapeHtml(c.name)} (#${id})`;
+        }
+        return `#${this.escapeHtml(String(id))}`;
+    }
+
+    mountWorkCycleDropdown() {
+        const wcBtn = this.container.querySelector('[data-property="workCycle"]');
+        if (!wcBtn || !this.options.availableWorkCycles || !this.options.availableWorkCycles.length) {
+            return;
+        }
+        const items = [
+            {
+                label: 'None',
+                icon: 'ph-x',
+                selected: this.ticket.workCycleId == null || this.ticket.workCycleId === '',
+                onClick: () => this.setWorkCycle(null)
+            },
+            ...this.options.availableWorkCycles.map((c) => ({
+                label: `${c.name} (#${c.id})`,
+                icon: 'ph-calendar-dots',
+                selected: String(this.ticket.workCycleId) === String(c.id),
+                onClick: () => this.setWorkCycle(c.id)
+            }))
+        ];
+        this.dropdowns.workCycle = new Dropdown(wcBtn, {
+            items,
+            closeOnClick: true
+        });
+    }
+
+    setWorkCycle(cycleId) {
+        this.ticket.workCycleId = cycleId;
+        this.onSave('work_cycle_id', cycleId);
+        this.refreshProperty('workCycle');
+    }
+
     renderActivity() {
         return `
             <div class="ticket-activity">
@@ -242,11 +314,11 @@ class TicketEditor {
                         <button class="ticket-activity-tab ${this.activityFilter === 'updates' ? 'active' : ''}" data-filter="updates">Updates</button>
                     </div>
                 </div>
-                
+
                 <div class="ticket-activity-list">
                     ${this.renderActivityItems()}
                 </div>
-                
+
                 ${this.renderNewComment()}
             </div>
         `;
@@ -530,6 +602,8 @@ class TicketEditor {
             });
         }
 
+        this.mountWorkCycleDropdown();
+
         // Due date dropdown
         const dueDateBtn = this.container.querySelector('[data-property="dueDate"]');
         if (dueDateBtn) {
@@ -603,24 +677,136 @@ class TicketEditor {
         }
     }
 
+    initAiDelegateHandoff() {
+        this.container.addEventListener('click', async (e) => {
+            const toggle = e.target.closest('.ticket-ai-delegate-toggle');
+            if (toggle) {
+                e.preventDefault();
+                await this.toggleAiDelegate();
+                return;
+            }
+            if (e.target.id === 'ai-delegate-copy') {
+                e.preventDefault();
+                const ta = this.container.querySelector('.ticket-ai-delegate-text');
+                if (ta && ta.value) {
+                    try {
+                        await navigator.clipboard.writeText(ta.value);
+                        if (window.showToast) window.showToast('Copied handoff', 'success');
+                    } catch (err) {
+                        ta.select();
+                        document.execCommand('copy');
+                    }
+                }
+                return;
+            }
+            if (e.target.id === 'ai-delegate-refresh') {
+                e.preventDefault();
+                if (this.ticket.aiDelegate) this.loadAiDelegateMarkdown();
+            }
+        });
+        if (this.ticket.aiDelegate) {
+            this.loadAiDelegateMarkdown();
+        }
+    }
+
+    async toggleAiDelegate() {
+        const next = !this.ticket.aiDelegate;
+        try {
+            const response = await fetch(`/api/tickets/${this.ticket.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ field: 'ai_delegate', value: next })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                alert(data.error || 'Could not update');
+                return;
+            }
+            if (data.ticket) {
+                if (typeof data.ticket.ai_delegate === 'boolean') {
+                    this.ticket.aiDelegate = data.ticket.ai_delegate;
+                }
+                if (data.ticket.status) {
+                    this.ticket.status = data.ticket.status;
+                }
+            }
+            this.refreshProperty('status');
+            this.refreshAiDelegateUI();
+        } catch (err) {
+            console.error(err);
+            alert('Network error');
+        }
+    }
+
+    refreshAiDelegateUI() {
+        const btn = this.container.querySelector('.ticket-ai-delegate-toggle');
+        const panel = this.container.querySelector('.ticket-ai-delegate-panel');
+        const val = btn && btn.querySelector('.property-value');
+        if (btn) {
+            btn.classList.toggle('ticket-ai-delegate-on', !!this.ticket.aiDelegate);
+            btn.setAttribute('aria-pressed', this.ticket.aiDelegate ? 'true' : 'false');
+        }
+        if (val) {
+            val.textContent = this.ticket.aiDelegate ? 'Let AI do it — on' : 'Let AI do it — off';
+        }
+        if (panel) {
+            panel.style.display = this.ticket.aiDelegate ? 'block' : 'none';
+        }
+        if (this.ticket.aiDelegate) {
+            this.loadAiDelegateMarkdown();
+        } else {
+            const ta = this.container.querySelector('.ticket-ai-delegate-text');
+            if (ta) ta.value = '';
+        }
+    }
+
+    async loadAiDelegateMarkdown() {
+        const ta = this.container.querySelector('.ticket-ai-delegate-text');
+        if (!ta) return;
+        ta.value = 'Generating paste (minting API token)…';
+        try {
+            const r = await fetch(`/api/tickets/${this.ticket.id}/ai-delegate-pack`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'text/markdown',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': window.BROKE_CSRF_TOKEN || ''
+                },
+                body: '{}'
+            });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({}));
+                ta.value = err.error || `Error (${r.status})`;
+                return;
+            }
+            ta.value = await r.text();
+        } catch (err) {
+            ta.value = 'Could not generate pack';
+        }
+    }
+
     initShortcuts() {
         if (!window.shortcuts) return;
-        window.shortcuts.init();
 
-        // Only trigger shortcuts if not editing content
+        // Only trigger shortcuts if not editing content, not in other inputs, and no modal is open.
         const target = () => {
-            const isDescriptionFocused = this.descriptionEditor && this.descriptionEditor.hasFocus();
-            const isCommentFocused = this.commentEditor && this.commentEditor.hasFocus();
-            // Also check title input manually since shortcuts.js handles generic inputs but strict check is better
-            const isTitleFocused = document.activeElement && document.activeElement.classList.contains('ticket-title');
-
-            if (isDescriptionFocused || isCommentFocused || isTitleFocused) {
+            if (document.querySelector('.modal-overlay')) {
                 return false;
             }
-
-            // Allow shortcuts to trigger
+            const ae = document.activeElement;
+            if (ae) {
+                const tag = ae.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || ae.isContentEditable) {
+                    return false;
+                }
+            }
+            const isDescriptionFocused = this.descriptionEditor && this.descriptionEditor.hasFocus();
+            const isCommentFocused = this.commentEditor && this.commentEditor.hasFocus();
+            if (isDescriptionFocused || isCommentFocused) {
+                return false;
+            }
             return true;
-
         };
 
         window.shortcuts.register('s', () => {
@@ -748,6 +934,13 @@ class TicketEditor {
                 <span class="property-value ${this.getDueDateClass()}">${this.formatDueDate()}</span>
                 <i class="ph ph-caret-down"></i>
             `;
+        } else if (field === 'workCycle') {
+            btn.innerHTML = `
+                <i class="ph ph-calendar-dots"></i>
+                <span class="property-value">${this.renderWorkCycleValue()}</span>
+                <i class="ph ph-caret-down"></i>
+            `;
+            this.mountWorkCycleDropdown();
         }
     }
 

@@ -1,15 +1,13 @@
-
-from .utils.models import initialize_db, setup_test_data
 import subprocess
-import sentry_sdk
-from .config import dogfood_dsn, eat_your_own_dogfood
 import time
 
+import sentry_sdk
+
+from .config import dogfood_dsn, eat_your_own_dogfood
+from .utils.models import initialize_db, setup_test_data
+
 if eat_your_own_dogfood and dogfood_dsn:
-    sentry_sdk.init(
-        dsn=dogfood_dsn,
-        traces_sample_rate=1.0
-    )
+    sentry_sdk.init(dsn=dogfood_dsn, traces_sample_rate=1.0)
 
 
 def run_error_populator():
@@ -25,9 +23,9 @@ def run_test_app(app):
 
     # start_new_thread(run_error_populator, ())
 
-    @app.route('/force-error')
+    @app.route("/force-error")
     def force_error():
         raise Exception("This is a forced error for testing Sentry integration.")
 
     # Run the app
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5050)

@@ -1,0 +1,296 @@
+/* Work cycle detail: flow diagram (not a Kanban board). */
+
+.wc-diagram {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1rem 1.25rem;
+  background: var(--bg-white);
+  border: 1px dashed #ccc;
+  border-radius: 10px;
+}
+
+.wc-diagram-caption {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #888;
+  margin-bottom: 0.75rem;
+}
+
+.wc-diagram-track {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wc-diagram-edge {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  min-width: 28px;
+  color: #bbb;
+  font-size: 1.25rem;
+  user-select: none;
+}
+
+.wc-diagram-stage {
+  flex: 1 1 160px;
+  min-width: 148px;
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wc-diagram-stage-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 10px 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: var(--bg-light-gray);
+}
+
+.wc-diagram-stage-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #999;
+  background: var(--bg-white);
+  flex-shrink: 0;
+}
+
+.wc-diagram-stage-label {
+  font-family: "Space Grotesk Variable", sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.2;
+}
+
+.wc-diagram-stage-count {
+  font-size: 0.7rem;
+  color: #777;
+}
+
+.wc-diagram-tickets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 2rem;
+}
+
+.wc-diagram-ticket {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px dashed #c8c8c8;
+  background: #fafafa;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.wc-diagram-ticket:hover {
+  border-color: var(--logo-blue);
+  background: #fff;
+}
+
+.wc-diagram-ticket-id {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--logo-blue);
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
+}
+
+.wc-diagram-ticket-title {
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: #222;
+}
+
+.wc-diagram-ticket-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.wc-diagram-priority {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e8e8e8;
+  color: #555;
+}
+
+.wc-diagram-priority.ticket-priority-urgent,
+.wc-diagram-priority.ticket-priority-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.wc-diagram-priority.ticket-priority-medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.wc-diagram-priority.ticket-priority-low {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.wc-diagram-assignees {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.wc-diagram-assignees svg {
+  border-radius: 4px;
+  display: block;
+}
+
+.wc-diagram-empty-lane {
+  font-size: 0.75rem;
+  color: #aaa;
+  text-align: center;
+  padding: 10px 6px;
+  border: 1px dashed #e5e5e5;
+  border-radius: 6px;
+}
+
+.wc-diagram-empty-cycle {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #777;
+  font-size: 0.9rem;
+}
+
+.wc-diagram-empty-cycle a {
+  color: var(--logo-blue);
+}
+
+.wc-diagram-ticket-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.wc-diagram-ticket-wrap .wc-diagram-ticket {
+  flex: 1;
+  min-width: 0;
+}
+
+.wc-diagram-remove {
+  flex: 0 0 32px;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  background: var(--bg-light-gray);
+  color: #666;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.wc-diagram-remove:hover {
+  border-color: var(--danger-red);
+  color: var(--danger-red);
+  background: #fff;
+}
+
+.wc-diagram-proj {
+  font-weight: 500;
+  color: #888;
+  font-size: 0.62rem;
+  margin-left: 4px;
+}
+
+.wc-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.wc-search-hit {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 8px 12px;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px dashed #ccc;
+  border-radius: 8px;
+  background: var(--bg-white);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.wc-search-hit:hover {
+  border-color: var(--logo-blue);
+  background: #fafafa;
+}
+
+.wc-search-hit-id {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--logo-blue);
+}
+
+.wc-search-hit-meta {
+  font-size: 0.7rem;
+  color: #888;
+}
+
+.wc-search-hit-title {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  color: #333;
+  line-height: 1.3;
+}
+
+@media (min-width: 480px) {
+  .wc-search-hit {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 2fr);
+  }
+  .wc-search-hit-title {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .wc-diagram-track {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wc-diagram-stage {
+    max-width: none;
+    min-width: 0;
+  }
+
+  .wc-diagram-edge {
+    align-self: center;
+    min-height: 24px;
+    transform: rotate(90deg);
+  }
+}

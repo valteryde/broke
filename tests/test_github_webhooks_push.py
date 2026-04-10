@@ -1,15 +1,16 @@
-from ward import test
-import hmac
 import hashlib
+import hmac
 import json
+
 from fixtures import client, test_ticket
-from app.views.webhooks import get_github_webhook_secret
+from ward import test
+
 from app.utils.models import Ticket, TicketUpdateMessage
+from app.views.webhooks import get_github_webhook_secret
 
 
 @test("/api/webhooks/github/ Push event with valid signature", tags=["webhooks"])
 def _(client=client, test_ticket=test_ticket):
-
     # ? Push a github push event with a valid signature and verify 200 response
     test_ticket.status = "todo"
     test_ticket.save()
@@ -42,9 +43,9 @@ def _(client=client, test_ticket=test_ticket):
     data = response.get_json()
     assert data["event"] == "push"
 
-    # Verify that the ticket has been updated with the commit message
+    # fix TICKET-ID (with or without #) marks done in the first pass, then closed when the close regex matches
     ticket = Ticket.get(Ticket.id == test_ticket.id)
-    assert ticket.status == "done"
+    assert ticket.status == "closed"
 
     # Verify that a comment has been added to the ticket
     updates = TicketUpdateMessage.select()
@@ -53,7 +54,6 @@ def _(client=client, test_ticket=test_ticket):
 
 @test("/api/webhooks/github/ Push event reference ticket", tags=["webhooks"])
 def _(client=client, test_ticket=test_ticket):
-
     # ? Push a github push event that references a ticket and verify 200 response
     test_ticket.status = "todo"
     test_ticket.save()
@@ -94,7 +94,6 @@ def _(client=client, test_ticket=test_ticket):
 
 @test("/api/webhooks/github/ Push event with invalid signature", tags=["webhooks"])
 def _(client=client):
-
     # ? Push a github push event with an invalid signature and verify 401 response
 
     payload = {

@@ -1,0 +1,101 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}Sprints | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-calendar-dots"></i> Sprints</span>
+{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 0.35rem;">Sprints</h1>
+<p class="card-description" style="margin-bottom: 1rem;">Time-boxed groups of tickets from <strong>any</strong> project. Create a sprint, then open it and add the tickets you want—nothing is pulled in automatically.</p>
+
+<div class="settings-card">
+    <div class="card-section">
+        <h3>New sprint</h3>
+        <p class="card-description">Name and optional goal. You’ll pick tickets on the next screen.</p>
+        <form id="work-cycle-create-form" class="settings-form">
+            <div class="form-group">
+                <label for="wc-name">Name</label>
+                <input type="text" id="wc-name" class="form-input" required placeholder="e.g. April sprint">
+            </div>
+            <div class="form-group">
+                <label for="wc-goal">Goal (optional)</label>
+                <textarea id="wc-goal" class="form-input" rows="2"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Create</button>
+        </form>
+    </div>
+</div>
+
+<div class="settings-card">
+    <div class="card-section">
+        <h3 style="margin-top:0;">Your sprints</h3>
+        {% if not cycles %}
+        <p class="card-description" style="margin-bottom:0;">None yet. Create one above.</p>
+        {% else %}
+        <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+            <thead>
+                <tr style="text-align:left; border-bottom:1px solid #ddd;">
+                    <th style="padding:8px 6px;">Name</th>
+                    <th style="padding:8px 6px;">Tickets</th>
+                    <th style="padding:8px 6px;">Done</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in cycles %}
+                {% set st = cycle_stats.get(c.id, {'total': 0, 'done': 0}) %}
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:10px 6px;"><a href="/work-cycles/{{ c.id }}">{{ c.name }}</a></td>
+                    <td style="padding:10px 6px;">{{ st.total }}</td>
+                    <td style="padding:10px 6px;">{{ st.done }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.getElementById('work-cycle-create-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('wc-name').value.trim();
+    const goal = document.getElementById('wc-goal').value.trim();
+    const body = { name, goal: goal || null };
+    try {
+        const r = await fetch('/api/work-cycles', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-Token': window.BROKE_CSRF_TOKEN || ''
+            },
+            body: JSON.stringify(body)
+        });
+        const raw = await r.text();
+        let data = {};
+        try {
+            if (raw) data = JSON.parse(raw);
+        } catch (_) { /* ignore */ }
+        if (!r.ok) {
+            alert(data.error || ('Request failed (' + r.status + ')'));
+            return;
+        }
+        const id = data.cycle && data.cycle.id;
+        if (id == null) {
+            alert(data.error || 'Unexpected response from server. Try refreshing the page.');
+            return;
+        }
+        window.location.href = '/work-cycles/' + id;
+    } catch (err) {
+        alert('Network error while creating sprint. Check your connection and try again.');
+    }
+});
+</script>
+{% endblock %}

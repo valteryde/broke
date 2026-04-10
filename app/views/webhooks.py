@@ -1,12 +1,13 @@
-from ..utils.models import Project
-from flask import request, Blueprint
-from peewee import DoesNotExist
-import json
 import hashlib
-import re
-from .settings import get_github_webhook_secret
 import hmac
-from ..utils.models import Ticket, TicketUpdateMessage
+import json
+import re
+
+from flask import Blueprint, request
+from peewee import DoesNotExist
+
+from ..utils.models import Project, Ticket, TicketUpdateMessage
+from .settings import get_github_webhook_secret
 
 # Create blueprint
 webhooks_bp = Blueprint("webhooks", __name__)
@@ -16,6 +17,18 @@ TICKET_RESOLVE_PATTERN = re.compile(
     r"(?:fix|fixes|fixed|close|closes|closed|resolve|resolves|resolved)\s*#?([\w-]+)", re.IGNORECASE
 )
 TICKET_REFER_PATTERN = re.compile(r"(?:ref|refs|about|see|related)\s*#?([\w-]+)", re.IGNORECASE)
+
+
+def _commit_message_closes_ticket(message: str, ticket_id: str) -> bool:
+    """True if message uses fix/close/… with optional # before ticket id (matches resolve pattern)."""
+    escaped = re.escape(ticket_id)
+    return bool(
+        re.search(
+            r"(?:fix|fixes|fixed|close|closes|closed)\s*#?" + escaped + r"(?!\w)",
+            message,
+            re.IGNORECASE,
+        )
+    )
 
 
 def handle_github_push_event(payload: dict, project: Project) -> dict:
@@ -57,11 +70,7 @@ def handle_github_push_event(payload: dict, project: Project) -> dict:
                     message=f"Commit [{commit_sha}]({commit_url}) by {author}\n\n> {message.split(chr(10))[0]}",
                 )
 
-                if re.search(
-                    r"(?:fix|fixes|fixed|close|closes|closed)\s*#" + ticket_id_str,
-                    message,
-                    re.IGNORECASE,
-                ):
+                if _commit_message_closes_ticket(message, ticket_id_str):
                     ticket.status = "closed"
                     ticket.save()
 

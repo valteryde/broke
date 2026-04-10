@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
 
     <script>
-    (function initTicketViewPreference() {
+    function initTicketViewPreference() {
         const url = new URL(window.location.href);
         const explicitView = url.searchParams.get('view');
         const savedView = localStorage.getItem('ticket_view_preference');
@@ -24,7 +24,14 @@
             url.searchParams.set('view', savedView);
             window.location.replace(url.toString());
         }
-    })();
+    }
+    // Defer past first paint / cookie commit: a sync redirect in <head> can race Firefox so the
+    // follow-up GET misses the session cookie from this response (looks like a logout).
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTicketViewPreference);
+    } else {
+        initTicketViewPreference();
+    }
 
     function setTicketView(view) {
         localStorage.setItem('ticket_view_preference', view);
@@ -34,7 +41,7 @@
     }
 
     window.availableUsers = [
-        {% for available_user in available_users %} 
+        {% for available_user in available_users %}
         {
             id: '{{ available_user.username }}',
             username: '{{ available_user.username }}',
@@ -43,12 +50,18 @@
     ];
 
     window.availableLabels = [
-        {% for available_label in available_labels %} 
+        {% for available_label in available_labels %}
         {
             id: '{{ available_label.name }}',
             name: '{{ available_label.name }}',
             color: '{{ available_label.color }}'
         },
+        {% endfor %}
+    ];
+
+    window.availableWorkCycles = [
+        {% for c in available_work_cycles %}
+        { id: {{ c.id }}, name: {{ c.name | tojson }} },
         {% endfor %}
     ];
 
@@ -110,8 +123,8 @@
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
-    
-    
+
+
     <script>
         // Available projects for ticket creation modal
         window.availableProjects = [
@@ -127,14 +140,14 @@
 
         // Available options for dropdowns (globals for List/Shortcuts to use)
         window.availableUsers = [
-            {% for available_user in available_users %} 
+            {% for available_user in available_users %}
             {
                 id: '{{ available_user.username }}',
                 username: '{{ available_user.username }}',
             },
             {% endfor %}
         ];
-        
+
         window.availableLabels = [
             {% for available_label in available_labels %}
             {
@@ -148,9 +161,9 @@
         // Show create ticket modal
         function showCreateTicketModal() {
             let selectedProject = {% if project %}'{{ project.id }}'{% else %}null{% endif %};
-            
+
             const projectItems = window.availableProjects.map(proj => `
-                <div class="modal-project-item ${selectedProject === proj.id ? 'selected' : ''}" 
+                <div class="modal-project-item ${selectedProject === proj.id ? 'selected' : ''}"
                      data-project-id="${proj.id}"
                      onclick="selectProject('${proj.id}')">
                     <i class="${proj.icon}"></i>
@@ -158,7 +171,7 @@
                     <span class="modal-project-item-id">${proj.id}</span>
                 </div>
             `).join('');
-            
+
             Modal.show('Create New Ticket', `
                 <div class="form-group">
                     <label>Select Project</label>
@@ -173,7 +186,7 @@
                     </button>
                 </div>
             `);
-            
+
             // Store selected project in window for access by createTicket
             window.selectedProjectId = selectedProject;
             updateCreateButton();
@@ -182,15 +195,15 @@
         // Select project in modal
         function selectProject(projectId) {
             window.selectedProjectId = projectId;
-            
+
             // Update UI
             document.querySelectorAll('.modal-project-item').forEach(item => {
                 item.classList.toggle('selected', item.dataset.projectId === projectId);
             });
-            
+
             updateCreateButton();
         }
-        
+
         // Update create button state
         function updateCreateButton() {
             const btn = document.getElementById('create-ticket-btn');
@@ -198,31 +211,31 @@
                 btn.disabled = !window.selectedProjectId;
             }
         }
-        
+
         // Create ticket and redirect
         async function createTicket() {
             if (!window.selectedProjectId) return;
-            
+
             const btn = document.getElementById('create-ticket-btn');
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<i class="ph ph-circle-notch" style="animation: spin 1s linear infinite;"></i> Creating...';
             }
-            
+
             try {
                 const endpoint = '{{ ticket_create_endpoint or '/api/tickets' }}';
                 const defaultStatus = '{{ ticket_create_status or 'backlog' }}';
                 const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         project: window.selectedProjectId,
                         title: '',
                         status: defaultStatus,
                         priority: 'medium'
                     })
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     Modal.close();
@@ -269,15 +282,22 @@
                     subticketDoneCount: {{ ticket.subticket_done_count | default(0) | tojson }},
                     createdAt: {{ ticket.created_at | tojson }},
                     project: {{ ticket.project | tojson }},
+                    workCycleId: {% if ticket.work_cycle_id is not none %}{{ ticket.work_cycle_id }}{% else %}null{% endif %},
                     onClick: () => { window.location.href = '/tickets/{{ ticket.project }}/{{ ticket.id }}'; }
                 },
                 {% endfor %}
             ];
 
+            const cycleParam = new URLSearchParams(window.location.search).get('cycle');
+            let viewTickets = tickets;
+            if (cycleParam) {
+                viewTickets = tickets.filter((t) => String(t.workCycleId || '') === String(cycleParam));
+            }
+
             const ticketView = '{{ ticket_view }}';
 
             if (ticketView === 'board') {
-                TicketBoard.init('ticket-board', tickets, {
+                TicketBoard.init('ticket-board', viewTickets, {
                     async onMove(ticketId, newStatus) {
                         const response = await fetch(`/api/tickets/${ticketId}`, {
                             method: 'PATCH',
@@ -370,7 +390,7 @@
 
             window.ticketList = ticketList;
 
-            tickets.forEach(ticket => ticketList.add(ticket));
+            viewTickets.forEach(ticket => ticketList.add(ticket));
 
         });
     </script>

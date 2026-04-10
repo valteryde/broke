@@ -35,11 +35,11 @@
                 <i class="ph ph-user"></i>
                 <span>Profile</span>
             </a>
-            {# 
+            {#
             <a href="/settings/preferences" class="settings-nav-item {% if section == 'preferences' %}active{% endif %}">
                 <i class="ph ph-sliders-horizontal"></i>
                 <span>Preferences</span>
-            </a> 
+            </a>
             #}
             <a href="/settings/notifications" class="settings-nav-item {% if section == 'notifications' %}active{% endif %}">
                 <i class="ph ph-bell"></i>
@@ -114,13 +114,13 @@
         </div>
 
         <div class="settings-nav-section">
-        
+
             <h3 class="nav-section-title">Danger Zone</h3>
             <a href="/settings/danger" class="settings-nav-item danger {% if section == 'danger' %}active{% endif %}">
                 <i class="ph ph-skull"></i>
                 <span>Delete Account</span>
             </a>
-        
+
         </div>
 
     </div>
@@ -162,7 +162,7 @@
                     if (input.files && input.files[0]) {
                         const formData = new FormData();
                         formData.append('avatar', input.files[0]);
-                        
+
                         fetch('/api/settings/profile/avatar', {
                             method: 'POST',
                             body: formData
@@ -201,7 +201,7 @@
                 <div class="card-section">
                     <h3>Basic Information</h3>
                     <p class="card-description">Update your account details</p>
-                    
+
                     <form id="profile-form" class="settings-form">
                         <div class="form-group">
                             <label for="username">Username</label>
@@ -589,7 +589,7 @@
                 <div class="card-section">
                     <h3>Change Password</h3>
                     <p class="card-description">Update your password regularly for better security</p>
-                    
+
                     <form id="password-form" class="settings-form">
                         <div class="form-group">
                             <label for="current_password">Current Password</label>
@@ -619,7 +619,7 @@
                 <div class="card-section">
                     <h3>Sessions</h3>
                     <p class="card-description">Manage your active sessions</p>
-                    
+
                     <div class="session-list">
                         <div class="session-item current">
                             <div class="session-info">
@@ -820,7 +820,7 @@
                 <div class="card-section">
                     <h3>Configuration</h3>
                     <p class="card-description">Control how anonymous tickets are handled</p>
-                    
+
                     <form id="anonymous-form" class="settings-form">
                         <div class="preference-group">
                             <div class="preference-item">
@@ -859,7 +859,7 @@
                 <div class="card-section">
                     <h3>Public Link</h3>
                     <p class="card-description">Share this link to allow users to submit tickets</p>
-                    
+
                     <div class="webhook-url-section">
                         <div class="dsn-url-wrapper">
                             <code class="dsn-url">{{ request.host_url }}anon</code>
@@ -920,9 +920,45 @@
 
             <div class="settings-card">
                 <div class="card-section">
+                    <h3>Agent tokens (Cursor / scripts)</h3>
+                    <p class="card-description">Short-lived Bearer tokens for <code>/api/agent/…</code> (default 48h). Store in environment variables (e.g. <code>BROKE_AGENT_TOKEN</code>), not in chat or committed rules.</p>
+                    <p class="card-description">Base URL: <code>{{ agent_base_url }}</code></p>
+
+                    <div class="token-list">
+                        {% if not agent_tokens %}
+                        <div class="empty-state">
+                            <i class="ph ph-robot"></i>
+                            <p>No agent tokens yet</p>
+                        </div>
+                        {% else %}
+                        {% for at in agent_tokens %}
+                        <div class="token-item">
+                            <div class="token-info">
+                                <span class="token-name">{{ at.token_preview }}…</span>
+                                <span class="token-meta">Expires {{ at.expires_at | timestamp_to_date }}</span>
+                            </div>
+                            <div class="token-actions">
+                                <button class="btn-icon danger" title="Revoke" onclick="deleteAgentToken('{{ at.id }}')">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+
+                    <button class="btn btn-secondary" style="margin-top: 16px;" onclick="generateAgentToken()">
+                        <i class="ph ph-plus"></i> Mint agent token
+                    </button>
+                    <p class="card-description" style="margin-top: 12px;"><a href="/docs/agent-integration">Agent integration notes</a></p>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
                     <h3>API Documentation</h3>
                     <p class="card-description">Learn how to integrate with Broke</p>
-                    
+
                     <div class="api-docs-link">
                         <a href="/docs/api" class="doc-link">
                             <i class="ph ph-book-open"></i>
@@ -959,7 +995,7 @@
                         <span>AI is not configured yet.</span>
                         {% endif %}
                     </div>
-                    
+
                     <form id="ai-form" class="settings-form">
                         <div class="form-group">
                             <label for="ai-preset">Provider Preset</label>
@@ -1013,7 +1049,7 @@
                 const preset = document.getElementById('ai-preset').value;
                 const baseUrlEl = document.getElementById('ai-base-url');
                 const modelEl = document.getElementById('ai-model');
-                
+
                 if (preset === 'openrouter') {
                     baseUrlEl.value = 'https://openrouter.ai/api/v1';
                     modelEl.value = 'google/gemini-2.5-flash';
@@ -1032,7 +1068,7 @@
             document.addEventListener('DOMContentLoaded', () => {
                 const baseUrlEl = document.getElementById('ai-base-url');
                 const presetEl = document.getElementById('ai-preset');
-                
+
                 // Set initial dropdown based on saved URL
                 if (baseUrlEl.value.includes('openrouter.ai')) {
                     presetEl.value = 'openrouter';
@@ -1052,14 +1088,14 @@
                         e.preventDefault();
                         const btn = form.querySelector('button[type="submit"]');
                         btn.disabled = true;
-                        
+
                         const data = {
                             api_key: document.getElementById('ai-api-key').value,
                             base_url: document.getElementById('ai-base-url').value,
                             model: document.getElementById('ai-model').value,
                             language: document.getElementById('ai-language').value
                         };
-                        
+
                         fetch('/api/settings/ai', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1519,7 +1555,7 @@ docker compose up -d broke-server</code></pre>
                 <div class="card-section">
                     <h3>Delete Account</h3>
                     <p class="card-description">Permanently delete your account and all associated data. This action cannot be undone.</p>
-                    
+
                     <button class="btn btn-danger">
                         <i class="ph ph-trash"></i> Delete Account
                     </button>

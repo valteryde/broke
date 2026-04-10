@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Broke{% endblock %}</title>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js" async
         integrity="sha384-LfouGM03m83ArVtne1JPk926e3SGD0Tz8XHtW2OKGsgeBU/UfR0Fa8eX+UlwSSAZ"
         crossorigin="anonymous">
@@ -33,7 +33,7 @@
 
 </head>
 <body>
-    
+
     <div id="sb-backdrop" class="sb-backdrop"></div>
 
     <div class="mobile-top-bar">
@@ -49,9 +49,9 @@
     <div class="sb-wrapper">
 
         <div class="sb-header">
-            {# 
+            {#
             <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" class="sb-logo">
-            <span class="brand-title">Broke</span> 
+            <span class="brand-title">Broke</span>
             #}
 
             {% if not is_desktop_client %}
@@ -62,7 +62,7 @@
         </div>
 
         <div class="sb-body">
-            
+
             <div class="sb-element {% if page == 'news' %}active{% endif %}" onclick="openUrlWithArgs('/news')">
                 <i class="ph ph-bird"></i>
                 <span>News</span>
@@ -76,6 +76,11 @@
             <div class="sb-element {% if page == 'tickets' %}active{% endif %}" onclick="window.location.href = '/tickets'">
                 <i class="ph ph-ticket"></i>
                 <span>Tickets</span>
+            </div>
+
+            <div class="sb-element {% if page == 'work_cycles' %}active{% endif %}" onclick="window.location.href = '/work-cycles'">
+                <i class="ph ph-calendar-dots"></i>
+                <span>Sprints</span>
             </div>
 
             <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="openUrlWithArgs('/errors')">
@@ -143,7 +148,7 @@
         </div>
 
     </div>
-    
+
     <div id="content-wrapper">
 
         <div class="path-bar">
@@ -151,9 +156,9 @@
             <span><i class="ph ph-house"></i> Home</span> <i class="ph ph-caret-right"></i> <span> <i class="ph ph-bird"></i> Dashboard</span>
         {% endblock %}
         </div>
-            
+
         {% block content %}
-            
+
         {% endblock %}
 
         {# <small style="margin-bottom:10px;opacity:0.3;text-align:left">{{ app_version() }} {{ app_codename() }}</small> #}
@@ -206,7 +211,7 @@
             };
         })();
     </script>
-    
+
     {% block scripts %}
 
     {% endblock %}
