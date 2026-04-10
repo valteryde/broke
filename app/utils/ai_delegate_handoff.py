@@ -65,9 +65,11 @@ def _python_broke_client(base: str, token: str, tid: str) -> str:
         '    req.add_header("Authorization", "Bearer " + TOKEN)\n'
         "    if body is not None:\n"
         '        req.add_header("Content-Type", "application/json")\n'
-        "    ctx = ssl.create_default_context()\n"
+        "    open_kw = {\"timeout\": 60}\n"
+        "    if url.lower().startswith(\"https:\"):\n"
+        "        open_kw[\"context\"] = ssl.create_default_context()\n"
         "    try:\n"
-        "        with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:\n"
+        "        with urllib.request.urlopen(req, **open_kw) as resp:\n"
         '            return resp.status, resp.read().decode("utf-8", errors="replace")\n'
         "    except urllib.error.HTTPError as e:\n"
         '        return e.code, e.read().decode("utf-8", errors="replace")\n'
@@ -144,12 +146,19 @@ def build_ai_delegate_pack_markdown(
         "2. **If your environment can run shell only**: run the **ping** `curl` first, then the **in-progress** `curl`.",
         "3. **If you cannot run code or shell at all** (plain chat with no tools): **stop** and tell the user clearly: *I cannot reach your Broke server from here.* Give them the **ping** `curl` to run locally and ask them to paste the response back; then continue only after they confirm `200`.",
         "4. **Do not** claim the ticket was updated in Broke unless you actually received a successful HTTP response from this host.",
+        "5. **Language:** Always write your **replies to the user** in **English**, even if the ticket title, description, or history is in another language. When posting **comments** or other free-form text to Broke via the API, use **English** unless the user explicitly asks for a different language.",
+        "",
+        "## HTTPS and HTTP",
+        "",
+        "- **Use the Base URL as given** (keep the same `http` or `https` scheme). Do not change `http` ↔ `https` unless the user confirms Broke is reachable on the other scheme.",
+        "- **`https://`:** TLS is used; Python `urllib` and `curl` verify the server certificate against the system trust store by default. Certificate errors usually mean a self-signed or private-CA cert — fix trust on the machine running the script, or use a URL the OS already trusts.",
+        "- **`http://`:** Still supported (common for localhost or trusted private networks). There is no transport encryption; treat the network path as trusted.",
         "",
         "---",
         "",
         "## Step 1 — Run this Python (preferred; standard library only)",
         "",
-        "Execute the whole block as one script. It verifies the token and sets status to `in-progress`.",
+        "Execute the whole block as one script. It verifies the token and sets status to `in-progress`. TLS is applied only for `https://` URLs; plain `http://` works without SSL.",
         "",
         "```python",
         py_block.rstrip(),
@@ -164,6 +173,8 @@ def build_ai_delegate_pack_markdown(
         "---",
         "",
         "## Step 2 — Or use `curl` (terminal)",
+        "",
+        "For `https://` URLs, `curl` uses TLS automatically. For `http://`, requests are unencrypted (same tradeoff as above).",
         "",
         "**Ping (must return JSON with ok:true):**",
         "",

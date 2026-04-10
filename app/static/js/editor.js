@@ -425,7 +425,7 @@ class TicketEditor {
                         <span class="ticket-activity-time">${this.formatRelativeTime(comment.createdAt)}</span>
                     </div>
                     <div class="ticket-comment-body">
-                        <div class="ticket-comment-text">${comment.content}</div>
+                        <div class="ticket-comment-text">${this.escapeHtml(String(comment.content ?? ''))}</div>
                         <!--
                         ${isOwn ? `
                             <div class="ticket-comment-actions">
@@ -1111,7 +1111,7 @@ class TicketEditor {
     // Utility methods
     escapeHtml(text) {
         const div = document.createElement('div');
-        div.textContent = text;
+        div.textContent = text == null ? '' : String(text);
         return div.innerHTML;
     }
 

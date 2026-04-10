@@ -235,14 +235,14 @@
                     },
                     type: 'comment',
                     viaAgent: {% if comment.via_agent %}true{% else %}false{% endif %},
-                    content: `{{ comment.body | default("", true) | safe }}`,
+                    content: {{ comment.body | default("", true) | tojson }},
                     createdAt: {{ comment.created_at }} * 1000
                 },
                 {% endfor %}
                 {% for update in updates %}
                 {
                     id: '{{ update.id }}',
-                    message : `{{ update.message | default("", true) | safe }}`,
+                    message: {{ update.message | default("", true) | tojson }},
                     icon : {{ (update.icon or 'ph ph-pencil') | tojson }},
                     createdAt: {{ update.created_at }} * 1000,
                     type: 'update',
