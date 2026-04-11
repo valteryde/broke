@@ -24,7 +24,15 @@ from ..utils.models import (
     WorkCycle,
 )
 from ..utils.path import data_path
+from ..utils.reltime import time_ago
 from ..utils.security import protected
+from ..utils.stale_tickets import (
+    clamp_inactive_days,
+    close_ticket_as_stale,
+    has_open_subtickets,
+    list_stale_rows,
+    ticket_matches_stale_rule,
+)
 from ..utils.ticket_markdown import build_ticket_export_payload, ticket_payload_to_markdown
 
 # Create blueprint
@@ -204,6 +212,51 @@ def tickets_view(user: User):
         ticket_create_status="backlog",
         ticket_base_path="/tickets",
     )
+
+
+@tickets_bp.route("/tickets/stale")
+@protected
+def stale_tickets_view(user: User):
+    """List tickets with no recent activity; close manually from this page."""
+    raw_days = request.args.get("days", "90")
+    project_filter = (request.args.get("project") or "").strip() or None
+    inactive_days = clamp_inactive_days(raw_days)
+    rows = list_stale_rows(project_filter, inactive_days)
+    projects = list(Project.select().order_by(Project.name))
+
+    def format_ts_utc(ts: int) -> str:
+        return time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(int(ts)))
+
+    return render_template(
+        "stale_tickets.jinja2",
+        user=user,
+        page="stale_tickets",
+        stale_rows=rows,
+        projects=projects,
+        filter_project=project_filter,
+        inactive_days=inactive_days,
+        time_ago=time_ago,
+        format_ts_utc=format_ts_utc,
+    )
+
+
+@tickets_bp.route("/api/tickets/<ticket_id>/close-stale", methods=["POST"])
+@protected
+def api_close_stale_ticket(user: User, ticket_id: str):
+    """Close a single ticket from the stale queue: comment + status closed."""
+    data = request.get_json(silent=True) or {}
+    inactive_days = clamp_inactive_days(data.get("inactive_days", 90))
+
+    ok, ticket, _last_touch = ticket_matches_stale_rule(ticket_id, inactive_days)
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    if not ok:
+        return jsonify({"error": "Ticket is not stale under this inactivity threshold."}), 400
+    if has_open_subtickets(ticket_id):
+        return jsonify({"error": "Finish or close open subtickets before closing this ticket."}), 409
+
+    close_ticket_as_stale(ticket, user, inactive_days)
+    return jsonify({"success": True, "ticket_id": ticket.id})
 
 
 @tickets_bp.route("/tickets/<project_id>")

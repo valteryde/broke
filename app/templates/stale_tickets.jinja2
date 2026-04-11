@@ -1,0 +1,121 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}Stale tickets | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/stale_tickets.css') }}">
+{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-ticket"></i> Tickets</span>
+    <i class="ph ph-caret-right"></i>
+    <span><i class="ph ph-clock-counter-clockwise"></i> Stale</span>
+{% endblock %}
+
+{% block content %}
+<div class="stale-page">
+    <h1 style="margin-bottom: 1rem;">Stale tickets</h1>
+
+    <form class="stale-toolbar" method="get" action="/tickets/stale">
+        <label>
+            Project
+            <select name="project">
+                <option value="">All projects</option>
+                {% for p in projects %}
+                <option value="{{ p.id }}" {% if filter_project == p.id %}selected{% endif %}>{{ p.name }} ({{ p.id }})</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Days without activity
+            <input type="number" name="days" min="7" max="3650" value="{{ inactive_days }}">
+        </label>
+        <button type="submit" class="btn btn-primary">Apply</button>
+    </form>
+
+    {% if not stale_rows %}
+    <div class="stale-empty">
+        <i class="ph ph-check-fat" aria-hidden="true"></i>
+        <p style="margin:0;font-size:1rem;">No stale tickets match these filters.</p>
+    </div>
+    {% else %}
+    <div class="stale-table-wrap">
+        <table class="stale-table">
+            <thead>
+                <tr>
+                    <th>Ticket</th>
+                    <th>Project</th>
+                    <th>Status</th>
+                    <th>Last activity</th>
+                    <th>Idle</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in stale_rows %}
+                {% set t = row.ticket %}
+                <tr data-stale-row="{{ t.id }}">
+                    <td class="stale-title-cell">
+                        <a href="/tickets/{{ t.project }}/{{ t.id }}">{{ t.id }}</a>
+                        <span class="stale-title-main">{{ t.title }}</span>
+                        {% if row.blocked %}
+                        <span class="stale-badge-blocked">Has open subtickets</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ t.project }}</td>
+                    <td>{{ t.status }}</td>
+                    <td>
+                        <span class="stale-meta-muted">{{ time_ago(row.last_activity) }}</span>
+                        <div class="stale-meta-muted" style="font-size:0.75rem;margin-top:2px;">{{ format_ts_utc(row.last_activity) }}</div>
+                    </td>
+                    <td>{{ row.days_idle }}d</td>
+                    <td class="stale-actions">
+                        {% if row.blocked %}
+                        <button type="button" class="btn btn-secondary" disabled title="Close subtickets first">Close</button>
+                        {% else %}
+                        <button type="button" class="btn btn-primary stale-close-btn" data-ticket-id="{{ t.id }}">Close</button>
+                        {% endif %}
+                        <div class="stale-row-msg stale-row-feedback" data-feedback="{{ t.id }}" aria-live="polite"></div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    const inactiveDays = {{ inactive_days | int }};
+    document.querySelectorAll('.stale-close-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const id = btn.getAttribute('data-ticket-id');
+            const row = document.querySelector('[data-stale-row="' + id + '"]');
+            const feedback = document.querySelector('[data-feedback="' + id + '"]');
+            if (feedback) feedback.textContent = '';
+            btn.disabled = true;
+            var headers = { 'Content-Type': 'application/json' };
+            if (window.BROKE_CSRF_TOKEN) headers['X-CSRF-Token'] = window.BROKE_CSRF_TOKEN;
+            fetch('/api/tickets/' + encodeURIComponent(id) + '/close-stale', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ inactive_days: inactiveDays })
+            }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (_ref) {
+                if (_ref.ok) {
+                    if (row) row.remove();
+                    if (!document.querySelector('[data-stale-row]')) window.location.reload();
+                    return;
+                }
+                btn.disabled = false;
+                if (feedback) feedback.textContent = _ref.j.error || 'Could not close';
+            }).catch(function () {
+                btn.disabled = false;
+                if (feedback) feedback.textContent = 'Request failed';
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

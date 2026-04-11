@@ -28,4 +28,4 @@ def run_test_app(app):
         raise Exception("This is a forced error for testing Sentry integration.")
 
     # Run the app
-    app.run(debug=False, port=5050)
+    app.run(debug=True, port=5050)

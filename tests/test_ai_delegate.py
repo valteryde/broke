@@ -134,6 +134,7 @@ def _():
     assert "https://self-signed.internal" in https_md
     assert "curl -sS -k -g" in https_md
     assert "curl -sS -k -X" in https_md
+    assert "308" in https_md and "401" in https_md
 
     http_md = build_ai_delegate_pack_markdown(
         payload=minimal,
@@ -144,3 +145,4 @@ def _():
     assert "http://127.0.0.1:5000" in http_md
     assert "curl -sS -k" not in http_md
     assert "curl -sS -g" in http_md
+    assert "308" in http_md

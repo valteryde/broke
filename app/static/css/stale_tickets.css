@@ -1,0 +1,142 @@
+.stale-page {
+    max-width: 1100px;
+}
+
+.stale-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.1rem;
+    background: var(--bg-white);
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+}
+
+.stale-toolbar label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #475569;
+}
+
+.stale-toolbar select,
+.stale-toolbar input[type="number"] {
+    min-width: 10rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: #fff;
+}
+
+.stale-toolbar input[type="number"] {
+    width: 6.5rem;
+    min-width: 6.5rem;
+}
+
+.stale-empty {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    color: #64748b;
+    border: 1px dashed #e2e8f0;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.stale-empty .ph {
+    font-size: 2.25rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+
+.stale-table-wrap {
+    overflow-x: auto;
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+    background: var(--bg-white);
+}
+
+.stale-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.stale-table th {
+    text-align: left;
+    padding: 0.65rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f8fafc;
+}
+
+.stale-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px dashed #e8eaef;
+    vertical-align: middle;
+    color: #334155;
+}
+
+.stale-table tr:last-child td {
+    border-bottom: none;
+}
+
+.stale-table a {
+    color: var(--logo-blue);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.stale-table a:hover {
+    text-decoration: underline;
+}
+
+.stale-title-cell {
+    max-width: 22rem;
+}
+
+.stale-title-main {
+    display: block;
+    font-weight: 500;
+    color: #1e293b;
+    margin-bottom: 0.2rem;
+}
+
+.stale-title-sub {
+    font-size: 0.8rem;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.stale-meta-muted {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.stale-badge-blocked {
+    display: inline-block;
+    margin-top: 0.35rem;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.stale-actions .btn {
+    white-space: nowrap;
+}
+
+.stale-row-msg {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-top: 0.25rem;
+}

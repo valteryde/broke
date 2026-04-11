@@ -85,6 +85,8 @@ class Project(BaseModel):
     name = CharField()
     icon = CharField()  # classes for icons (like ph ph-* or fa fa-*)
     color = CharField()  # i do not know if i will use this
+    # Optional JSON for future per-project options
+    settings = TextField(default="{}")
 
 
 class ProjectPart(BaseModel):
@@ -442,6 +444,7 @@ def initialize_db():
     _ensure_comment_via_agent_column()
     _ensure_agent_token_ticket_id_column()
     _ensure_dsn_token_columns()
+    _ensure_project_settings_column()
     database.close()
 
 
@@ -494,6 +497,12 @@ def _ensure_dsn_token_columns() -> None:
         database.execute_sql("ALTER TABLE dsntoken ADD COLUMN token_hash TEXT;")
     if "token_preview" not in columns:
         database.execute_sql("ALTER TABLE dsntoken ADD COLUMN token_preview TEXT;")
+
+
+def _ensure_project_settings_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(project);").fetchall()]
+    if "settings" not in columns:
+        database.execute_sql("ALTER TABLE project ADD COLUMN settings TEXT DEFAULT '{}';")
 
 
 def setup_test_data():  # noqa: C901

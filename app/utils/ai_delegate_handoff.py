@@ -144,6 +144,7 @@ def build_ai_delegate_pack_markdown(
         "- **Use the Base URL as given** (keep the same `http` or `https` scheme). Do not change `http` ↔ `https` unless the user confirms the server is reachable on the other scheme.",
         "- **`https://`:** These **`curl`** lines use **`-k`** (no certificate verification) so self-signed certs and private CAs work. Only use this pack against hosts you trust.",
         "- **`http://`:** Common for localhost or private networks. There is no transport encryption; treat the network path as trusted.",
+        "- **Redirects:** **`http://`** requests that get **`308`** (or similar) to **`https://`** make **`curl` drop the `Authorization` header** on the follow-up request, so you often see **`401`**. For the agent API, **call `https://` directly** and keep **`-k`** when TLS is self-signed or uses a private CA — do not rely on an automatic **`http` → `https`** hop with a bearer token.",
         "",
         "### `curl` commands",
         "",
