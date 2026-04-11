@@ -19,22 +19,31 @@ def _(auth_client=auth_client, test_project=test_project):
     WorkCycle.delete_by_id(cid)
 
 
-@test("GET /api/work-cycles/<id>/backlog-tickets lists unscheduled tickets", tags=["api"])
+@test("GET /api/work-cycles/<id>/backlog-tickets lists backlog status, unscheduled", tags=["api"])
 def _(auth_client=auth_client, test_ticket=test_ticket):
     wc = WorkCycle.create(name="Sprint with backlog API", project=None, created_at=int(time.time()))
     try:
         prev_cycle = test_ticket.work_cycle_id
+        prev_status = test_ticket.status
         test_ticket.work_cycle_id = None
+        test_ticket.status = "backlog"
         test_ticket.save()
         r = auth_client.get(f"/api/work-cycles/{wc.id}/backlog-tickets?limit=50")
         assert r.status_code == 200
         body = r.get_json()
         ids = [t["id"] for t in body.get("tickets", [])]
         assert test_ticket.id in ids
+        test_ticket.status = "todo"
+        test_ticket.save()
+        r2 = auth_client.get(f"/api/work-cycles/{wc.id}/backlog-tickets?limit=50")
+        assert r2.status_code == 200
+        ids2 = [t["id"] for t in r2.get_json().get("tickets", [])]
+        assert test_ticket.id not in ids2
         r404 = auth_client.get("/api/work-cycles/999999999/backlog-tickets")
         assert r404.status_code == 404
     finally:
         test_ticket.work_cycle_id = prev_cycle
+        test_ticket.status = prev_status
         test_ticket.save()
         wc.delete_instance()
 

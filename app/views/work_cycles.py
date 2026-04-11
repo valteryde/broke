@@ -218,7 +218,7 @@ def api_patch_work_cycle(user: User, cycle_id: int):
 @work_cycles_bp.route("/api/work-cycles/<int:cycle_id>/backlog-tickets", methods=["GET"])
 @protected
 def api_work_cycle_backlog_tickets(user: User, cycle_id: int):
-    """Active tickets not assigned to any sprint (for add-to-sprint UI)."""
+    """Active tickets in status backlog, not on any sprint (for add-to-sprint UI)."""
     cycle = WorkCycle.get_or_none(WorkCycle.id == cycle_id)
     if not cycle:
         return jsonify({"error": "Work cycle not found"}), 404
@@ -230,7 +230,11 @@ def api_work_cycle_backlog_tickets(user: User, cycle_id: int):
     limit = max(1, min(limit, 300))
 
     q = request.args.get("q", "").strip()
-    cond = (Ticket.active == 1) & (Ticket.work_cycle_id.is_null())
+    cond = (
+        (Ticket.active == 1)
+        & (Ticket.work_cycle_id.is_null())
+        & (Ticket.status == "backlog")
+    )
     if q:
         cond = cond & ((Ticket.id.contains(q)) | (Ticket.title.contains(q)))
 

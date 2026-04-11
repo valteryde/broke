@@ -31,7 +31,7 @@
 <div class="settings-card" style="margin-bottom: 1rem;">
     <div class="card-section">
         <h3 style="margin-top:0;"><i class="ph ph-magnifying-glass"></i> Add tickets to this sprint</h3>
-        <p class="card-description">Search by ticket id or title (any project). Open <strong>Browse backlog</strong> below to list every ticket not already in a sprint; the same search box filters that list.</p>
+        <p class="card-description">Search by ticket id or title (any project). Open <strong>Browse backlog</strong> below for tickets in <strong>Backlog</strong> status that are not on a sprint yet; the same search box filters that list.</p>
         <div class="form-group" style="margin-bottom:8px;">
             <input type="search" id="wc-ticket-search" class="form-input" placeholder="Search tickets…" autocomplete="off">
         </div>
@@ -43,7 +43,7 @@
                 <span id="wc-backlog-count" class="card-description" style="font-weight: 400; margin-left: 6px;"></span>
             </summary>
             <div class="wc-backlog-body" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc;">
-                <p class="card-description" style="margin: 0 0 8px 0;">Tickets not in any sprint. Type above to narrow this list.</p>
+                <p class="card-description" style="margin: 0 0 8px 0;">Only <strong>backlog</strong> status, not on a sprint. Type above to narrow this list.</p>
                 <div id="wc-backlog-list" class="wc-search-results" aria-live="polite"></div>
             </div>
         </details>
@@ -220,7 +220,7 @@
             const p = document.createElement('p');
             p.className = 'card-description';
             p.style.margin = '0';
-            p.textContent = backlogRows.length ? 'No backlog tickets match your search.' : 'No tickets are outside a sprint right now.';
+            p.textContent = backlogRows.length ? 'No backlog tickets match your search.' : 'No backlog-status tickets are unscheduled right now.';
             backlogList.appendChild(p);
             return;
         }
@@ -229,7 +229,7 @@
             const note = document.createElement('p');
             note.className = 'card-description';
             note.style.margin = '8px 0 0 0';
-            note.textContent = 'Oldest unscheduled tickets may be omitted (list is capped).';
+            note.textContent = 'Oldest matching backlog tickets may be omitted (list is capped).';
             backlogList.appendChild(note);
         }
     }
@@ -242,7 +242,7 @@
         }
         const n = backlogRows.length;
         const extra = backlogTruncated ? '+' : '';
-        backlogCountEl.textContent = '(' + n + extra + ' unscheduled)';
+        backlogCountEl.textContent = '(' + n + extra + ' backlog, unscheduled)';
     }
 
     async function ensureBacklogLoaded() {
