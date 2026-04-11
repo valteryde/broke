@@ -5,6 +5,7 @@ import re
 from fixtures import auth_client, test_project, test_ticket
 from ward import test
 
+from app.utils.ai_delegate_handoff import build_ai_delegate_pack_markdown
 from app.utils.models import AgentToken, Ticket
 
 
@@ -40,7 +41,7 @@ def _(auth_client=auth_client, test_ticket=test_ticket):
         assert "YOUR_TOKEN" not in text
         # Bearer appears as code line and inside curl
         assert "Authorization: Bearer" in text
-        assert "urllib.request" in text
+        assert "Step 1 — `curl`" in text
 
         m = re.search(r"-H 'Authorization: Bearer ([^']+)'", text)
         assert m
@@ -112,3 +113,34 @@ def _(auth_client=auth_client, test_project=test_project, test_ticket=test_ticke
                 AgentToken.delete_by_id(int(token_id))
             except Exception:
                 pass
+
+
+@test("ai-delegate-pack markdown uses relaxed TLS for https only", tags=["api"])
+def _():
+    minimal = {
+        "id": "proj-tls-test",
+        "title": "t",
+        "description": "",
+        "status": "todo",
+        "project": "proj",
+        "priority": "low",
+    }
+    https_md = build_ai_delegate_pack_markdown(
+        payload=minimal,
+        base_url="https://self-signed.internal/",
+        bearer_token="x" * 32,
+        expires_at_epoch=1_700_000_000,
+    )
+    assert "https://self-signed.internal" in https_md
+    assert "curl -sS -k -g" in https_md
+    assert "curl -sS -k -X" in https_md
+
+    http_md = build_ai_delegate_pack_markdown(
+        payload=minimal,
+        base_url="http://127.0.0.1:5000/",
+        bearer_token="y" * 32,
+        expires_at_epoch=1_700_000_000,
+    )
+    assert "http://127.0.0.1:5000" in http_md
+    assert "curl -sS -k" not in http_md
+    assert "curl -sS -g" in http_md

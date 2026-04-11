@@ -1,4 +1,4 @@
-"""One-shot paste pack for an external AI: full ticket context + real Bearer token + HTTP examples."""
+"""One-shot paste pack for an external AI: full ticket context + real Bearer token + curl examples."""
 
 from __future__ import annotations
 
@@ -49,37 +49,6 @@ def mint_ticket_delegate_token(*, user: "User", ticket: "Ticket") -> tuple[str, 
     return raw, at
 
 
-def _python_broke_client(base: str, token: str, tid: str) -> str:
-    """stdlib only — runs in ChatGPT Code Interpreter, Colab, local Python, many agent sandboxes."""
-    return (
-        "import json, ssl, urllib.error, urllib.request\n"
-        "\n"
-        f"BASE = {repr(base)}\n"
-        f"TOKEN = {repr(token)}\n"
-        f"TICKET_ID = {repr(tid)}\n"
-        "\n"
-        "def broke(method, path, data=None):\n"
-        '    url = BASE.rstrip("/") + path\n'
-        "    body = None if data is None else json.dumps(data).encode('utf-8')\n"
-        "    req = urllib.request.Request(url, data=body, method=method)\n"
-        '    req.add_header("Authorization", "Bearer " + TOKEN)\n'
-        "    if body is not None:\n"
-        '        req.add_header("Content-Type", "application/json")\n'
-        "    open_kw = {\"timeout\": 60}\n"
-        "    if url.lower().startswith(\"https:\"):\n"
-        "        open_kw[\"context\"] = ssl.create_default_context()\n"
-        "    try:\n"
-        "        with urllib.request.urlopen(req, **open_kw) as resp:\n"
-        '            return resp.status, resp.read().decode("utf-8", errors="replace")\n'
-        "    except urllib.error.HTTPError as e:\n"
-        '        return e.code, e.read().decode("utf-8", errors="replace")\n'
-        "\n"
-        "# Run immediately; paste stdout back to the user if they need proof.\n"
-        'print("ping:", broke("GET", "/api/agent/ping"))\n'
-        'print("status_in_progress:", broke("PATCH", "/api/agent/tickets/" + TICKET_ID, {"status": "in-progress"}))\n'
-    )
-
-
 def build_ai_delegate_pack_markdown(
     *,
     payload: dict[str, Any],
@@ -87,10 +56,7 @@ def build_ai_delegate_pack_markdown(
     bearer_token: str,
     expires_at_epoch: int,
 ) -> str:
-    """
-    Written for the AI as the reader. Leads with Python (often executable in-product);
-    curl is fallback. States clearly that text-only replies do not update Broke.
-    """
+    """Written for the AI as the reader. curl-only API examples; prose-only replies do not update Broke."""
     base = base_url.rstrip("/")
     tid = str(payload.get("id") or "")
     title = (payload.get("title") or "").replace("\n", " ").strip()
@@ -111,26 +77,28 @@ def build_ai_delegate_pack_markdown(
         full_md = full_md[:_MAX_EMBED_CHARS] + "\n\n…(truncated for paste size)"
 
     esc = bearer_token.replace("'", "'\\''")
-    py_block = _python_broke_client(base, bearer_token, tid)
 
-    curl_ping = f"curl -sS -g '{base}/api/agent/ping' -H 'Authorization: Bearer {esc}'"
+    curl_get = "curl -sS -k -g" if base.lower().startswith("https:") else "curl -sS -g"
+    curl_mut = "curl -sS -k" if base.lower().startswith("https:") else "curl -sS"
+
+    curl_ping = f"{curl_get} '{base}/api/agent/ping' -H 'Authorization: Bearer {esc}'"
     curl_status = (
-        f"curl -sS -X PATCH '{base}/api/agent/tickets/{tid}' "
+        f"{curl_mut} -X PATCH '{base}/api/agent/tickets/{tid}' "
         f"-H 'Authorization: Bearer {esc}' -H 'Content-Type: application/json' "
         f'-d \'{{"status":"in-progress"}}\''
     )
     curl_done = (
-        f"curl -sS -X PATCH '{base}/api/agent/tickets/{tid}' "
+        f"{curl_mut} -X PATCH '{base}/api/agent/tickets/{tid}' "
         f"-H 'Authorization: Bearer {esc}' -H 'Content-Type: application/json' "
         f'-d \'{{"status":"done"}}\''
     )
     curl_comment = (
-        f"curl -sS -X POST '{base}/api/agent/tickets/{tid}/comments' "
+        f"{curl_mut} -X POST '{base}/api/agent/tickets/{tid}/comments' "
         f"-H 'Authorization: Bearer {esc}' -H 'Content-Type: application/json' "
         f'-d \'{{"body":"Your update here"}}\''
     )
     curl_append = (
-        f"curl -sS -X PATCH '{base}/api/agent/tickets/{tid}' "
+        f"{curl_mut} -X PATCH '{base}/api/agent/tickets/{tid}' "
         f"-H 'Authorization: Bearer {esc}' -H 'Content-Type: application/json' "
         '-d \'{"description_append":"\\n\\nAdded by agent."}\''
     )
@@ -142,39 +110,22 @@ def build_ai_delegate_pack_markdown(
         "",
         "**Talking about Broke is not the same as updating Broke.** If you only reply in prose and never perform an HTTP request, **the ticket in Broke will not change**.",
         "",
-        "1. **If your environment can run Python** (ChatGPT *Advanced data analysis / Code interpreter*, Google Colab, a local terminal, Cursor agent, etc.): run the **entire** Python block in the next section **first**. You should see HTTP status `200` and JSON for `ping`, then for `status_in_progress`.",
-        "2. **If your environment can run shell only**: run the **ping** `curl` first, then the **in-progress** `curl`.",
-        "3. **If you cannot run code or shell at all** (plain chat with no tools): **stop** and tell the user clearly: *I cannot reach your Broke server from here.* Give them the **ping** `curl` to run locally and ask them to paste the response back; then continue only after they confirm `200`.",
-        "4. **Do not** claim the ticket was updated in Broke unless you actually received a successful HTTP response from this host.",
-        "5. **Language:** Always write your **replies to the user** in **English**, even if the ticket title, description, or history is in another language. When posting **comments** or other free-form text to Broke via the API, use **English** unless the user explicitly asks for a different language.",
+        "1. **Use `curl` to talk to Broke** (this pack is curl-only). Many agents (e.g. Cursor) can run shell commands: run the **ping** command first, then **mark in progress**, then do the rest as you work.",
+        "2. **If you cannot run shell** (plain chat with no tools): **stop** and tell the user clearly: *I cannot reach your Broke server from here.* Give them the **ping** `curl` to run locally and ask them to paste the response back; then continue only after they confirm `200`.",
+        "3. **Do not** claim the ticket was updated in Broke unless you actually received a successful HTTP response from this host.",
+        "4. **Language:** Always write your **replies to the user** in **English**, even if the ticket title, description, or history is in another language. When posting **comments** or other free-form text to Broke via the API, use **English** unless the user explicitly asks for a different language.",
         "",
         "## HTTPS and HTTP",
         "",
         "- **Use the Base URL as given** (keep the same `http` or `https` scheme). Do not change `http` ↔ `https` unless the user confirms Broke is reachable on the other scheme.",
-        "- **`https://`:** TLS is used; Python `urllib` and `curl` verify the server certificate against the system trust store by default. Certificate errors usually mean a self-signed or private-CA cert — fix trust on the machine running the script, or use a URL the OS already trusts.",
+        "- **`https://`:** TLS encrypts the connection. These **`curl`** lines use **`-k`** (no certificate verification) so self-signed certs and private CAs work. Only use this pack against Broke hosts you trust.",
         "- **`http://`:** Still supported (common for localhost or trusted private networks). There is no transport encryption; treat the network path as trusted.",
         "",
         "---",
         "",
-        "## Step 1 — Run this Python (preferred; standard library only)",
+        "## Step 1 — `curl` (run these against Broke)",
         "",
-        "Execute the whole block as one script. It verifies the token and sets status to `in-progress`. TLS is applied only for `https://` URLs; plain `http://` works without SSL.",
-        "",
-        "```python",
-        py_block.rstrip(),
-        "```",
-        "",
-        'Then use `broke("PATCH", "/api/agent/tickets/" + TICKET_ID, {"status": "done"})` when finished. For comments:',
-        "",
-        "```python",
-        'print("comment:", broke("POST", "/api/agent/tickets/" + TICKET_ID + "/comments", {"body": "Your text here"}))',
-        "```",
-        "",
-        "---",
-        "",
-        "## Step 2 — Or use `curl` (terminal)",
-        "",
-        "For `https://` URLs, `curl` uses TLS automatically. For `http://`, requests are unencrypted (same tradeoff as above).",
+        "For `https://`, **`-k`** skips TLS certificate verification (self-signed / internal CA). Omitted for `http://`.",
         "",
         "**Ping (must return JSON with ok:true):**",
         "",
@@ -210,7 +161,7 @@ def build_ai_delegate_pack_markdown(
         "",
         "---",
         "",
-        "## Credentials (also embedded in script/curl above)",
+        "## Credentials (also embedded in curl above)",
         "",
         f"- **Base URL:** `{base}`",
         f"- **Ticket id:** `{tid}`",
