@@ -41,7 +41,7 @@ def _(auth_client=auth_client, test_ticket=test_ticket):
         assert "YOUR_TOKEN" not in text
         # Bearer appears as code line and inside curl
         assert "Authorization: Bearer" in text
-        assert "Step 1 — `curl`" in text
+        assert "Updating this ticket (HTTP API)" in text
 
         m = re.search(r"-H 'Authorization: Bearer ([^']+)'", text)
         assert m

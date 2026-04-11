@@ -215,6 +215,47 @@ def api_patch_work_cycle(user: User, cycle_id: int):
     return jsonify({"cycle": _cycle_dict(cycle)}), 200
 
 
+@work_cycles_bp.route("/api/work-cycles/<int:cycle_id>/backlog-tickets", methods=["GET"])
+@protected
+def api_work_cycle_backlog_tickets(user: User, cycle_id: int):
+    """Active tickets not assigned to any sprint (for add-to-sprint UI)."""
+    cycle = WorkCycle.get_or_none(WorkCycle.id == cycle_id)
+    if not cycle:
+        return jsonify({"error": "Work cycle not found"}), 404
+
+    try:
+        limit = int(request.args.get("limit", 200))
+    except ValueError:
+        limit = 200
+    limit = max(1, min(limit, 300))
+
+    q = request.args.get("q", "").strip()
+    cond = (Ticket.active == 1) & (Ticket.work_cycle_id.is_null())
+    if q:
+        cond = cond & ((Ticket.id.contains(q)) | (Ticket.title.contains(q)))
+
+    rows = list(
+        Ticket.select()
+        .where(cond)
+        .order_by(Ticket.created_at.desc())
+        .limit(limit + 1)
+    )
+    truncated = len(rows) > limit
+    rows = rows[:limit]
+
+    tickets = [
+        {
+            "id": t.id,
+            "title": t.title,
+            "project": t.project,
+            "status": t.status,
+            "priority": t.priority,
+        }
+        for t in rows
+    ]
+    return jsonify({"tickets": tickets, "truncated": truncated}), 200
+
+
 @work_cycles_bp.route("/api/work-cycles/<int:cycle_id>/tickets", methods=["POST"])
 @protected
 def api_work_cycle_modify_tickets(user: User, cycle_id: int):

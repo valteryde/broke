@@ -5,10 +5,12 @@
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/work_cycle_diagram.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
-    <style>
+        <style>
         .wc-cycle-tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
         details.settings-card > summary { list-style: none; }
         details.settings-card > summary::-webkit-details-marker { display: none; }
+        details.wc-backlog-details > summary { list-style: none; }
+        details.wc-backlog-details > summary::-webkit-details-marker { display: none; }
     </style>
 {% endblock %}
 
@@ -29,11 +31,22 @@
 <div class="settings-card" style="margin-bottom: 1rem;">
     <div class="card-section">
         <h3 style="margin-top:0;"><i class="ph ph-magnifying-glass"></i> Add tickets to this sprint</h3>
-        <p class="card-description">Search by ticket id or title (any project). Click a result to add it.</p>
+        <p class="card-description">Search by ticket id or title (any project). Open <strong>Browse backlog</strong> below to list every ticket not already in a sprint; the same search box filters that list.</p>
         <div class="form-group" style="margin-bottom:8px;">
             <input type="search" id="wc-ticket-search" class="form-input" placeholder="Search tickets…" autocomplete="off">
         </div>
         <div id="wc-search-results" class="wc-search-results" aria-live="polite"></div>
+        <details id="wc-backlog-details" class="wc-backlog-details" style="margin-top: 12px;">
+            <summary class="wc-backlog-summary" style="cursor: pointer; list-style: none; font-weight: 600; user-select: none;">
+                <span class="wc-backlog-caret" aria-hidden="true">▸</span>
+                Browse backlog
+                <span id="wc-backlog-count" class="card-description" style="font-weight: 400; margin-left: 6px;"></span>
+            </summary>
+            <div class="wc-backlog-body" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ccc;">
+                <p class="card-description" style="margin: 0 0 8px 0;">Tickets not in any sprint. Type above to narrow this list.</p>
+                <div id="wc-backlog-list" class="wc-search-results" aria-live="polite"></div>
+            </div>
+        </details>
     </div>
 </div>
 
@@ -135,6 +148,43 @@
     let searchTimer = null;
     const searchInput = document.getElementById('wc-ticket-search');
     const searchResults = document.getElementById('wc-search-results');
+    const backlogDetails = document.getElementById('wc-backlog-details');
+    const backlogList = document.getElementById('wc-backlog-list');
+    const backlogCountEl = document.getElementById('wc-backlog-count');
+    let backlogRows = null;
+    let backlogTruncated = false;
+    let backlogLoadPromise = null;
+
+    function appendHitButton(container, r) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'wc-search-hit';
+        btn.dataset.id = r.id;
+        const idSpan = document.createElement('span');
+        idSpan.className = 'wc-search-hit-id';
+        idSpan.textContent = r.id;
+        const meta = document.createElement('span');
+        meta.className = 'wc-search-hit-meta';
+        meta.textContent = r.project || '';
+        const title = document.createElement('span');
+        title.className = 'wc-search-hit-title';
+        title.textContent = r.title || '';
+        btn.appendChild(idSpan);
+        btn.appendChild(meta);
+        btn.appendChild(title);
+        btn.addEventListener('click', async function () {
+            const tid = btn.dataset.id;
+            const res = await postTickets({ add: [tid] });
+            const data = await res.json().catch(function () { return {}; });
+            if (!res.ok) {
+                alert(data.error || 'Could not add ticket');
+                return;
+            }
+            if (window.showToast) showToast('Added to sprint', 'success');
+            location.reload();
+        });
+        container.appendChild(btn);
+    }
 
     function renderSearchResults(rows) {
         if (!searchResults) return;
@@ -147,53 +197,112 @@
             searchResults.appendChild(p);
             return;
         }
-        rows.forEach(function (r) {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'wc-search-hit';
-            btn.dataset.id = r.id;
-            const idSpan = document.createElement('span');
-            idSpan.className = 'wc-search-hit-id';
-            idSpan.textContent = r.id;
-            const meta = document.createElement('span');
-            meta.className = 'wc-search-hit-meta';
-            meta.textContent = r.project || '';
-            const title = document.createElement('span');
-            title.className = 'wc-search-hit-title';
-            title.textContent = r.title || '';
-            btn.appendChild(idSpan);
-            btn.appendChild(meta);
-            btn.appendChild(title);
-            btn.addEventListener('click', async function () {
-                const tid = btn.dataset.id;
-                const res = await postTickets({ add: [tid] });
-                const data = await res.json().catch(function () { return {}; });
-                if (!res.ok) {
-                    alert(data.error || 'Could not add ticket');
-                    return;
-                }
-                if (window.showToast) showToast('Added to sprint', 'success');
-                location.reload();
-            });
-            searchResults.appendChild(btn);
-        });
+        rows.forEach(function (r) { appendHitButton(searchResults, r); });
     }
+
+    function backlogFilterQuery() {
+        const q = (searchInput && searchInput.value) ? searchInput.value.trim().toLowerCase() : '';
+        return q;
+    }
+
+    function renderBacklogList() {
+        if (!backlogList || backlogRows === null) return;
+        backlogList.textContent = '';
+        const q = backlogFilterQuery();
+        const rows = !q
+            ? backlogRows
+            : backlogRows.filter(function (r) {
+                const id = String(r.id || '').toLowerCase();
+                const title = String(r.title || '').toLowerCase();
+                return id.includes(q) || title.includes(q);
+            });
+        if (!rows.length) {
+            const p = document.createElement('p');
+            p.className = 'card-description';
+            p.style.margin = '0';
+            p.textContent = backlogRows.length ? 'No backlog tickets match your search.' : 'No tickets are outside a sprint right now.';
+            backlogList.appendChild(p);
+            return;
+        }
+        rows.forEach(function (r) { appendHitButton(backlogList, r); });
+        if (backlogTruncated) {
+            const note = document.createElement('p');
+            note.className = 'card-description';
+            note.style.margin = '8px 0 0 0';
+            note.textContent = 'Oldest unscheduled tickets may be omitted (list is capped).';
+            backlogList.appendChild(note);
+        }
+    }
+
+    function updateBacklogCountLabel() {
+        if (!backlogCountEl) return;
+        if (backlogRows === null) {
+            backlogCountEl.textContent = '';
+            return;
+        }
+        const n = backlogRows.length;
+        const extra = backlogTruncated ? '+' : '';
+        backlogCountEl.textContent = '(' + n + extra + ' unscheduled)';
+    }
+
+    async function ensureBacklogLoaded() {
+        if (backlogRows !== null) return;
+        if (backlogLoadPromise) return backlogLoadPromise;
+        backlogLoadPromise = fetch('/api/work-cycles/' + cycleId + '/backlog-tickets?limit=250', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        }).then(async function (r) {
+            const data = await r.json().catch(function () { return {}; });
+            if (!r.ok) {
+                throw new Error(data.error || 'Could not load backlog');
+            }
+            backlogRows = data.tickets || [];
+            backlogTruncated = !!data.truncated;
+        }).finally(function () {
+            backlogLoadPromise = null;
+        });
+        return backlogLoadPromise;
+    }
+
+    backlogDetails?.addEventListener('toggle', async function () {
+        const caret = this.querySelector('.wc-backlog-caret');
+        if (caret) caret.textContent = this.open ? '▾' : '▸';
+        if (!this.open) return;
+        try {
+            await ensureBacklogLoaded();
+            updateBacklogCountLabel();
+            renderBacklogList();
+        } catch (e) {
+            if (backlogList) {
+                backlogList.textContent = '';
+                const p = document.createElement('p');
+                p.className = 'card-description';
+                p.style.margin = '0';
+                p.style.color = 'var(--danger-red, #c00)';
+                p.textContent = e.message || 'Load failed';
+                backlogList.appendChild(p);
+            }
+        }
+    });
 
     searchInput?.addEventListener('input', function () {
         const q = searchInput.value.trim();
         clearTimeout(searchTimer);
         if (q.length < 2) {
             if (searchResults) searchResults.innerHTML = '';
-            return;
+        } else {
+            searchTimer = setTimeout(async function () {
+                const r = await fetch('/api/search?q=' + encodeURIComponent(q) + '&limit=20', {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await r.json().catch(function () { return {}; });
+                renderSearchResults(data.results || []);
+            }, 200);
         }
-        searchTimer = setTimeout(async function () {
-            const r = await fetch('/api/search?q=' + encodeURIComponent(q) + '&limit=20', {
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
-            });
-            const data = await r.json().catch(function () { return {}; });
-            renderSearchResults(data.results || []);
-        }, 200);
+        if (backlogDetails && backlogDetails.open && backlogRows !== null) {
+            renderBacklogList();
+        }
     });
 
     document.querySelectorAll('.wc-diagram-remove').forEach(function (btn) {
