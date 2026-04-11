@@ -699,6 +699,128 @@
     margin: 0.5em 0;
 }
 
+/* Agent comments: GFM/markdown, typography kept comment-sized */
+.ticket-comment-text--markdown h1,
+.ticket-comment-text--markdown h2,
+.ticket-comment-text--markdown h3,
+.ticket-comment-text--markdown h4,
+.ticket-comment-text--markdown h5,
+.ticket-comment-text--markdown h6 {
+    font-size: 0.95em;
+    font-weight: 600;
+    line-height: 1.45;
+    margin: 0.65em 0 0.35em;
+    color: inherit;
+}
+
+.ticket-comment-text--markdown h1:first-child,
+.ticket-comment-text--markdown h2:first-child,
+.ticket-comment-text--markdown h3:first-child {
+    margin-top: 0;
+}
+
+.ticket-comment-text--markdown ul,
+.ticket-comment-text--markdown ol {
+    margin: 0.35em 0;
+    padding-left: 1.35em;
+}
+
+.ticket-comment-text--markdown li {
+    margin: 0.15em 0;
+}
+
+.ticket-comment-text--markdown blockquote {
+    margin: 0.5em 0;
+    padding: 0.15em 0 0.15em 0.75em;
+    border-left: 3px solid var(--bg-gray, #e5e5e5);
+    color: #555;
+}
+
+.ticket-comment-text--markdown a {
+    color: var(--logo-blue);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.ticket-comment-text--markdown hr {
+    border: none;
+    border-top: 1px solid var(--bg-gray, #e5e5e5);
+    margin: 0.75em 0;
+}
+
+.ticket-comment-text--markdown table {
+    font-size: 0.88em;
+    border-collapse: collapse;
+    margin: 0.5em 0;
+    max-width: 100%;
+}
+
+.ticket-comment-text--markdown th,
+.ticket-comment-text--markdown td {
+    border: 1px solid var(--bg-gray, #e5e5e5);
+    padding: 4px 8px;
+    text-align: left;
+}
+
+.ticket-comment-text--markdown img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    vertical-align: middle;
+}
+
+/* User comments: HTML from Quill (sanitized); mirror common Quill layout helpers */
+.ticket-comment-text--quill .ql-align-center {
+    text-align: center;
+}
+
+.ticket-comment-text--quill .ql-align-right {
+    text-align: right;
+}
+
+.ticket-comment-text--quill .ql-align-justify {
+    text-align: justify;
+}
+
+.ticket-comment-text--quill .ql-indent-1:not(.ql-direction-rtl) {
+    padding-left: 3em;
+}
+
+.ticket-comment-text--quill .ql-indent-2:not(.ql-direction-rtl) {
+    padding-left: 6em;
+}
+
+.ticket-comment-text--quill .ql-indent-3:not(.ql-direction-rtl) {
+    padding-left: 9em;
+}
+
+.ticket-comment-text--quill .ql-indent-4:not(.ql-direction-rtl) {
+    padding-left: 12em;
+}
+
+.ticket-comment-text--quill .ql-indent-5:not(.ql-direction-rtl) {
+    padding-left: 15em;
+}
+
+.ticket-comment-text--quill .ql-indent-6:not(.ql-direction-rtl) {
+    padding-left: 18em;
+}
+
+.ticket-comment-text--quill .ql-indent-7:not(.ql-direction-rtl) {
+    padding-left: 21em;
+}
+
+.ticket-comment-text--quill .ql-indent-8:not(.ql-direction-rtl) {
+    padding-left: 24em;
+}
+
+.ticket-comment-text--quill .ql-syntax {
+    background-color: #23241f;
+    color: #f8f8f2;
+    overflow: visible;
+    border-radius: 4px;
+}
+
 /* Comment actions */
 .ticket-comment-actions {
     display: flex;

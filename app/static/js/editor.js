@@ -31,6 +31,29 @@
 
 // StatusConfig, StatusList, PriorityConfig, PriorityList are now loaded from config.js
 
+/** Allowed tags after markdown → HTML for agent comments (DOMPurify). */
+const AGENT_COMMENT_MD_PURIFY = {
+    ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'em', 'b', 'i', 'del', 'ins', 'code', 'pre', 'ul', 'ol', 'li',
+        'a', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img'
+    ],
+    ALLOWED_ATTR: ['href', 'title', 'colspan', 'rowspan', 'src', 'alt', 'align']
+};
+
+/** Sanitized Quill comment HTML (toolbar-less editor still uses these tags/classes). */
+const USER_COMMENT_HTML_PURIFY = {
+    ALLOWED_TAGS: [
+        'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'blockquote', 'ol', 'ul', 'li', 'a', 'img', 'pre', 'code', 'span'
+    ],
+    ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'width', 'height', 'alt', 'class', 'spellcheck'],
+    ADD_ATTR: ['data-list']
+};
+
+let ticketEditorMarkedConfigured = false;
+
 class TicketEditor {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
@@ -425,7 +448,7 @@ class TicketEditor {
                         <span class="ticket-activity-time">${this.formatRelativeTime(comment.createdAt)}</span>
                     </div>
                     <div class="ticket-comment-body">
-                        <div class="ticket-comment-text">${this.escapeHtml(String(comment.content ?? ''))}</div>
+                        <div class="ticket-comment-text${viaAgent ? ' ticket-comment-text--markdown' : ' ticket-comment-text--quill'}">${this.renderCommentInnerHtml(comment)}</div>
                         <!--
                         ${isOwn ? `
                             <div class="ticket-comment-actions">
@@ -1109,6 +1132,46 @@ class TicketEditor {
     }
 
     // Utility methods
+    /**
+     * Comment body: agent → markdown (marked + DOMPurify); user → Quill HTML (DOMPurify only).
+     */
+    renderCommentInnerHtml(comment) {
+        const raw = comment.content == null ? '' : String(comment.content);
+        if (comment.viaAgent) {
+            return this.agentMarkdownToSafeHtml(raw);
+        }
+        return this.userQuillHtmlToSafeHtml(raw);
+    }
+
+    userQuillHtmlToSafeHtml(html) {
+        const raw = String(html ?? '');
+        if (!raw.trim()) {
+            return '';
+        }
+        if (typeof DOMPurify === 'undefined') {
+            return this.escapeHtml(raw);
+        }
+        return DOMPurify.sanitize(raw, USER_COMMENT_HTML_PURIFY);
+    }
+
+    agentMarkdownToSafeHtml(markdown) {
+        const text = String(markdown ?? '');
+        if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+            return this.escapeHtml(text).replace(/\n/g, '<br>');
+        }
+        try {
+            if (!ticketEditorMarkedConfigured && typeof marked.setOptions === 'function') {
+                marked.setOptions({ gfm: true, breaks: true });
+                ticketEditorMarkedConfigured = true;
+            }
+            const dirty = marked.parse(text);
+            return DOMPurify.sanitize(dirty, AGENT_COMMENT_MD_PURIFY);
+        } catch (e) {
+            console.warn('Comment markdown render failed', e);
+            return this.escapeHtml(text).replace(/\n/g, '<br>');
+        }
+    }
+
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text == null ? '' : String(text);
