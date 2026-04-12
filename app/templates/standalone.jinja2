@@ -56,9 +56,24 @@
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
 
     <script>
-        window.BROKE_CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
-
         (function () {
+            function readBrokeCsrfCookie() {
+                var parts = ('; ' + document.cookie).split('; broke_csrf=');
+                if (parts.length < 2) return '';
+                var raw = (parts.pop() || '').split(';')[0] || '';
+                try {
+                    return decodeURIComponent(raw).trim();
+                } catch (e) {
+                    return raw.trim();
+                }
+            }
+
+            function metaCsrf() {
+                return String(document.querySelector('meta[name="csrf-token"]')?.content || '').trim();
+            }
+
+            window.BROKE_CSRF_TOKEN = readBrokeCsrfCookie() || metaCsrf();
+
             if (!window.fetch) return;
 
             const originalFetch = window.fetch.bind(window);
@@ -68,13 +83,16 @@
 
                 if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
                     const headers = new Headers(opts.headers || {});
-                    if (!headers.has('X-CSRF-Token') && window.BROKE_CSRF_TOKEN) {
-                        headers.set('X-CSRF-Token', window.BROKE_CSRF_TOKEN);
+                    var headerToken = (headers.get('X-CSRF-Token') || '').trim();
+                    var token = readBrokeCsrfCookie() || metaCsrf() || String(window.BROKE_CSRF_TOKEN || '').trim();
+                    if (token && !headerToken) {
+                        headers.set('X-CSRF-Token', token);
+                        window.BROKE_CSRF_TOKEN = token;
                     }
                     opts.headers = headers;
                 }
 
-                return originalFetch(input, opts);
+                return originalFetch(input, init ? opts : init);
             };
         })();
     </script>
