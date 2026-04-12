@@ -16,7 +16,7 @@
 
     {# ── Left Main Panel (The Editor) ── #}
     <div class="cl-main">
-        
+
         {# Top Action Bar #}
         <div class="cl-action-bar">
             <div class="cl-action-left">
@@ -31,7 +31,7 @@
                 </span>
                 {% endif %}
             </div>
-            
+
             <div class="cl-action-right">
                 {% if ai_enabled %}
                 <button id="generateBtn" class="btn btn-ai" onclick="generateChangelog()" title="Generate summaries for all selected tickets">
@@ -50,11 +50,11 @@
         {# The Paper Card #}
         <div class="cl-paper">
             <div class="cl-paper-header">
-                <input 
-                    type="text" 
-                    id="releaseTitle" 
-                    class="cl-title-input" 
-                    placeholder="Release title (e.g. March Update)" 
+                <input
+                    type="text"
+                    id="releaseTitle"
+                    class="cl-title-input"
+                    placeholder="Release title (e.g. March Update)"
                     value="{{ release.title if release and release.title else '' }}"
                 >
                 <div class="cl-version-row">
@@ -103,6 +103,22 @@
                 </label>
             </div>
             <p id="poolSubtitle">Completed since last release</p>
+            {% if work_cycles %}
+            <div class="cl-sprint-import">
+                <label class="cl-sprint-import-label" for="clSprintImportSelect">From sprint</label>
+                <div class="cl-sprint-import-row">
+                    <select id="clSprintImportSelect" class="form-input cl-sprint-import-select">
+                        <option value="">Choose sprint…</option>
+                        {% for wc in work_cycles %}
+                        <option value="{{ wc.id }}">{{ wc.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-secondary btn-sm cl-sprint-import-btn" id="clAddSprintDonesBtn" onclick="addSprintDoneTickets()" title="Add every Done, Closed, or Duplicate ticket on this sprint to Included Changes">
+                        Add dones
+                    </button>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <div class="cl-ticket-list" id="ticketPoolList">
@@ -169,7 +185,7 @@
             // Fallback
         }
         {% endif %}
-        
+
         checkEmptyState();
     });
 
@@ -187,7 +203,7 @@
     function toggleTicket(el) {
         const id = el.dataset.id;
         const title = el.dataset.title;
-        
+
         if (el.classList.contains('selected')) {
             el.classList.remove('selected');
             removeEntryRow(`entry-${id}`, null);
@@ -206,10 +222,10 @@
             const selected = cat.value === currentCategory ? 'selected' : '';
             optionsHtml += `<option value="${cat.value}" ${selected}>${cat.label}</option>`;
         });
-        
+
         // Use color for dot based on category
         const selectedCat = CATEGORIES.find(c => c.value === currentCategory) || CATEGORIES[1];
-        
+
         return `
             <div class="cl-category-wrapper" style="--cat-color: ${selectedCat.color}">
                 <select class="cl-category-select" onchange="updateEntryCategory(this)">
@@ -223,15 +239,15 @@
     function addEntryToList(text, ticketId, category = 'changed') {
         const container = document.getElementById('includedEntries');
         const entryId = ticketId ? `entry-${ticketId}` : `entry-manual-${++manualEntryCount}`;
-        
+
         const row = document.createElement('div');
         row.className = 'cl-entry-row';
         row.id = entryId;
         row.dataset.ticketId = ticketId || '';
         row.dataset.category = category;
 
-        const badgeHtml = ticketId 
-            ? `<div class="cl-entry-badge">${escapeHtml(ticketId)}</div>` 
+        const badgeHtml = ticketId
+            ? `<div class="cl-entry-badge">${escapeHtml(ticketId)}</div>`
             : `<div class="cl-entry-badge manual">Manual</div>`;
 
         row.innerHTML = `
@@ -248,20 +264,20 @@
                 <i class="ph ph-trash"></i>
             </button>
         `;
-        
+
         // Animation in
         row.style.opacity = '0';
         row.style.transform = 'translateY(10px)';
         container.appendChild(row);
-        
+
         // Trigger reflow
         void row.offsetWidth;
-        
+
         row.style.opacity = '1';
         row.style.transform = 'translateY(0)';
-        
+
         checkEmptyState();
-        
+
         // Focus if manual
         if (!ticketId) {
             setTimeout(() => row.querySelector('.cl-entry-input').focus(), 50);
@@ -289,7 +305,7 @@
         const showAll = toggle.checked;
         const listDiv = document.getElementById('ticketPoolList');
         const subtitle = document.getElementById('poolSubtitle');
-        
+
         // Update UI
         subtitle.innerText = showAll ? "All completed tickets" : "Completed since last release";
         listDiv.style.opacity = '0.5';
@@ -299,7 +315,7 @@
                 method: 'GET',
             });
             const data = await res.json();
-            
+
             if (res.ok && data.success) {
                 renderTicketPool(data.tickets);
             } else {
@@ -310,6 +326,32 @@
         } finally {
             listDiv.style.opacity = '1';
         }
+    }
+
+    function clearPoolEmptyState() {
+        const listDiv = document.getElementById('ticketPoolList');
+        const empty = listDiv.querySelector('.cl-sidebar-empty');
+        if (empty) empty.remove();
+    }
+
+    function appendTicketCardToPool(ticket, selectedClass) {
+        const listDiv = document.getElementById('ticketPoolList');
+        clearPoolEmptyState();
+        const isSelected = selectedClass || (selectedTickets[ticket.id] ? 'selected' : '');
+        const html = `
+            <div class="cl-ticket-card ${isSelected}" id="ticket-${ticket.id}" data-id="${ticket.id}" data-title="${escapeHtml(ticket.title)}" onclick="toggleTicket(this)">
+                <div class="cl-ticket-checkbox">
+                    <i class="ph ph-check"></i>
+                </div>
+                <div class="cl-ticket-content">
+                    <div class="cl-ticket-tag">${escapeHtml(ticket.id)}</div>
+                    <div class="cl-ticket-desc">${escapeHtml(ticket.title)}</div>
+                </div>
+            </div>
+        `;
+        const temp = document.createElement('div');
+        temp.innerHTML = html.trim();
+        listDiv.appendChild(temp.firstChild);
     }
 
     function renderTicketPool(tickets) {
@@ -327,24 +369,64 @@
             return;
         }
 
-        tickets.forEach(t => {
-            const isSelected = selectedTickets[t.id] ? 'selected' : '';
-            const html = `
-                <div class="cl-ticket-card ${isSelected}" id="ticket-${t.id}" data-id="${t.id}" data-title="${escapeHtml(t.title)}" onclick="toggleTicket(this)">
-                    <div class="cl-ticket-checkbox">
-                        <i class="ph ph-check"></i>
-                    </div>
-                    <div class="cl-ticket-content">
-                        <div class="cl-ticket-tag">${escapeHtml(t.id)}</div>
-                        <div class="cl-ticket-desc">${escapeHtml(t.title)}</div>
-                    </div>
-                </div>
-            `;
-            // Append
-            const temp = document.createElement('div');
-            temp.innerHTML = html.trim();
-            listDiv.appendChild(temp.firstChild);
-        });
+        tickets.forEach(t => appendTicketCardToPool(t));
+    }
+
+    async function addSprintDoneTickets() {
+        const select = document.getElementById('clSprintImportSelect');
+        const btn = document.getElementById('clAddSprintDonesBtn');
+        if (!select || !btn) return;
+
+        const cycleId = select.value.trim();
+        if (!cycleId) {
+            showToast('Choose a sprint first.', 'warning');
+            return;
+        }
+
+        const og = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i>';
+
+        try {
+            const res = await fetch(`/api/changelog/work-cycles/${cycleId}/done-tickets`, { method: 'GET' });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showToast(data.error || 'Could not load sprint tickets.', 'error');
+                return;
+            }
+
+            const tickets = data.tickets || [];
+            if (tickets.length === 0) {
+                showToast('No done tickets on that sprint.', 'info');
+                return;
+            }
+
+            let added = 0;
+            for (const t of tickets) {
+                if (selectedTickets[t.id]) continue;
+                selectedTickets[t.id] = { title: t.title, category: 'changed' };
+                addEntryToList(t.title, t.id, 'changed');
+                if (!document.getElementById(`ticket-${t.id}`)) {
+                    appendTicketCardToPool(t, 'selected');
+                } else {
+                    document.getElementById(`ticket-${t.id}`).classList.add('selected');
+                }
+                added++;
+            }
+
+            if (added === 0) {
+                showToast('Those tickets are already in this release.', 'info');
+            } else {
+                const label = data.cycle_name ? `"${data.cycle_name}"` : 'sprint';
+                showToast(`Added ${added} done ticket${added === 1 ? '' : 's'} from ${label}.`, 'success');
+            }
+        } catch (e) {
+            showToast('Network error while loading sprint.', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = og;
+        }
     }
 
     // ── Update category on an entry ──
@@ -355,7 +437,7 @@
         if (ticketId && selectedTickets[ticketId]) {
             selectedTickets[ticketId].category = selectEl.value;
         }
-        
+
         // Update color dot
         const selectedCat = CATEGORIES.find(c => c.value === selectEl.value);
         if (selectedCat) {
@@ -396,7 +478,7 @@
     async function generateChangelog() {
         const btn = document.getElementById('generateBtn');
         const entries = document.querySelectorAll('.cl-entry-row');
-        
+
         if (entries.length === 0) {
             showToast('Select some tickets from the sidebar first.', 'warning');
             return;
@@ -421,7 +503,7 @@
         const ogText = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Analyzing tickets...';
-        
+
         // Visual loading state on entries
         entries.forEach(row => {
             if (row.dataset.ticketId) {

@@ -9,6 +9,7 @@ from ..utils.models import (
     Ticket,
     ChangelogRelease,
     UserTicketJoin,
+    WorkCycle,
 )
 from flask import render_template, request, jsonify, Blueprint, redirect, url_for
 from ..utils.ai_changelog import is_ai_enabled, generate_full_changelog, get_ai_config
@@ -19,6 +20,9 @@ import json
 changelog_bp = Blueprint("changelog", __name__)
 
 VALID_CATEGORIES = ["new", "changed", "fixed"]
+
+# Matches sprint board “Done” lane in work_cycles (done / closed / duplicate).
+SPRINT_DONE_STATUSES = ("done", "closed", "duplicate")
 
 
 def _get_current_user_or_none():
@@ -67,14 +71,14 @@ def _get_last_published_timestamp():
 def _get_available_tickets(since_timestamp=0, limit=50):
     """Get tickets that were created or updated since a given timestamp."""
     from ..utils.models import TicketUpdateMessage, Comment
-    
+
     query = Ticket.select().where(Ticket.active == 1)
-    
+
     if since_timestamp > 0:
         # Get IDs of tickets that have recent updates or comments
         recent_updates = TicketUpdateMessage.select(TicketUpdateMessage.ticket).where(TicketUpdateMessage.created_at >= since_timestamp)
         recent_comments = Comment.select(Comment.ticket).where(Comment.created_at >= since_timestamp)
-        
+
         # Filter tickets to those created recently OR having recent updates/comments
         query = query.where(
             (Ticket.created_at >= since_timestamp) |
@@ -158,15 +162,16 @@ def changelog_new_view(user: User):
     since_ts = _get_last_published_timestamp()
     available_tickets = _get_available_tickets(since_ts)
 
+    work_cycles = list(WorkCycle.select().order_by(WorkCycle.created_at.desc()))
+
     return render_template(
         "changelog_editor.jinja2",
         user=user,
         page="changelog",
-
-
         release=None,
         available_tickets=available_tickets,
         ai_enabled=ai_enabled,
+        work_cycles=work_cycles,
     )
 
 
@@ -181,16 +186,16 @@ def changelog_edit_view(user: User, release_id: int):
     ai_enabled = is_ai_enabled()
     since_ts = _get_last_published_timestamp()
     available_tickets = _get_available_tickets(since_ts)
+    work_cycles = list(WorkCycle.select().order_by(WorkCycle.created_at.desc()))
 
     return render_template(
         "changelog_editor.jinja2",
         user=user,
         page="changelog",
-
-
         release=release,
         available_tickets=available_tickets,
         ai_enabled=ai_enabled,
+        work_cycles=work_cycles,
     )
 
 
@@ -215,6 +220,27 @@ def api_get_available_tickets(user: User):
         {"id": t.id, "title": t.title} for t in tickets
     ]
     return jsonify({"success": True, "tickets": result})
+
+
+@changelog_bp.route("/api/changelog/work-cycles/<int:cycle_id>/done-tickets", methods=["GET"])
+@protected
+def api_changelog_sprint_done_tickets(user: User, cycle_id: int):
+    """Tickets on a sprint in a finished state (done / closed / duplicate) for changelog import."""
+    cycle = WorkCycle.get_or_none(WorkCycle.id == cycle_id)
+    if not cycle:
+        return jsonify({"error": "Sprint not found"}), 404
+
+    rows = (
+        Ticket.select()
+        .where(
+            (Ticket.work_cycle_id == cycle_id)
+            & (Ticket.active == 1)
+            & (Ticket.status.in_(SPRINT_DONE_STATUSES))
+        )
+        .order_by(Ticket.created_at.asc())
+    )
+    tickets = [{"id": t.id, "title": t.title} for t in rows]
+    return jsonify({"success": True, "cycle_name": cycle.name, "tickets": tickets})
 
 
 @changelog_bp.route("/api/changelog/generate", methods=["POST"])

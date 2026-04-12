@@ -631,6 +631,40 @@
     color: #64748b;
 }
 
+.cl-sprint-import {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.cl-sprint-import-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+}
+
+.cl-sprint-import-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+.cl-sprint-import-select {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    padding: 0.4rem 0.5rem;
+}
+
+.cl-sprint-import-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .cl-ticket-list {
     flex: 1;
     overflow-y: auto;

@@ -1,7 +1,7 @@
 import json
 import time
 from ward import test
-from app.utils.models import Ticket, ChangelogRelease, GlobalSetting, Project
+from app.utils.models import Ticket, ChangelogRelease, GlobalSetting, Project, WorkCycle
 from tests.fixtures import auth_client, test_project, test_ticket, client
 
 
@@ -121,3 +121,47 @@ def _(client=auth_client, project=test_project):
         content_type="application/json"
     )
     assert response.status_code == 400
+
+
+@test("changelog API returns done sprint tickets only")
+def _(client=auth_client, project=test_project):
+    wc = WorkCycle.create(name="API sprint import", project=None, created_at=int(time.time()))
+    ts = int(time.time() * 1000)
+    tid_done = f"SPR-D-{ts}"
+    tid_todo = f"SPR-T-{ts}"
+    Ticket.create(
+        id=tid_done,
+        title="Shipped feature",
+        description="",
+        project=project.id,
+        status="done",
+        priority="medium",
+        work_cycle_id=wc.id,
+    )
+    Ticket.create(
+        id=tid_todo,
+        title="Still in progress",
+        description="",
+        project=project.id,
+        status="in-progress",
+        priority="medium",
+        work_cycle_id=wc.id,
+    )
+
+    try:
+        response = client.get(f"/api/changelog/work-cycles/{wc.id}/done-tickets")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["success"] is True
+        ids = [t["id"] for t in data["tickets"]]
+        assert tid_done in ids
+        assert tid_todo not in ids
+    finally:
+        Ticket.delete().where(Ticket.id.in_([tid_done, tid_todo])).execute()
+        wc.delete_instance()
+
+
+@test("changelog API 404 for unknown sprint done-tickets")
+def _(client=auth_client):
+    response = client.get("/api/changelog/work-cycles/999999999/done-tickets")
+    assert response.status_code == 404
