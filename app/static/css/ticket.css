@@ -864,6 +864,148 @@
     padding: 8px 0;
 }
 
+/* Ticket updates: markdown (webhooks, system) — same safe subset as agent comments */
+.ticket-update--markdown {
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: #374151;
+}
+
+.ticket-update--markdown p {
+    margin: 0 0 0.45em;
+}
+
+.ticket-update--markdown p:last-child {
+    margin-bottom: 0;
+}
+
+.ticket-update--markdown a {
+    color: var(--logo-blue);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.ticket-update--markdown a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.ticket-update--markdown blockquote {
+    margin: 0.55em 0 0;
+    padding: 0.5em 0.75em 0.55em;
+    border-left: 3px solid #c7d2fe;
+    border-radius: 0 6px 6px 0;
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.06) 0%, transparent 100%);
+    color: #1f2937;
+}
+
+.ticket-update--markdown blockquote p {
+    margin: 0;
+    font-size: 0.88rem;
+}
+
+/* Linked git commit (GitHub / Forgejo push) */
+.ticket-activity-item--commit .ticket-activity-author {
+    color: #4338ca;
+}
+
+.ticket-update--commit {
+    margin-top: 2px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.ticket-update--commit p:first-child {
+    font-size: 0.88rem;
+    color: #4b5563;
+}
+
+.ticket-update--commit p:first-child a {
+    display: inline-block;
+    margin: 0 2px;
+    padding: 2px 8px;
+    font-family: ui-monospace, 'Menlo', 'Monaco', monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #3730a3;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    vertical-align: baseline;
+}
+
+.ticket-update--commit p:first-child a:hover {
+    background: #e0e7ff;
+    border-color: #a5b4fc;
+    text-decoration: none;
+}
+
+.ticket-update--commit .ticket-commit-conv-type,
+.ticket-update-item-body--commit .ticket-commit-conv-type {
+    color: #4f46e5;
+    font-weight: 700;
+    font-size: 0.95em;
+    letter-spacing: 0.01em;
+}
+
+.update-icon--commit {
+    background: #eef2ff;
+    color: #4f46e5;
+}
+
+/* Collapsed update group: each row */
+.ticket-update-item-body--markdown {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #4b5563;
+}
+
+.ticket-update-item-body--markdown p {
+    margin: 0 0 0.35em;
+}
+
+.ticket-update-item-body--markdown p:last-child {
+    margin-bottom: 0;
+}
+
+.ticket-update-item-body--markdown a {
+    color: var(--logo-blue);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.ticket-update-item-body--markdown a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.ticket-update-item-body--commit p:first-child a {
+    display: inline-block;
+    padding: 1px 7px;
+    font-family: ui-monospace, 'Menlo', 'Monaco', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #3730a3;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+}
+
+.ticket-update-item-body--commit blockquote {
+    margin: 0.4em 0 0;
+    padding: 0.35em 0.5em;
+    border-left: 3px solid #c7d2fe;
+    border-radius: 0 4px 4px 0;
+    background: rgba(99, 102, 241, 0.06);
+    font-size: 0.82rem;
+}
+
 .ticket-update-field {
     font-weight: 500;
     color: #333;
@@ -1062,9 +1204,9 @@
 
 .ticket-update-item-row {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
-    padding: 4px 0;
+    padding: 6px 0;
     font-size: 0.85rem;
     color: #4b5563;
 }

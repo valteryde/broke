@@ -493,13 +493,18 @@ class TicketEditor {
                         </button>
                     </div>
                     <div class="ticket-update-group-items" id="${groupId}">
-                        ${group.items.map(item => `
+                        ${group.items.map(item => {
+                            const rowCommit = this.isCommitUpdate(item);
+                            const rowClass = rowCommit
+                                ? 'ticket-update-item-body ticket-update-item-body--markdown ticket-update-item-body--commit'
+                                : 'ticket-update-item-body ticket-update-item-body--markdown';
+                            return `
                             <div class="ticket-update-item-row">
                                 <i class="${this.escapeHtml(item.icon || 'ph ph-pencil')}"></i>
-                                <span>${this.escapeHtml(item.message)}</span>
+                                <div class="${rowClass}">${this.renderUpdateMessageHtml(item)}</div>
                                 <span class="update-time">${this.formatRelativeTime(item.createdAt)}</span>
-                            </div>
-                        `).join('')}
+                            </div>`;
+                        }).join('')}
                     </div>
                 </div>
             </div>
@@ -508,24 +513,49 @@ class TicketEditor {
 
     renderUpdate(update) {
         const agent = !!update.viaAgent;
+        const commit = this.isCommitUpdate(update);
+        const metaLabel = commit ? 'Commit' : agent ? 'Agent' : 'Update';
+        const updateClasses = commit
+            ? 'ticket-update ticket-update--markdown ticket-update--commit'
+            : 'ticket-update ticket-update--markdown';
+        const itemClass = commit ? 'ticket-activity-item ticket-activity-item--commit' : 'ticket-activity-item';
         return `
-            <div class="ticket-activity-item">
+            <div class="${itemClass}">
                 <div class="ticket-activity-avatar">
-                    <div class="update-icon">
+                    <div class="update-icon${commit ? ' update-icon--commit' : ''}">
                         <i class="${this.escapeHtml(update.icon || 'ph ph-pencil')}"></i>
                     </div>
                 </div>
                 <div class="ticket-activity-content">
                     <div class="ticket-activity-meta">
-                        <span class="ticket-activity-author">${agent ? 'Agent' : 'Update'}</span>
+                        <span class="ticket-activity-author">${metaLabel}</span>
                         <span class="ticket-activity-time">${this.formatRelativeTime(update.createdAt)}</span>
                     </div>
-                    <div class="ticket-update">
-                        ${this.escapeHtml(update.message)}
+                    <div class="${updateClasses}">
+                        ${this.renderUpdateMessageHtml(update)}
                     </div>
                 </div>
             </div>
         `;
+    }
+
+    isCommitUpdate(update) {
+        const icon = String(update.icon || '');
+        if (icon.includes('git-commit')) {
+            return true;
+        }
+        return /^Commit\s+\[/i.test(String(update.message || ''));
+    }
+
+    renderUpdateMessageHtml(update) {
+        let html = this.agentMarkdownToSafeHtml(update.message);
+        if (this.isCommitUpdate(update) && html.includes('<blockquote')) {
+            html = html.replace(
+                /(<blockquote[^>]*>\s*<p[^>]*>)\s*((?:feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)!?:\s*)/i,
+                '$1<span class="ticket-commit-conv-type">$2</span>'
+            );
+        }
+        return html;
     }
 
     renderNewComment() {
