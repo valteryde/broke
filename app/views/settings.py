@@ -97,7 +97,7 @@ def docs_agent_integration(user: User):
 def settings_section_view(user: User, section: str):  # noqa: C901
     """Render settings page for a specific section"""
 
-    admin_only_sections = {"email", "webhooks", "sentry", "ai"}
+    admin_only_sections = {"email", "webhooks", "sentry", "ai", "branding"}
     if section in admin_only_sections and user.admin != 1:
         flash("Unauthorized. Admins only.", "error")
         return redirect("/settings/profile")
@@ -121,6 +121,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         "anonymous": "Anonymous Access",
         "danger": "Danger Zone",
         "ai": "AI Integration",
+        "branding": "Branding",
     }
 
     section_title = section_titles.get(section, section.title())
@@ -368,6 +369,32 @@ def api_update_avatar(user: User):
         return json.dumps({"success": True}), 200
 
     return json.dumps({"error": "Invalid upload payload"}), 400
+
+
+@settings_bp.route("/api/settings/branding/logo", methods=["POST", "DELETE"])
+@protected
+def api_instance_branding_logo(user: User):
+    """Upload or remove workspace instance logo (admin only)."""
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
+    from ..utils.branding import clear_instance_logo_files, save_instance_logo_from_upload
+
+    if request.method == "DELETE":
+        clear_instance_logo_files()
+        return json.dumps({"success": True}), 200
+
+    if "logo" not in request.files:
+        return json.dumps({"error": "No file part"}), 400
+
+    file = request.files["logo"]
+    if file.filename == "":
+        return json.dumps({"error": "No selected file"}), 400
+
+    ok, message, status = save_instance_logo_from_upload(file)
+    if not ok:
+        return json.dumps({"error": message}), status
+    return json.dumps({"success": True}), 200
 
 
 @settings_bp.route("/api/settings/preferences", methods=["POST"])

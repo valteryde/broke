@@ -10,6 +10,7 @@ import uuid
 from urllib.parse import urlencode
 
 from ..utils.app import get_app_codename_from_toml, get_app_version_from_toml
+from ..utils.branding import DEFAULT_INSTANCE_LOGO_STATIC, resolve_instance_logo_path
 from ..utils.models import (
     DesktopHandshakeToken,
     DeviceToken,
@@ -142,13 +143,19 @@ def desktop_handshake():
 @desktop_bp.route("/api/desktop/bootstrap", methods=["GET"])
 def desktop_bootstrap_payload():
     base = _backend_url()
+    logo_path = resolve_instance_logo_path()
+    if logo_path:
+        v = int(logo_path.stat().st_mtime)
+        logo_url = f"{base}/branding/instance-logo?v={v}"
+    else:
+        logo_url = f"{base}/static/{DEFAULT_INSTANCE_LOGO_STATIC}"
     return jsonify(
         {
             "product": "broke",
             "instance_id": _get_or_create_instance_id(),
             "instance_name": f"Broke ({base})",
             "backend_url": base,
-            "logo_url": f"{base}/static/images/logo.svg",
+            "logo_url": logo_url,
             "handshake_url": f"{base}/api/desktop/handshake",
             "session_restore_url": f"{base}/api/desktop/session",
             "generated_at": int(time.time()),

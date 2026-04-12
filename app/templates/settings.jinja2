@@ -68,6 +68,11 @@
             <a href="/settings/team" class="settings-nav-item {% if section == 'team' %}active{% endif %}">
                 <i class="ph ph-users-three"></i>
                 <span>Team Members</span>
+            </a>
+            <a href="/settings/branding" class="settings-nav-item {% if section == 'branding' %}active{% endif %}">
+                <i class="ph ph-image"></i>
+                <span>Branding</span>
+            </a>
             <a href="/settings/labels" class="settings-nav-item {% if section == 'labels' %}active{% endif %}">
                 <i class="ph ph-tag"></i>
                 <span>Labels</span>
@@ -873,6 +878,67 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        {% elif section == 'branding' %}
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Branding</h1>
+                <p class="section-description">Customize the logo shown in the app header, login page, and desktop client</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Instance logo</h3>
+                    <p class="card-description">PNG, JPEG, or WebP, up to 5 MB. Shown to everyone, including logged-out visitors.</p>
+                    <div class="avatar-section" style="align-items: flex-start;">
+                        <div style="min-height: 80px; display: flex; align-items: center;">
+                            <img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}" style="max-height: 72px; max-width: 220px; object-fit: contain;" id="branding-logo-preview">
+                        </div>
+                        <div class="avatar-info">
+                            <div style="margin-top: 5px; display: flex; gap: 8px; flex-wrap: wrap;">
+                                <input type="file" id="branding-logo-upload" accept="image/png,image/jpeg,image/webp" style="display: none;" onchange="uploadInstanceLogo(this)">
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('branding-logo-upload').click()">Upload logo</button>
+                                <button type="button" class="btn btn-secondary" onclick="removeInstanceLogo()" {% if not has_custom_instance_logo %}disabled{% endif %}>
+                                    <i class="ph ph-trash"></i> Reset to default
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script>
+                function uploadInstanceLogo(input) {
+                    if (!input.files || !input.files[0]) return;
+                    const formData = new FormData();
+                    formData.append('logo', input.files[0]);
+                    fetch('/api/settings/branding/logo', { method: 'POST', body: formData })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                showToast('Logo updated', 'success');
+                                setTimeout(() => window.location.reload(), 600);
+                            } else {
+                                showToast(data.error || 'Failed to upload logo', 'error');
+                            }
+                        })
+                        .catch(() => showToast('Error uploading logo', 'error'));
+                    input.value = '';
+                }
+                function removeInstanceLogo() {
+                    fetch('/api/settings/branding/logo', { method: 'DELETE' })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                showToast('Logo reset', 'success');
+                                setTimeout(() => window.location.reload(), 600);
+                            } else {
+                                showToast(data.error || 'Failed to remove logo', 'error');
+                            }
+                        })
+                        .catch(() => showToast('Error removing logo', 'error'));
+                }
+            </script>
         </div>
 
         {% elif section == 'api' %}

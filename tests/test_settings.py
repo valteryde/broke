@@ -1,7 +1,7 @@
 """Tests for settings and configuration"""
 
 from ward import test
-from tests.fixtures import client, fake, test_project, auth_client, auth_user
+from tests.fixtures import app, client, fake, test_project, auth_client, auth_user
 import json
 import io
 import time
@@ -576,6 +576,12 @@ def _(c=auth_client):
     assert response.status_code == 302
 
 
+@test("Non-admin cannot access branding settings section")
+def _(c=auth_client):
+    response = c.get("/settings/branding", follow_redirects=False)
+    assert response.status_code == 302
+
+
 @test("Settings pages do not render raw SMTP password")
 def _(c=client, f=fake):
     admin_username = f"admin_sec_mail_{f.uuid4()[:8]}"
@@ -712,3 +718,140 @@ def _(c=client, f=fake):
     assert record is not None
     assert getattr(record, "token_hash", "")
     assert record.token != token_value
+
+
+@test("Admin can upload instance branding logo and anonymous GET succeeds")
+def _(app=app, f=fake):
+    from app.utils.branding import clear_instance_logo_files
+
+    clear_instance_logo_files()
+    admin_username = f"adlogo_{f.uuid4()[:8]}"
+    admin_email = f"adlogo_{int(time.time() * 1000000)}@example.com"
+    create_user(admin_username, "password123", admin_email, admin=1)
+
+    png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    with app.test_client() as ac:
+        assert ac.post(
+            "/callback",
+            data={"username": admin_username, "password": "password123"},
+            follow_redirects=False,
+        ).status_code in (302, 200)
+
+        up = ac.post(
+            "/api/settings/branding/logo",
+            data={"logo": (io.BytesIO(png_bytes), "logo.png", "image/png")},
+            content_type="multipart/form-data",
+        )
+        assert up.status_code == 200
+        assert json.loads(up.data).get("success") is True
+
+    with app.test_client() as anon:
+        r = anon.get("/branding/instance-logo")
+        assert r.status_code == 200
+        assert r.mimetype == "image/png"
+
+    clear_instance_logo_files()
+
+
+@test("Non-admin cannot upload instance branding logo")
+def _(app=app, f=fake):
+    from app.utils.branding import clear_instance_logo_files
+
+    clear_instance_logo_files()
+    username = f"memlogo_{f.uuid4()[:8]}"
+    email = f"memlogo_{int(time.time() * 1000000)}@example.com"
+    create_user(username, "password123", email, admin=0)
+
+    png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    with app.test_client() as tc:
+        assert tc.post(
+            "/callback",
+            data={"username": username, "password": "password123"},
+            follow_redirects=False,
+        ).status_code in (302, 200)
+
+        up = tc.post(
+            "/api/settings/branding/logo",
+            data={"logo": (io.BytesIO(png_bytes), "logo.png", "image/png")},
+            content_type="multipart/form-data",
+        )
+        assert up.status_code == 403
+
+    clear_instance_logo_files()
+
+
+@test("Admin can delete instance branding logo and public route returns 404")
+def _(app=app, f=fake):
+    from app.utils.branding import clear_instance_logo_files
+
+    clear_instance_logo_files()
+    admin_username = f"adlogodel_{f.uuid4()[:8]}"
+    admin_email = f"adlogodel_{int(time.time() * 1000000)}@example.com"
+    create_user(admin_username, "password123", admin_email, admin=1)
+
+    png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    with app.test_client() as ac:
+        assert ac.post(
+            "/callback",
+            data={"username": admin_username, "password": "password123"},
+            follow_redirects=False,
+        ).status_code in (302, 200)
+
+        assert (
+            ac.post(
+                "/api/settings/branding/logo",
+                data={"logo": (io.BytesIO(png_bytes), "logo.png", "image/png")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+        assert ac.get("/branding/instance-logo").status_code == 200
+
+        assert json.loads(ac.delete("/api/settings/branding/logo").data).get("success") is True
+        assert ac.get("/branding/instance-logo").status_code == 404
+
+    clear_instance_logo_files()
+
+
+@test("Desktop bootstrap logo_url uses branding path when custom logo set")
+def _(app=app, f=fake):
+    from app.utils.branding import clear_instance_logo_files
+
+    clear_instance_logo_files()
+    admin_username = f"adboot_{f.uuid4()[:8]}"
+    admin_email = f"adboot_{int(time.time() * 1000000)}@example.com"
+    create_user(admin_username, "password123", admin_email, admin=1)
+
+    png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    with app.test_client() as ac:
+        assert ac.post(
+            "/callback",
+            data={"username": admin_username, "password": "password123"},
+            follow_redirects=False,
+        ).status_code in (302, 200)
+        assert (
+            ac.post(
+                "/api/settings/branding/logo",
+                data={"logo": (io.BytesIO(png_bytes), "logo.png", "image/png")},
+                content_type="multipart/form-data",
+            ).status_code
+            == 200
+        )
+        boot = ac.get("/api/desktop/bootstrap")
+        assert boot.status_code == 200
+        body = json.loads(boot.data)
+        assert "/branding/instance-logo?v=" in body.get("logo_url", "")
+
+    clear_instance_logo_files()
+
+
+@test("Desktop bootstrap logo_url defaults to static when no custom logo")
+def _(app=app):
+    from app.utils.branding import clear_instance_logo_files
+
+    clear_instance_logo_files()
+    with app.test_client() as c:
+        boot = c.get("/api/desktop/bootstrap")
+        assert boot.status_code == 200
+        body = json.loads(boot.data)
+        assert "logov2_wo_bg.png" in body.get("logo_url", "")

@@ -40,7 +40,7 @@
         <button id="sb-toggle" class="sb-toggle-btn">
             <i class="ph ph-list"></i>
         </button>
-        <img src="{{ url_for('static', filename='images/logov2_wo_bg.png') }}" alt="Logo" class="mobile-logo">
+        <img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}" class="mobile-logo">
         <div class="mobile-actions">
             <!-- Space for other mobile-top actions if needed -->
         </div>
@@ -55,7 +55,7 @@
             #}
 
             {% if not is_desktop_client %}
-            <img src="{{ url_for('static', filename='images/logov2_wo_bg.png') }}" alt="Logo" class="sb-logo-icon">
+            <img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}" class="sb-logo-icon">
             {% endif %}
 
             <!-- <i class="ph ph-arrow-square-left"></i> -->

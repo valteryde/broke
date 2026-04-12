@@ -333,6 +333,28 @@ def create_app():  # noqa: C901
         is_desktop_client = "BrokeDesktop/" in user_agent
         return {"is_desktop_client": is_desktop_client}
 
+    @app.context_processor
+    def inject_instance_logo():
+        from flask import url_for
+
+        from .branding import DEFAULT_INSTANCE_LOGO_STATIC, resolve_instance_logo_path
+
+        p = resolve_instance_logo_path()
+        if p:
+            logo_url = url_for("branding_instance_logo", v=int(p.stat().st_mtime))
+            alt = "Organization logo"
+            custom = True
+        else:
+            logo_url = url_for("static", filename=DEFAULT_INSTANCE_LOGO_STATIC)
+            alt = "Broke"
+            custom = False
+
+        return {
+            "instance_logo_url": logo_url,
+            "has_custom_instance_logo": custom,
+            "instance_logo_alt": alt,
+        }
+
     # Register blueprints
     from ..views import (
         agent_bp,
@@ -380,6 +402,22 @@ def create_app():  # noqa: C901
     @app.route("/favicon.ico")
     def favicon():
         return app.send_static_file("images/favicon/favicon.ico")
+
+    @app.route("/branding/instance-logo", methods=["GET"])
+    def branding_instance_logo():
+        from flask import abort, send_file
+
+        from .branding import instance_logo_mimetype, resolve_instance_logo_path
+
+        path = resolve_instance_logo_path()
+        if not path:
+            abort(404)
+        return send_file(
+            path,
+            mimetype=instance_logo_mimetype(path),
+            max_age=86400,
+            conditional=True,
+        )
 
     @app.route("/")
     def index():

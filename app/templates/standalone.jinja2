@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Broke{% endblock %}</title>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js" async
         integrity="sha384-LfouGM03m83ArVtne1JPk926e3SGD0Tz8XHtW2OKGsgeBU/UfR0Fa8eX+UlwSSAZ"
         crossorigin="anonymous">
@@ -22,11 +22,11 @@
     {% block head %}{% endblock %}
 </head>
 <body class="standalone-body">
-    
+
     <header class="standalone-header">
         <div class="standalone-header-inner">
             <a href="/" class="standalone-logo">
-                <img src="{{ url_for('static', filename='images/logov2_wo_bg.png') }}" alt="Broke Logo">
+                <img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}">
             </a>
         </div>
     </header>
@@ -78,7 +78,7 @@
             };
         })();
     </script>
-    
+
     {% block scripts %}{% endblock %}
 
     {# Render toasts from flask flashes #}
