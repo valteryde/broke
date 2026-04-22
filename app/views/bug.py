@@ -412,6 +412,7 @@ def part_view(user: User, project_id: str, part_id: int):
         .order_by(ErrorGroup.last_seen.desc())
         .limit(100)
     )
+    part_error_count = ErrorGroup.select().where(ErrorGroup.part == part_id).count()
 
     return render_template(
         "part.jinja2",
@@ -419,6 +420,7 @@ def part_view(user: User, project_id: str, part_id: int):
         project=Project.get(Project.id == project_id),
         part=part,
         error_groups=error_groups,
+        part_error_count=part_error_count,
         page="errors",
     )
 
@@ -802,3 +804,24 @@ def delete_error(user: User, error_id: int):
     error.delete_instance()
 
     return json.dumps({"success": True}), 200
+
+
+@bug_bp.route("/api/projects/<project_id>/parts/<int:part_id>/errors", methods=["DELETE"])
+@protected
+def delete_all_part_errors(user: User, project_id: str, part_id: int):
+    """Delete every error group (and related rows) for a project part."""
+    try:
+        ProjectPart.get((ProjectPart.id == part_id) & (ProjectPart.project == project_id))
+    except DoesNotExist:
+        return json.dumps({"error": "Part not found"}), 404
+
+    error_ids = [row.id for row in ErrorGroup.select(ErrorGroup.id).where(ErrorGroup.part == part_id)]
+    if not error_ids:
+        return json.dumps({"success": True, "deleted": 0}), 200
+
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group.in_(error_ids)).execute()
+    Attachment.delete().where(Attachment.error_group.in_(error_ids)).execute()
+    Ticket.update(error=None).where(Ticket.error.in_(error_ids)).execute()
+    deleted = ErrorGroup.delete().where(ErrorGroup.id.in_(error_ids)).execute()
+
+    return json.dumps({"success": True, "deleted": deleted}), 200

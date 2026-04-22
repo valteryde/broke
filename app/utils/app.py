@@ -114,10 +114,22 @@ def create_app():  # noqa: C901
         "yes",
         "on",
     }
+    trust_proxy_headers = str(
+        os.environ.get("BROKE_TRUST_PROXY_HEADERS", "false")
+    ).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    public_base_url = (os.environ.get("BROKE_PUBLIC_BASE_URL") or "").strip().rstrip("/")
+
     app.config.update(
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=session_cookie_secure,
+        BROKE_TRUST_PROXY_HEADERS=trust_proxy_headers,
+        BROKE_PUBLIC_BASE_URL=public_base_url,
     )
 
     app.template_folder = path("templates")

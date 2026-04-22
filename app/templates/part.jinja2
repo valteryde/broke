@@ -8,17 +8,26 @@
 {% endblock %}
 
 {% block path %}
-    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a> 
-    <i class="ph ph-caret-right"></i> 
+    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a>
+    <i class="ph ph-caret-right"></i>
     <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
-    <i class="ph ph-caret-right"></i> 
+    <i class="ph ph-caret-right"></i>
     <span><i class="ph ph-puzzle-piece"></i> {{ part.name }}</span>
 {% endblock %}
 
 {% block content %}
 
-<h1>{{ part.name }}</h1>
-<p style="color: #666; margin-bottom: 20px;">{{ part.description or 'No description provided.' }}</p>
+<div class="part-errors-toolbar">
+    <div class="part-errors-toolbar-text">
+        <h1>{{ part.name }}</h1>
+        <p class="part-errors-description">{{ part.description or 'No description provided.' }}</p>
+    </div>
+    {% if part_error_count > 0 %}
+    <button type="button" class="btn btn-danger" id="delete-all-part-errors-btn" data-project-id="{{ project.id }}" data-part-id="{{ part.id }}" data-total-errors="{{ part_error_count }}" title="Permanently delete all errors in this part">
+        <i class="ph ph-trash"></i> Delete all errors
+    </button>
+    {% endif %}
+</div>
 
 <div id="error-list"></div>
 
@@ -29,7 +38,7 @@
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
     <script src="{{ url_for('static', filename='js/error_list.js') }}"></script>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const errorList = new List('error-list', {
@@ -45,7 +54,7 @@
                                 },
                                 body: JSON.stringify({ status: value })
                             });
-                            
+
                             if (response.ok) {
                                 item.status = value;
                                 errorList.render();
@@ -64,7 +73,7 @@
                         const response = await fetch(`/api/errors/${item.id}`, {
                             method: 'DELETE'
                         });
-                        
+
                         if (response.ok) {
                             errorList.remove(item.id);
                             // Also show a toast if available, or just log
@@ -107,6 +116,40 @@
             ];
 
             errorListItems.forEach(error => errorList.add(error));
+
+            const deleteAllBtn = document.getElementById('delete-all-part-errors-btn');
+            if (deleteAllBtn) {
+                deleteAllBtn.addEventListener('click', async () => {
+                    const total = parseInt(deleteAllBtn.getAttribute('data-total-errors') || '0', 10);
+                    const label = total === 1 ? '1 error' : `${total} errors`;
+                    if (!confirm(`Delete all ${label} in this part? This cannot be undone.`)) {
+                        return;
+                    }
+                    const projectId = deleteAllBtn.getAttribute('data-project-id');
+                    const partId = deleteAllBtn.getAttribute('data-part-id');
+                    const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                    try {
+                        const response = await fetch(
+                            `/api/projects/${projectId}/parts/${partId}/errors`,
+                            {
+                                method: 'DELETE',
+                                headers: csrf ? { 'X-CSRF-Token': csrf } : {}
+                            }
+                        );
+                        if (!response.ok) {
+                            if (window.showToast) showToast('Failed to delete all errors', 'error');
+                            return;
+                        }
+                        errorList.elements = [];
+                        errorList.applyFilters();
+                        deleteAllBtn.remove();
+                        if (window.showToast) showToast('All errors deleted', 'success');
+                    } catch (err) {
+                        console.error(err);
+                        if (window.showToast) showToast('Failed to delete all errors', 'error');
+                    }
+                });
+            }
 
             const errorListRoot = document.getElementById('error-list');
             if (errorListRoot) {

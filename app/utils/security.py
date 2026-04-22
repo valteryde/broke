@@ -157,15 +157,56 @@ def _get_request_csrf_token() -> str:
     return ""
 
 
-def _same_origin_request() -> bool:
-    origin = (request.headers.get("Origin") or "").strip()
-    referer = (request.headers.get("Referer") or "").strip()
-    host_url = request.host_url.rstrip("/")
+def _csrf_cookie_matches_request(cookie_token: str, request_token: str) -> bool:
+    """Constant-time compare; mismatched lengths must not raise (would become a 500)."""
+    if not cookie_token or not request_token or len(cookie_token) != len(request_token):
+        return False
+    return hmac.compare_digest(cookie_token, request_token)
 
-    if origin and origin.rstrip("/") == host_url:
-        return True
-    if referer and referer.startswith(host_url):
-        return True
+
+def _csrf_same_site_bases() -> list[str]:
+    """URL prefixes to treat as same-origin for CSRF fallback (Host / reverse-proxy aware)."""
+    bases: list[str] = []
+    seen: set[str] = set()
+
+    def add(u: str) -> None:
+        u = (u or "").strip().rstrip("/")
+        if u and u not in seen:
+            seen.add(u)
+            bases.append(u)
+
+    add(request.host_url.rstrip("/"))
+
+    public = str(current_app.config.get("BROKE_PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    add(public)
+
+    if current_app.config.get("BROKE_TRUST_PROXY_HEADERS"):
+        xf_proto = (request.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
+        xf_host = (request.headers.get("X-Forwarded-Host") or "").split(",")[0].strip()
+        if xf_proto in ("http", "https"):
+            host = xf_host or (request.host or "").strip()
+            if host:
+                add(f"{xf_proto}://{host}".rstrip("/"))
+
+    return bases
+
+
+def _referer_matches_base(referer: str, base: str) -> bool:
+    """True if referer is exactly base or a path under base (avoids https://evil.com spoofing base)."""
+    if not referer or not base:
+        return False
+    return referer == base or referer.startswith(base + "/")
+
+
+def _same_origin_request() -> bool:
+    origin = (request.headers.get("Origin") or "").strip().rstrip("/")
+    referer = (request.headers.get("Referer") or "").strip()
+
+    for base in _csrf_same_site_bases():
+        if origin and origin == base:
+            return True
+        if referer and _referer_matches_base(referer, base):
+            return True
     return False
 
 
@@ -179,7 +220,7 @@ def _csrf_valid_for_request() -> bool:
     cookie_token = (request.cookies.get(CSRF_COOKIE_NAME) or "").strip()
     request_token = _get_request_csrf_token()
 
-    if cookie_token and request_token and hmac.compare_digest(cookie_token, request_token):
+    if _csrf_cookie_matches_request(cookie_token, request_token):
         return True
 
     # Compatibility fallback for existing browser forms/fetch calls.

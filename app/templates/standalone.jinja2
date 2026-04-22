@@ -78,6 +78,21 @@
 
             const originalFetch = window.fetch.bind(window);
             window.fetch = function (input, init) {
+                if (typeof Request !== 'undefined' && input instanceof Request && !init) {
+                    const reqMethod = (input.method || 'GET').toUpperCase();
+                    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(reqMethod)) {
+                        const headers = new Headers(input.headers);
+                        var hTok = (headers.get('X-CSRF-Token') || '').trim();
+                        var tok = readBrokeCsrfCookie() || metaCsrf() || String(window.BROKE_CSRF_TOKEN || '').trim();
+                        if (tok && !hTok) {
+                            headers.set('X-CSRF-Token', tok);
+                            window.BROKE_CSRF_TOKEN = tok;
+                            return originalFetch(new Request(input, { headers: headers }));
+                        }
+                    }
+                    return originalFetch(input, init);
+                }
+
                 const opts = init ? { ...init } : {};
                 const method = (opts.method || 'GET').toUpperCase();
 
@@ -88,6 +103,22 @@
                     if (token && !headerToken) {
                         headers.set('X-CSRF-Token', token);
                         window.BROKE_CSRF_TOKEN = token;
+                    }
+                    var contentType = (headers.get('Content-Type') || '').toLowerCase();
+                    if (token && typeof opts.body === 'string' && contentType.includes('application/json')) {
+                        var s = opts.body.trim();
+                        if (s.startsWith('{')) {
+                            try {
+                                var parsed = JSON.parse(opts.body);
+                                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                                    var ex = String(parsed.csrf_token || '').trim();
+                                    if (!ex) {
+                                        parsed.csrf_token = token;
+                                        opts.body = JSON.stringify(parsed);
+                                    }
+                                }
+                            } catch (e) { /* leave body unchanged */ }
+                        }
                     }
                     opts.headers = headers;
                 }

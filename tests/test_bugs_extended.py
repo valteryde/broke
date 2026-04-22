@@ -3,8 +3,8 @@ from ward import test, fixture, Scope
 from tests.fixtures import app, client, auth_client, auth_user, create_test_project
 from app.utils.models import Project, ProjectPart, ErrorGroup, ErrorOccurrence, DSNToken
 from app.views.bug import (
-    normalize_message, 
-    extract_frame_signatures, 
+    normalize_message,
+    extract_frame_signatures,
     generate_fingerprint,
     extract_exception_info,
     extract_culprit
@@ -135,7 +135,7 @@ def _():
             {"filename": "utils.py", "function": "helper"}
         ]
     })
-    
+
     signatures = extract_frame_signatures(stacktrace_json)
     assert len(signatures) == 3
     assert "myapp.views:index" in signatures
@@ -161,10 +161,10 @@ def _():
 def _():
     """Test that generate_fingerprint creates consistent hashes"""
     stacktrace = json.dumps({"frames": [{"module": "test", "function": "func"}]})
-    
+
     fp1 = generate_fingerprint("ValueError", "Test error", stacktrace)
     fp2 = generate_fingerprint("ValueError", "Test error", stacktrace)
-    
+
     assert fp1 == fp2
     assert len(fp1) == 32  # SHA256 truncated to 32 chars
 
@@ -173,11 +173,11 @@ def _():
 def _():
     """Test that fingerprint ignores dynamic values"""
     stacktrace = json.dumps({"frames": [{"module": "test", "function": "func"}]})
-    
+
     # These should produce the same fingerprint
     fp1 = generate_fingerprint("ValueError", "Error on line 42", stacktrace)
     fp2 = generate_fingerprint("ValueError", "Error on line 99", stacktrace)
-    
+
     assert fp1 == fp2
 
 
@@ -195,7 +195,7 @@ def _():
             ]
         }
     }
-    
+
     exc_type, exc_value, stacktrace = extract_exception_info(payload)
     assert exc_type == "ValueError"
     assert exc_value == "Invalid input"
@@ -206,7 +206,7 @@ def _():
 def _():
     """Test fallback to message field"""
     payload = {"message": "Something went wrong"}
-    
+
     exc_type, exc_value, stacktrace = extract_exception_info(payload)
     assert exc_value == "Something went wrong"
 
@@ -215,7 +215,7 @@ def _():
 def _():
     """Test extracting culprit from Sentry event"""
     payload = {"culprit": "myapp.views.index"}
-    
+
     culprit = extract_culprit(payload)
     assert culprit == "myapp.views.index"
 
@@ -240,7 +240,7 @@ def _():
             ]
         }
     }
-    
+
     culprit = extract_culprit(payload)
     assert "views.py" in culprit
     assert "handler" in culprit
@@ -277,14 +277,14 @@ def _(c=client, token=dsn_token_fixture, part=error_project_part):
         "platform": "python",
         "event_id": "abc123"
     }
-    
+
     response = c.post(
         f'/api/bugs/dsn/{token.token}',
         data=json.dumps(event_data),
         content_type='application/json',
         headers={'X-Sentry-Auth': f'Sentry sentry_key={token.token}'}
     )
-    
+
     # May succeed or fail depending on implementation
     assert response.status_code in [200, 201, 400, 404]
 
@@ -293,7 +293,7 @@ def _(c=client, token=dsn_token_fixture, part=error_project_part):
 def _(part=error_project_part):
     """Test creating error group from event data"""
     from app.views.bug import handle_event_item
-    
+
     payload = {
         "exception": {
             "values": [
@@ -311,13 +311,13 @@ def _(part=error_project_part):
         "platform": "python",
         "event_id": "test-event-123"
     }
-    
+
     error_group = handle_event_item(part, payload, "test-event-123")
-    
+
     assert error_group is not None
     assert error_group.exception_type == "RuntimeError"
     assert error_group.event_count >= 1
-    
+
     # Cleanup
     ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error_group).execute()
     error_group.delete_instance()
@@ -327,7 +327,7 @@ def _(part=error_project_part):
 def _(part=error_project_part):
     """Test that duplicate errors increment the count"""
     from app.views.bug import handle_event_item
-    
+
     payload = {
         "exception": {
             "values": [
@@ -339,18 +339,18 @@ def _(part=error_project_part):
             ]
         }
     }
-    
+
     # First occurrence
     error_group1 = handle_event_item(part, payload, "event-1")
     count1 = error_group1.event_count
-    
+
     # Second occurrence (should be same group)
     error_group2 = handle_event_item(part, payload, "event-2")
     count2 = error_group2.event_count
-    
+
     assert error_group1.id == error_group2.id
     assert count2 > count1
-    
+
     # Cleanup
     ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error_group1).execute()
     error_group1.delete_instance()
@@ -419,6 +419,80 @@ def _(c=client, error_group=error_group_fixture):
         follow_redirects=False,
     )
     assert response.status_code in [302, 401]
+
+
+@test("DELETE /api/projects/<project_id>/parts/<part_id>/errors requires authentication")
+def _(c=client, project=error_project, part=error_project_part):
+    with c.session_transaction() as sess:
+        sess.pop("user_id", None)
+        sess.pop("_csrf_token", None)
+
+    response = c.delete(
+        f"/api/projects/{project.id}/parts/{part.id}/errors",
+        follow_redirects=False,
+    )
+    assert response.status_code in [302, 401]
+
+
+@test("DELETE /api/projects/<project_id>/parts/<part_id>/errors deletes all error groups")
+def _(c=auth_client, project=error_project, part=error_project_part):
+    e1 = ErrorGroup.create(
+        part=part,
+        fingerprint=f"fp-bulk-1-{int(time.time() * 1000000)}",
+        exception_type="TypeError",
+        exception_value="one",
+        event_count=1,
+        status="unresolved",
+    )
+    e2 = ErrorGroup.create(
+        part=part,
+        fingerprint=f"fp-bulk-2-{int(time.time() * 1000000)}",
+        exception_type="TypeError",
+        exception_value="two",
+        event_count=1,
+        status="unresolved",
+    )
+    try:
+        response = c.delete(
+            f"/api/projects/{project.id}/parts/{part.id}/errors",
+            follow_redirects=False,
+        )
+        assert response.status_code == 200
+        data = json.loads(response.data.decode("utf-8"))
+        assert data.get("success") is True
+        assert data.get("deleted") == 2
+        assert (
+            ErrorGroup.select()
+            .where(ErrorGroup.part == part)
+            .count()
+            == 0
+        )
+    finally:
+        for eg in (e1, e2):
+            if ErrorGroup.select().where(ErrorGroup.id == eg.id).count():
+                ErrorOccurrence.delete().where(ErrorOccurrence.error_group == eg).execute()
+                eg.delete_instance()
+
+
+@test("DELETE /api/projects/<project_id>/parts/<part_id>/errors returns 404 when part not in project")
+def _(c=auth_client, part=error_project_part):
+    response = c.delete(
+        f"/api/projects/wrong-project-id/parts/{part.id}/errors",
+        follow_redirects=False,
+    )
+    assert response.status_code == 404
+
+
+@test("DELETE /api/projects/<project_id>/parts/<part_id>/errors succeeds when part has no errors")
+def _(c=auth_client, project=error_project, part=error_project_part):
+    response = c.delete(
+        f"/api/projects/{project.id}/parts/{part.id}/errors",
+        follow_redirects=False,
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data.decode("utf-8"))
+    assert data.get("success") is True
+    assert data.get("deleted") == 0
 
 
 @test("/errors/<project_id>/<part_id> renders environment and release fields for filtering")
