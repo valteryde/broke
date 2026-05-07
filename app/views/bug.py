@@ -10,6 +10,7 @@ from ..utils.models import (
     Session,
     Transaction,
     DSNToken,
+    active_projects_ordered,
 )
 from flask import redirect, render_template, request, Blueprint
 from peewee import DoesNotExist
@@ -323,7 +324,7 @@ def parts_view(user: User):
         "parts.jinja2",
         user=user,
         project=None,
-        projects=Project.select(),
+        projects=active_projects_ordered(),
         project_parts=project_parts,
         page="errors",
     )
@@ -340,7 +341,7 @@ def parts_specific_view(user: User, project_id: str):
         "parts.jinja2",
         user=user,
         project=Project.get(Project.id == project_id),
-        projects=Project.select(),
+        projects=active_projects_ordered(),
         project_parts=project_parts,
         page="errors",
     )

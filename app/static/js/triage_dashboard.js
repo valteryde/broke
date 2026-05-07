@@ -114,6 +114,7 @@
         if (!response.ok) {
             throw new Error(payload.error || 'Failed to update ticket');
         }
+        return payload;
     }
 
     function updateInboxCount() {
@@ -139,11 +140,14 @@
         }
 
         try {
-            await patchTicket(ticketId, 'project', projectId);
-            await patchTicket(ticketId, 'status', 'backlog');
+            let currentId = ticketId;
+            const projPayload = await patchTicket(currentId, 'project', projectId);
+            const nextId = projPayload.ticket && projPayload.ticket.id ? projPayload.ticket.id : currentId;
+            currentId = nextId;
+            await patchTicket(currentId, 'status', 'backlog');
             row.remove();
             updateInboxCount();
-            toast(`Sent ${ticketId} to ${projectId}`, 'success');
+            toast(`Sent ${currentId} to ${projectId}`, 'success');
         } catch (error) {
             toast(error.message || 'Failed to send ticket', 'error');
         }
@@ -201,6 +205,31 @@
         `;
     }
 
+    async function discardTicketFromRow(row) {
+        const ticketId = row.dataset.triageTicketId;
+        if (!ticketId) {
+            return;
+        }
+        const ok = window.confirm(
+            `Discard ${ticketId} from intake? The ticket will be hidden from lists. Restore it anytime from Settings → Trash.`,
+        );
+        if (!ok) {
+            return;
+        }
+        try {
+            const response = await fetch(`/api/tickets/${ticketId}`, { method: 'DELETE' });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || 'Failed to discard ticket');
+            }
+            row.remove();
+            updateInboxCount();
+            toast(`Discarded ${ticketId}`, 'success');
+        } catch (error) {
+            toast(error.message || 'Failed to discard ticket', 'error');
+        }
+    }
+
     function bindInboxRows() {
         document.querySelectorAll('.triage-inbox-row .triage-route-project-btn').forEach((button) => {
             button.addEventListener('click', () => {
@@ -208,6 +237,14 @@
                 if (row) {
                     const projectId = button.getAttribute('data-project-id') || '';
                     sendTicketFromRow(row, projectId);
+                }
+            });
+        });
+        document.querySelectorAll('.triage-inbox-row .triage-discard-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                const row = button.closest('.triage-inbox-row');
+                if (row) {
+                    discardTicketFromRow(row);
                 }
             });
         });

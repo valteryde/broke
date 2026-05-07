@@ -20,7 +20,7 @@ def _():
         with patch("app.utils.mail.smtplib.SMTP_SSL") as ssl_cls:
             with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
                 inst = ssl_cls.return_value
-                mail.send_email("dest@example.com", "Subject", "<p>x</p>")
+                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
                 ssl_cls.assert_called_once_with("smtp.example.com", 465)
                 smtp_cls.assert_not_called()
                 inst.login.assert_called_once_with("user@example.com", "secret")
@@ -44,7 +44,7 @@ def _():
         with patch("app.utils.mail.smtplib.SMTP_SSL"):
             with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
                 inst = smtp_cls.return_value
-                mail.send_email("dest@example.com", "Subject", "<p>x</p>")
+                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
                 smtp_cls.assert_called_once_with("smtp.example.com", 587)
                 inst.starttls.assert_called_once()
                 inst.login.assert_called_once_with("user@example.com", "secret")
@@ -66,7 +66,7 @@ def _():
         with patch("app.utils.mail.smtplib.SMTP_SSL"):
             with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
                 inst = smtp_cls.return_value
-                mail.send_email("dest@example.com", "Subject", "<p>x</p>")
+                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
                 inst.starttls.assert_not_called()
                 inst.login.assert_called_once_with("dev", "devpass")
 
@@ -87,12 +87,12 @@ def _():
         with patch("app.utils.mail.smtplib.SMTP_SSL"):
             with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
                 inst = smtp_cls.return_value
-                mail.send_email("dest@example.com", "Subject", "<p>x</p>")
+                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
                 inst.starttls.assert_not_called()
                 inst.login.assert_called_once_with("relayuser", "relaypass")
 
 
-@test("send_email does nothing when SMTP host is empty")
+@test("send_email returns False when SMTP host is empty")
 def _():
     from app.utils import mail
 
@@ -107,6 +107,6 @@ def _():
     with patch.object(mail, "_load_smtp_settings", return_value=settings):
         with patch("app.utils.mail.smtplib.SMTP_SSL") as ssl_cls:
             with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
-                mail.send_email("dest@example.com", "Subject", "<p>x</p>")
+                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is False
                 smtp_cls.assert_not_called()
                 ssl_cls.assert_not_called()

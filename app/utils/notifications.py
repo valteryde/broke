@@ -9,7 +9,7 @@ import requests
 
 from .events import bus, EventTypes
 from .mail import send_email
-from .models import GlobalSetting, NotificationEventLog, User
+from .models import GlobalSetting, NotificationEventLog, User, database
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +147,8 @@ def _dispatch_email(event: dict, recipients: Iterable[str]):
     html = f"<html><body><pre style='font-family:inherit'>{body_text}</pre></body></html>"
 
     for email in recipients:
-        send_email(email, f"Broke: {subject}", html)
+        if not send_email(email, f"Broke: {subject}", html):
+            raise RuntimeError(f"Failed to send notification email to {email}")
 
 
 def _dispatch_slack(event: dict, webhook_url: str):
@@ -186,6 +187,11 @@ def _log_delivery(event_type: str, channel: str, status: str, message: str = "")
 
 
 def handle_notification_event(**event):
+    with database.connection_context():
+        _handle_notification_event_impl(**event)
+
+
+def _handle_notification_event_impl(**event):
     settings = _load_engine_settings()
     event_type = event.get("event_type")
     if not event_type:

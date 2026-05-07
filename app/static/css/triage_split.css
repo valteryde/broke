@@ -480,6 +480,20 @@
     align-items: center;
 }
 
+.triage-inbox-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    width: 100%;
+}
+
+.triage-inbox-toolbar .btn {
+    min-height: 28px;
+    padding: 0 9px;
+    font-size: 0.76rem;
+}
+
 .triage-route-buttons {
     display: flex;
     flex-wrap: wrap;

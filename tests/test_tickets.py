@@ -494,9 +494,13 @@ def _(c=auth_client, f=fake, project=test_project):
         content_type="application/json",
     )
     assert project_response.status_code == 200
+    project_payload = json.loads(project_response.data)
+    new_ticket_id = project_payload.get("ticket", {}).get("id")
+    assert new_ticket_id
+    assert new_ticket_id.startswith(f"{project.id}-")
 
     status_response = c.patch(
-        f"/api/tickets/{ticket_id}",
+        f"/api/tickets/{new_ticket_id}",
         data=json.dumps({"field": "status", "value": "todo"}),
         content_type="application/json",
     )

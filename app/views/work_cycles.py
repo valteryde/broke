@@ -140,8 +140,11 @@ def api_create_work_cycle(user: User):
     project = None
     if project_raw is not None and str(project_raw).strip():
         project = str(project_raw).strip()
-        if not Project.get_or_none(Project.id == project):
+        prow = Project.get_or_none(Project.id == project)
+        if not prow:
             return jsonify({"error": "Unknown project"}), 400
+        if prow.archived == 1:
+            return jsonify({"error": "Cannot attach a work cycle to an archived project"}), 400
 
     starts_at = data.get("starts_at")
     ends_at = data.get("ends_at")
@@ -206,8 +209,11 @@ def api_patch_work_cycle(user: User, cycle_id: int):
         new_project = None
         if p is not None and str(p).strip():
             new_project = str(p).strip()
-            if not Project.get_or_none(Project.id == new_project):
+            prow = Project.get_or_none(Project.id == new_project)
+            if not prow:
                 return jsonify({"error": "Unknown project"}), 400
+            if prow.archived == 1:
+                return jsonify({"error": "Cannot attach a work cycle to an archived project"}), 400
         if new_project != cycle.project:
             cycle.project = new_project
 

@@ -193,11 +193,13 @@ def github_webhook():
     repo = payload.get("repository", {})
     repo_name = repo.get("name", "")
 
-    # Find a matching project by name, or use the first available project
-    project = None
-    try:
-        project = Project.get(Project.name == repo_name)
-    except DoesNotExist:
+    # Find a matching project by name, or use the first non-archived project
+    project = Project.get_or_none(
+        (Project.name == repo_name) & (Project.archived == 0)
+    )
+    if not project:
+        project = Project.select().where(Project.archived == 0).first()
+    if not project:
         project = Project.select().first()
 
     if not project:

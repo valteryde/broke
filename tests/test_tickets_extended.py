@@ -99,6 +99,50 @@ def _(c=auth_client, project=sample_project):
         assert isinstance(data, (list, dict))
 
 
+@test("/api/projects GET excludes archived projects")
+def _(c=auth_client):
+    import time
+
+    active_id = f"active-api-{int(time.time() * 1000000)}"
+    archived_id = f"arc-api-{int(time.time() * 1000000)}"
+    active = create_test_project(active_id, "Active Api", "Test")
+    archived = create_test_project(archived_id, "Archived Api", "Test")
+    archived.archived = 1
+    archived.save()
+
+    response = c.get("/api/projects")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    ids = {p["id"] for p in data.get("projects", [])}
+
+    assert active_id in ids
+    assert archived_id not in ids
+
+    active.delete_instance(recursive=True, delete_nullable=True)
+    archived.delete_instance(recursive=True, delete_nullable=True)
+
+
+@test("/api/tickets POST returns 400 when project is archived")
+def _(c=auth_client):
+    import time
+
+    pid = f"arc-tkt-{int(time.time() * 1000000)}"
+    p = create_test_project(pid, "Archived For Ticket", "Test")
+    p.archived = 1
+    p.save()
+
+    response = c.post(
+        "/api/tickets",
+        data=json.dumps({"title": "Nope", "description": "Test", "project": pid}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    body = json.loads(response.data)
+    assert "archived" in body.get("error", "").lower()
+
+    p.delete_instance(recursive=True, delete_nullable=True)
+
+
 @test("/api/tickets/<ticket_id>/restore POST restores deleted ticket")
 def _(c=auth_client, ticket=sample_ticket):
     """Test restoring a soft-deleted ticket"""

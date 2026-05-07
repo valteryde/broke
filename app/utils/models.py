@@ -87,6 +87,12 @@ class Project(BaseModel):
     color = CharField()  # i do not know if i will use this
     # Optional JSON for future per-project options
     settings = TextField(default="{}")
+    archived = IntegerField(default=0)  # 1 = hidden from selectors; existing tickets unchanged
+
+
+def active_projects_ordered():
+    """Projects available for new tickets, intake, and project pickers."""
+    return Project.select().where(Project.archived == 0).order_by(Project.name)
 
 
 class ProjectPart(BaseModel):
@@ -445,6 +451,7 @@ def initialize_db():
     _ensure_agent_token_ticket_id_column()
     _ensure_dsn_token_columns()
     _ensure_project_settings_column()
+    _ensure_project_archived_column()
     database.close()
 
 
@@ -503,6 +510,12 @@ def _ensure_project_settings_column() -> None:
     columns = [row[1] for row in database.execute_sql("PRAGMA table_info(project);").fetchall()]
     if "settings" not in columns:
         database.execute_sql("ALTER TABLE project ADD COLUMN settings TEXT DEFAULT '{}';")
+
+
+def _ensure_project_archived_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(project);").fetchall()]
+    if "archived" not in columns:
+        database.execute_sql("ALTER TABLE project ADD COLUMN archived INTEGER DEFAULT 0;")
 
 
 def setup_test_data():  # noqa: C901

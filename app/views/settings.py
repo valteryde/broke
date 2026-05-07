@@ -33,6 +33,7 @@ from ..utils.models import (
     Webhook,
     WebhookDelivery,
     WorkCycle,
+    active_projects_ordered,
     create_user,
     data_path,
 )
@@ -176,7 +177,9 @@ def settings_section_view(user: User, section: str):  # noqa: C901
             context["smtp_password_configured"] = bool(env_password.strip())
 
     elif section == "projects":
-        context["projects"] = list(Project.select().order_by(Project.name))
+        projs = list(Project.select().order_by(Project.name))
+        context["projects_active"] = [p for p in projs if not p.archived]
+        context["projects_archived"] = [p for p in projs if p.archived]
 
     elif section == "team":
         context["team_members"] = list(User.select().order_by(User.username))
@@ -198,7 +201,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         context["agent_base_url"] = request.host_url.rstrip("/")
 
     elif section == "webhooks":
-        context["projects"] = list(Project.select().order_by(Project.name))
+        context["projects"] = list(active_projects_ordered())
         context["base_url"] = request.host_url.rstrip("/")
         context["webhook_secret_configured"] = bool(get_webhook_secret())
         context["github_webhook_secret_configured"] = bool(get_github_webhook_secret())
@@ -245,7 +248,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
                 "message": "Welcome! Please submit your ticket below.",
                 "projects": [],
             }
-        context["projects"] = list(Project.select().order_by(Project.name))
+        context["projects"] = list(active_projects_ordered())
 
     elif section == "ai":
         default_ai_settings = {
@@ -609,7 +612,16 @@ def api_send_test_email(user: User):
     </html>
     """
 
-    mail.send_email(recipient, "Broke SMTP Test Email", html)
+    if not mail.send_email(recipient, "Broke SMTP Test Email", html):
+        return (
+            json.dumps(
+                {
+                    "error": "Could not send email. Verify SMTP host, credentials, TLS, and port; "
+                    "check server logs for details.",
+                }
+            ),
+            500,
+        )
     return json.dumps({"success": True}), 200
 
 
@@ -976,8 +988,12 @@ def api_create_agent_token(user: User):
 
     project_raw = data.get("project")
     project = str(project_raw).strip() if project_raw else None
-    if project and not Project.get_or_none(Project.id == project):
-        return jsonify({"error": "Unknown project"}), 400
+    if project:
+        proj_row = Project.get_or_none(Project.id == project)
+        if not proj_row:
+            return jsonify({"error": "Unknown project"}), 400
+        if proj_row.archived == 1:
+            return jsonify({"error": "Cannot scope an agent token to an archived project"}), 400
 
     work_cycle_id = None
     wcid = data.get("work_cycle_id")
@@ -1165,6 +1181,37 @@ def api_update_project(user: User, project_id: str):
     project.save()
 
     flash(f'Project "{project.id}" updated successfully.', "success")
+    return redirect("/settings/projects")
+
+
+@settings_bp.route("/api/settings/projects/archive/<project_id>", methods=["GET"])
+@protected
+def api_archive_project(user: User, project_id: str):
+    """Hide a project from pickers without deleting tickets or parts."""
+    try:
+        project = Project.get(Project.id == project_id)
+    except DoesNotExist:
+        flash("Project not found.", "error")
+        return redirect("/settings/projects")
+
+    project.archived = 1
+    project.save()
+    flash(f'Project "{project.name}" archived.', "success")
+    return redirect("/settings/projects")
+
+
+@settings_bp.route("/api/settings/projects/unarchive/<project_id>", methods=["GET"])
+@protected
+def api_unarchive_project(user: User, project_id: str):
+    try:
+        project = Project.get(Project.id == project_id)
+    except DoesNotExist:
+        flash("Project not found.", "error")
+        return redirect("/settings/projects")
+
+    project.archived = 0
+    project.save()
+    flash(f'Project "{project.name}" restored.', "success")
     return redirect("/settings/projects")
 
 

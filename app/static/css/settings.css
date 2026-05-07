@@ -530,6 +530,26 @@
     border-bottom: none;
 }
 
+.subsection-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0 0 10px;
+    color: #222;
+}
+
+.subsection-title.muted {
+    color: #888;
+}
+
+.project-item-muted .project-name,
+.project-item-muted .project-id {
+    color: #888;
+}
+
+.project-icon-muted {
+    opacity: 0.75;
+}
+
 .project-info {
     display: flex;
     align-items: center;

@@ -12,6 +12,7 @@ from ..utils.ai_delegate_handoff import build_ai_delegate_pack_markdown, mint_ti
 from ..utils.ai_intake import suggest_intake_from_message
 from ..utils.events import EventTypes, bus
 from ..utils.models import (
+    AgentToken,
     Comment,
     Label,
     Project,
@@ -22,6 +23,8 @@ from ..utils.models import (
     UserSettings,
     UserTicketJoin,
     WorkCycle,
+    active_projects_ordered,
+    database,
 )
 from ..utils.path import data_path
 from ..utils.reltime import time_ago
@@ -201,7 +204,7 @@ def tickets_view(user: User):
         page="tickets",
         tickets=tickets,
         project=None,
-        projects=Project.select().distinct().order_by(Project.name),
+        projects=active_projects_ordered(),
         available_users=available_users,
         available_labels=available_labels,
         available_work_cycles=_work_cycles_for_scope(None),
@@ -283,7 +286,7 @@ def project_tickets_view(user: User, project_id: str):
         project=project,
         tickets=tickets,
         page="tickets",
-        projects=Project.select().distinct().order_by(Project.name),
+        projects=active_projects_ordered(),
         available_users=available_users,
         available_labels=available_labels,
         available_work_cycles=_work_cycles_for_scope(project_id),
@@ -316,7 +319,7 @@ def triage_view(user: User):
         page="triage",
         tickets=tickets,
         project=None,
-        projects=Project.select().distinct().order_by(Project.name),
+        projects=active_projects_ordered(),
         available_users=available_users,
         available_labels=available_labels,
         ticket_view="list",
@@ -354,7 +357,7 @@ def triage_project_view(user: User, project_id: str):
         page="triage",
         tickets=tickets,
         project=project,
-        projects=Project.select().distinct().order_by(Project.name),
+        projects=active_projects_ordered(),
         available_users=available_users,
         available_labels=available_labels,
         ticket_view="list",
@@ -375,16 +378,19 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
     if ticket is None or ticket.active == 0:
         return redirect(f"/tickets/{project_id}")
 
+    if ticket.project != project_id:
+        return redirect(f"/tickets/{ticket.project}/{ticket.id}")
+
     populateTickets([ticket])  # type: ignore
 
     available_users = User.select().order_by(User.username)
     available_labels = Label.select().order_by(Label.name)
 
-    comments = Comment.select().where(Comment.ticket == ticket_id).order_by(Comment.id)  # type: ignore
-    updates = TicketUpdateMessage.select().where(TicketUpdateMessage.ticket == ticket_id).order_by(TicketUpdateMessage.id)  # type: ignore
+    comments = Comment.select().where(Comment.ticket == ticket.id).order_by(Comment.id)  # type: ignore
+    updates = TicketUpdateMessage.select().where(TicketUpdateMessage.ticket == ticket.id).order_by(TicketUpdateMessage.id)  # type: ignore
     subtickets = list(
         Ticket.select()
-        .where((Ticket.parent_ticket_id == ticket_id) & (Ticket.active == 1))
+        .where((Ticket.parent_ticket_id == ticket.id) & (Ticket.active == 1))
         .order_by(Ticket.created_at.asc())
     )
 
@@ -403,7 +409,7 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         "ticket.jinja2",
         user=user,
         ticket=ticket,
-        project=Project.get_or_none(Project.id == project_id),
+        project=Project.get_or_none(Project.id == ticket.project),
         page="tickets",
         available_users=available_users,
         available_labels=available_labels,
@@ -450,6 +456,20 @@ def generate_unique_ticket_id(project_id: str) -> str:
         else:
             candidate = f"{project_id}-{int(time.time())}"
     return candidate
+
+
+def _rename_ticket_leaving_triage(old_id: str, new_project_id: str) -> str:
+    """Move associations and assign a project-scoped id when routing out of intake."""
+    new_id = generate_unique_ticket_id(new_project_id)
+    with database.atomic():
+        Comment.update(ticket=new_id).where(Comment.ticket == old_id).execute()
+        TicketUpdateMessage.update(ticket=new_id).where(TicketUpdateMessage.ticket == old_id).execute()
+        UserTicketJoin.update(ticket=new_id).where(UserTicketJoin.ticket == old_id).execute()
+        TicketLabelJoin.update(ticket=new_id).where(TicketLabelJoin.ticket == old_id).execute()
+        Ticket.update(parent_ticket_id=new_id).where(Ticket.parent_ticket_id == old_id).execute()
+        AgentToken.update(ticket_id=new_id).where(AgentToken.ticket_id == old_id).execute()
+        Ticket.update(id=new_id, project=new_project_id).where(Ticket.id == old_id).execute()
+    return new_id
 
 
 def extract_and_save_images(html_content: str) -> str:
@@ -524,6 +544,12 @@ def create_ticket(user: User):
     if not project:
         return jsonify({"error": "Project not found"}), 404
 
+    inherits_archived_parent = (
+        parent_ticket is not None and parent_ticket.project == project_id and project.archived == 1
+    )
+    if project.archived == 1 and not inherits_archived_parent:
+        return jsonify({"error": "Project is archived"}), 400
+
     # Generate ticket ID
     ticket_id = generate_unique_ticket_id(project_id)
 
@@ -597,6 +623,8 @@ def create_intake_ticket(user: User):
         project = Project.get_or_none(Project.id == requested_project_id)
         if not project:
             return jsonify({"error": "Project not found"}), 404
+        if project.archived == 1:
+            return jsonify({"error": "Project is archived"}), 400
         project_id = requested_project_id
 
     title = str(data.get("title", "")).strip()
@@ -852,7 +880,7 @@ def chat_ai_intake_ticket(user: User):
 
     projects = [
         {"id": project.id, "name": project.name}
-        for project in Project.select().order_by(Project.name)
+        for project in active_projects_ordered()
     ]
     draft = suggest_intake_from_message(chat_context, projects)
 
@@ -903,7 +931,7 @@ def suggest_intake_ticket(user: User):
 
     projects = [
         {"id": project.id, "name": project.name}
-        for project in Project.select().order_by(Project.name)
+        for project in active_projects_ordered()
     ]
     suggestion = suggest_intake_from_message(message, projects)
 
@@ -947,6 +975,8 @@ def commit_ai_intake_ticket(user: User):
         project = Project.get_or_none(Project.id == project_id)
         if not project:
             return jsonify({"error": "Project not found"}), 404
+        if project.archived == 1:
+            return jsonify({"error": "Project is archived"}), 400
 
         ticket_id = generate_unique_ticket_id(project_id)
         ticket = Ticket.create(
@@ -1162,19 +1192,39 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
         project = Project.get_or_none(Project.id == target_project)
         if not project:
             return jsonify({"error": "Project not found"}), 404
+        if project.archived == 1:
+            return jsonify({"error": "Project is archived"}), 400
 
         old_project = ticket.project
-        ticket.project = target_project
-        ticket.save()
+        effective_ticket_id = ticket_id
+        if old_project == "TRIAGE" and target_project != "TRIAGE":
+            effective_ticket_id = _rename_ticket_leaving_triage(ticket_id, target_project)
+            ticket = Ticket.get_or_none(Ticket.id == effective_ticket_id)
+            if not ticket:
+                return jsonify({"error": "Ticket rename failed"}), 500
+        else:
+            ticket.project = target_project
+            ticket.save()
+
+        if effective_ticket_id != ticket_id:
+            proj_msg = (
+                f"{user.username} routed the ticket from intake to {target_project}; "
+                f"id is now {effective_ticket_id}"
+            )
+        else:
+            proj_msg = f"{user.username} changed project from {old_project} to {target_project}"
 
         TicketUpdateMessage.create(
-            ticket=ticket_id,
+            ticket=effective_ticket_id,
             title="Project changed",
             icon="ph ph-folder-simple",
-            message=f"{user.username} changed project from {old_project} to {target_project}",
+            message=proj_msg,
             created_at=int(time.time()),
         )
 
+        return jsonify(
+            {"success": True, "ticket": {"id": ticket.id, "project": ticket.project}}
+        )
     elif field == "priority":
         old_priority = ticket.priority
         ticket.priority = value
@@ -1401,7 +1451,7 @@ def delete_comment(user: User, comment_id: int):
 @protected
 def get_projects(user: User):
     """Get all projects for the dropdown"""
-    projects = Project.select().order_by(Project.name)
+    projects = active_projects_ordered()
 
     return jsonify(
         {

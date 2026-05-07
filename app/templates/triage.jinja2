@@ -58,6 +58,10 @@
                         <p class="triage-ticket-meta"><span class="triage-ticket-id"><i class="ph ph-hash"></i> {{ ticket.id }}</span> · <i class="ph ph-flag-pennant"></i> Priority {{ ticket.priority }} · <i class="ph ph-clock"></i> {{ ticket.created_at }}</p>
                     </div>
                     <div class="triage-inbox-row-actions">
+                        <div class="triage-inbox-toolbar">
+                            <a class="btn btn-secondary triage-view-ticket-btn" href="/tickets/{{ ticket.project }}/{{ ticket.id }}"><i class="ph ph-eye"></i> View</a>
+                            <button type="button" class="btn btn-secondary triage-discard-btn" data-triage-ticket-id="{{ ticket.id }}" title="Remove from intake"><i class="ph ph-trash"></i> Discard</button>
+                        </div>
                         <div class="triage-route-buttons" role="group" aria-label="Route {{ ticket.id }} to project">
                             {% for proj in projects %}
                             <button type="button" class="btn btn-secondary triage-route-project-btn" data-project-id="{{ proj.id }}">{{ proj.id }}</button>

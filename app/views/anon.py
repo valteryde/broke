@@ -8,8 +8,7 @@ from ..utils.app import limiter
 from typing import Literal
 from flask import flash, send_from_directory
 from ..utils.models import User, PasswordResetToken, data_path
-from ..utils.events import bus
-from ..utils.events import EventTypes
+from ..utils.events import EventTypes, bus
 import pyargon2
 import os
 
@@ -184,8 +183,10 @@ def forgot_password():
             PasswordResetToken.create(token=token, user=user.username, created_at=int(time.time()))
             base_url = _build_external_base_url()
             bus.emit(
-                "USER_PASSWORD_RESET",
-                user=user,
+                EventTypes.USER_PASSWORD_RESET,
+                async_dispatch=False,
+                recipient_email=user.email,
+                username=user.username,
                 token=token,
                 reset_url=f"{base_url}/reset-password/{token}",
             )

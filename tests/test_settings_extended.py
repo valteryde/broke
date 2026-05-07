@@ -139,6 +139,37 @@ def _(c=auth_client):
     assert response.status_code in [200, 302]
 
 
+@test("/api/settings/projects/archive/<id> archives project")
+def _(c=auth_client):
+    import time
+
+    project_id = f"arch-{int(time.time() * 1000000)}"
+    project = create_test_project(project_id, "Archive Me", "Test")
+    response = c.get(f"/api/settings/projects/archive/{project.id}")
+    assert response.status_code in [200, 302]
+
+    project = Project.get(Project.id == project_id)
+    assert project.archived == 1
+    project.delete_instance(recursive=True, delete_nullable=True)
+
+
+@test("/api/settings/projects/unarchive/<id> restores project")
+def _(c=auth_client):
+    import time
+
+    project_id = f"unar-{int(time.time() * 1000000)}"
+    project = create_test_project(project_id, "Restore Me", "Test")
+    project.archived = 1
+    project.save()
+
+    response = c.get(f"/api/settings/projects/unarchive/{project.id}")
+    assert response.status_code in [200, 302]
+
+    project = Project.get(Project.id == project_id)
+    assert project.archived == 0
+    project.delete_instance(recursive=True, delete_nullable=True)
+
+
 @test("/api/settings/projects/update/<id> GET shows update form")
 def _(c=auth_client):
     """Test viewing project update form"""

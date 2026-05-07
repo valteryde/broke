@@ -4,10 +4,34 @@ from email.mime.multipart import MIMEMultipart
 import os
 import logging
 from .events import bus
-from .models import GlobalSetting
+from .models import GlobalSetting, database
 import json
 
 logger = logging.getLogger(__name__)
+
+
+def _merge_db_smtp_over_env(settings: dict, stored: dict) -> None:
+    """Apply DB settings; only non-empty string values override env (empty never wipes env)."""
+    for key in ("host", "username", "password", "from"):
+        if key not in stored:
+            continue
+        raw = stored.get(key)
+        if raw is None:
+            continue
+        merged = str(raw).strip()
+        if merged:
+            settings[key] = merged
+
+    if "port" in stored:
+        try:
+            p = int(stored["port"])
+            if 0 < p <= 65535:
+                settings["port"] = p
+        except (TypeError, ValueError):
+            pass
+
+    if "use_tls" in stored:
+        settings["use_tls"] = bool(stored["use_tls"])
 
 
 def _load_smtp_settings() -> dict:
@@ -21,15 +45,12 @@ def _load_smtp_settings() -> dict:
     }
 
     try:
-        record = GlobalSetting.get_or_none(GlobalSetting.key == "smtp_settings")
-        if record and record.value:
-            stored = json.loads(record.value)
-            settings["host"] = str(stored.get("host", settings["host"]))
-            settings["port"] = int(stored.get("port", settings["port"]))
-            settings["username"] = str(stored.get("username", settings["username"]))
-            settings["password"] = str(stored.get("password", settings["password"]))
-            settings["from"] = str(stored.get("from", settings["from"]))
-            settings["use_tls"] = bool(stored.get("use_tls", True))
+        with database.connection_context():
+            record = GlobalSetting.get_or_none(GlobalSetting.key == "smtp_settings")
+            if record and record.value:
+                stored = json.loads(record.value)
+                if isinstance(stored, dict):
+                    _merge_db_smtp_over_env(settings, stored)
     except Exception:
         # Keep env/default settings if settings table is unavailable or malformed.
         pass
@@ -38,6 +59,7 @@ def _load_smtp_settings() -> dict:
 
 
 def send_email(to_email, subject, html_content):
+    """Send one HTML email. Returns True on success, False when skipped or on failure."""
     smtp_settings = _load_smtp_settings()
     smtp_host = smtp_settings["host"]
     smtp_port = smtp_settings["port"]
@@ -52,7 +74,7 @@ def send_email(to_email, subject, html_content):
             "Admins can recover access by setting a temporary password from team settings.",
             to_email,
         )
-        return
+        return False
 
     smtp_from = (smtp_from or "").strip() or (smtp_user if "@" in smtp_user else "") or os.environ.get(
         "SMTP_FROM", "noreply@broke.dk"
@@ -63,7 +85,7 @@ def send_email(to_email, subject, html_content):
     msg["From"] = smtp_from
     msg["To"] = to_email
 
-    part1 = MIMEText(html_content, "html")
+    part1 = MIMEText(html_content, "html", "utf-8")
     msg.attach(part1)
 
     port = int(smtp_port)
@@ -89,19 +111,32 @@ def send_email(to_email, subject, html_content):
         server.sendmail(smtp_from, to_email, msg.as_string())
         server.quit()
         logger.info(f"Email sent to {to_email}")
+        return True
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {e}")
+        return False
 
 
-def handle_password_reset(user=None, token=None, reset_url=None, **_event):
-    if not user or not token:
+def handle_password_reset(
+    user=None, token=None, reset_url=None, recipient_email=None, username=None, **_event
+):
+    to_email = (recipient_email or "").strip()
+    if not to_email and user is not None:
+        to_email = (getattr(user, "email", None) or "").strip()
+    display_name = (username or "").strip()
+    if not display_name and user is not None:
+        display_name = (getattr(user, "username", None) or "").strip()
+
+    if not to_email or not token:
         return
 
     reset_link = reset_url
     if not reset_link:
         base_url = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
         if not base_url:
-            logger.warning("APP_BASE_URL not configured. Skipping password reset email for %s", user.email)
+            logger.warning(
+                "APP_BASE_URL not configured. Skipping password reset email for %s", to_email
+            )
             return
         reset_link = f"{base_url}/reset-password/{token}"
 
@@ -109,14 +144,14 @@ def handle_password_reset(user=None, token=None, reset_url=None, **_event):
     <html>
       <body>
         <h2>Password Reset</h2>
-        <p>Hello {user.username},</p>
+        <p>Hello {display_name or 'there'},</p>
         <p>You requested a password reset. Click the link below to set a new password:</p>
         <p><a href="{reset_link}">Reset Password</a></p>
         <p>If you didn't request this, you can safely ignore this email.</p>
       </body>
     </html>
     """
-    send_email(user.email, "Password Reset", html)
+    send_email(to_email, "Password Reset", html)
 
 
 # Subscribe to events

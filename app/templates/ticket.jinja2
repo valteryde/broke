@@ -11,7 +11,15 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>  <i class="ph ph-caret-right"></i> <a href="/tickets/{{ project.id }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a>
+    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i>
+    {% if ticket.project == 'TRIAGE' %}
+        <a href="/intake"><i class="ph ph-tray"></i> Intake</a>
+    {% elif project %}
+        <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+    {% else %}
+        <a href="/tickets/{{ ticket.project }}"><i class="ph ph-folder-simple"></i> {{ ticket.project }}</a>
+    {% endif %}
+    <i class="ph ph-caret-right"></i> <a href="/tickets/{{ ticket.project }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a>
 {% endblock %}
 
 {% block content %}

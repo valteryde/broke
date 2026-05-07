@@ -480,7 +480,7 @@ def _(c=client, f=fake):
     )
     assert login_response.status_code == 302
 
-    with patch("app.views.settings.mail.send_email") as send_email_mock:
+    with patch("app.views.settings.mail.send_email", return_value=True) as send_email_mock:
         response = c.post(
             "/api/settings/email/test",
             data=json.dumps({"recipient": "dev@example.com"}),

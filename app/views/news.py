@@ -11,6 +11,7 @@ from ..utils.models import (
     TicketUpdateMessage,
     TicketLabelJoin,
     Label,
+    active_projects_ordered,
 )
 from flask import render_template, redirect, Blueprint, request, Response
 from urllib.parse import urlencode
@@ -96,7 +97,7 @@ def news_view(user: User):
     recent_errors = list(ErrorGroup.select().order_by(ErrorGroup.last_seen.desc()).limit(5))
 
     # Get all projects
-    projects = list(Project.select().order_by(Project.name))
+    projects = list(active_projects_ordered())
 
     # Build activity feed from comments and ticket updates
     activities = []
@@ -664,7 +665,7 @@ def timeline_view(user: User):
         user=user,
         page="reports",
         summary=summary,
-        projects=list(Project.select().order_by(Project.name)),
+        projects=list(active_projects_ordered()),
         project=None,
         events=data["events"],  # Already limited by build_timeline_events
         events_json=json.dumps(data["events"]),
@@ -708,7 +709,7 @@ def timeline_project_view(user: User, project_id: str):
         user=user,
         page="reports",
         summary=summary,
-        projects=list(Project.select().order_by(Project.name)),
+        projects=list(active_projects_ordered()),
         project=project,
         events=data["events"],
         events_json=json.dumps(data["events"]),

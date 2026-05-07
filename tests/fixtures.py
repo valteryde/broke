@@ -5,14 +5,13 @@ import time
 from app.utils.models import Ticket, Project, initialize_db, create_user
 
 
-def create_test_project(project_id, name="Test Project", description="Test Description"):
+def create_test_project(project_id, name="Test Project", _unused_description=None):
     """Helper to create a project with all required fields"""
     return Project.create(
         id=project_id,
         name=name,
-        description=description,
         icon="ph ph-test",
-        color="#3b82f6"
+        color="#3b82f6",
     )
 
 
@@ -26,7 +25,7 @@ def app():
     """Create Flask app for testing"""
     # Initialize database for tests
     initialize_db()
-    
+
     test_app = create_app()
     test_app.config['TESTING'] = True
     test_app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for testing

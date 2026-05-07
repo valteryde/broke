@@ -652,7 +652,7 @@
                 <div class="header-with-action">
                     <div>
                         <h1>Projects</h1>
-                        <p class="section-description">Manage your workspace projects. <a href="/tickets/stale">Stale tickets overview</a></p>
+                        <p class="section-description">Archive projects to hide them from pickers and new work while keeping tickets and history. <a href="/tickets/stale">Stale tickets overview</a></p>
                     </div>
                     <button class="btn btn-primary" onclick="showCreateProjectModal()">
                         <i class="ph ph-plus"></i> New Project
@@ -662,8 +662,9 @@
 
             <div class="settings-card">
                 <div class="card-section">
+                    <h3 class="subsection-title">Active</h3>
                     <div class="project-list">
-                        {% for project in projects %}
+                        {% for project in projects_active %}
                         <div class="project-item">
                             <div class="project-info">
                                 <div class="project-icon" style="background: {{ project.color or 'var(--logo-blue)' }}">
@@ -678,6 +679,9 @@
                                 <button class="btn-icon" title="Edit" onclick="showCreateProjectModal({ id: '{{ project.id }}', name: '{{ project.name }}', icon: '{{ project.icon }}', color: '{{ project.color }}' })">
                                     <i class="ph ph-pencil-simple"></i>
                                 </button>
+                                <button class="btn-icon" title="Archive" onclick="window.location.href = '/api/settings/projects/archive/{{ project.id }}' ">
+                                    <i class="ph ph-archive"></i>
+                                </button>
                                 <button class="btn-icon danger" title="Delete" onclick="window.location.href = '/api/settings/projects/delete/{{ project.id }}' ">
                                     <i class="ph ph-trash"></i>
                                 </button>
@@ -686,12 +690,47 @@
                         {% else %}
                         <div class="empty-state">
                             <i class="ph ph-folder-plus"></i>
-                            <p>No projects yet. Create your first project to get started.</p>
+                            <p>No active projects. Create one or restore from archived below.</p>
                         </div>
                         {% endfor %}
                     </div>
                 </div>
             </div>
+
+            {% if projects_archived %}
+            <div class="settings-card" style="margin-top: 1rem;">
+                <div class="card-section">
+                    <h3 class="subsection-title muted">Archived</h3>
+                    <p class="card-description">Not shown in project menus; existing tickets remain.</p>
+                    <div class="project-list">
+                        {% for project in projects_archived %}
+                        <div class="project-item project-item-muted">
+                            <div class="project-info">
+                                <div class="project-icon project-icon-muted" style="background: {{ project.color or 'var(--logo-blue)' }}">
+                                    <i class="{{ project.icon }}"></i>
+                                </div>
+                                <div class="project-details">
+                                    <span class="project-name">{{ project.name }}</span>
+                                    <span class="project-id">{{ project.id }}</span>
+                                </div>
+                            </div>
+                            <div class="project-actions">
+                                <button class="btn-icon" title="Edit" onclick="showCreateProjectModal({ id: '{{ project.id }}', name: '{{ project.name }}', icon: '{{ project.icon }}', color: '{{ project.color }}' })">
+                                    <i class="ph ph-pencil-simple"></i>
+                                </button>
+                                <button class="btn-icon" title="Restore" onclick="window.location.href = '/api/settings/projects/unarchive/{{ project.id }}' ">
+                                    <i class="ph ph-arrow-counter-clockwise"></i>
+                                </button>
+                                <button class="btn-icon danger" title="Delete permanently" onclick="window.location.href = '/api/settings/projects/delete/{{ project.id }}' ">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         {% elif section == 'team' %}
