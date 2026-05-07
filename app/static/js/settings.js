@@ -335,30 +335,105 @@ function applyTheme(theme) {
     }
 }
 
-/*
-List of random phosphor icons
-*/
-PhosphorIcons = [
-    'ph-browser',
-    'ph-folder',
-    'ph-code',
-    'ph-bug',
-    'ph-rocket',
-    'ph-cpu',
-    'ph-database',
-    'ph-shield-check',
-    'ph-cloud',
-    'ph-git-branch',
-    'ph-terminal',
-    'ph-wrench',
-    'ph-magnifying-glass',
-    'ph-laptop',
-    'ph-network',
-    'ph-key',
-    'ph-lock-keyhole',
-    'ph-lightning',
-    'ph-flame'
+/** @type {readonly string[]} second-class token only, e.g. browser → rendered as ph ph-browser */
+ProjectIconPresetSlugs = [
+    'folder', 'buildings', 'briefcase', 'code', 'terminal', 'git-branch', 'bug',
+    'cpu', 'database', 'cloud', 'globe', 'network', 'server', 'browser', 'desktop',
+    'monitor', 'laptop', 'smartphone', 'device-mobile', 'lock-keyhole', 'key',
+    'shield-check', 'package', 'stack', 'book-open', 'clipboard-text',
+    'rocket', 'lightning', 'flame', 'wrench', 'gear-six', 'magnifying-glass',
 ];
+
+/** Full class pairs for `<i class>` and stored project.icon values (Phosphor regular). */
+ProjectIconPresets = ProjectIconPresetSlugs.map((s) => `ph ph-${s}`);
+
+function slugToPresetLabel(slug) {
+    return slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function escapeHtmlAttr(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+/** CSRF for native form POST (fetch patch does not apply). Matches `broke_csrf` cookie. */
+function csrfHiddenInputHtml() {
+    const tok = String(window.BROKE_CSRF_TOKEN || '').trim()
+        || String(document.querySelector('meta[name="csrf-token"]')?.content || '').trim();
+    if (!tok) {
+        return '';
+    }
+    return `<input type="hidden" name="csrf_token" value="${escapeHtmlAttr(tok)}">`;
+}
+
+/** Normalize icon value from DB or legacy single-token form into `ph ph-*` where applicable. */
+function normalizeStoredProjectIcon(icon) {
+    if (icon === undefined || icon === null || icon === '') {
+        return '';
+    }
+    const t = String(icon).trim().replace(/\s+/g, ' ');
+    if (!t) {
+        return '';
+    }
+    if (/^ph ph-[\w-]+$/i.test(t)) {
+        return t.toLowerCase();
+    }
+    if (/^ph-[\w-]+$/i.test(t)) {
+        return `ph ${t.toLowerCase()}`;
+    }
+    return t;
+}
+
+function buildProjectIconPickerHtml() {
+    return `
+        <div class="project-icon-picker" role="group" aria-label="Phosphor icon presets">
+            ${ProjectIconPresets.map((classes) => {
+        const slug = classes.slice('ph ph-'.length);
+        const label = slugToPresetLabel(slug);
+        return `<button type="button" class="project-icon-option" data-icon-classes="${classes}" title="${escapeHtmlAttr(label)}" aria-label="${escapeHtmlAttr(label)}" aria-pressed="false"><i class="${classes}"></i></button>`;
+    }).join('')}
+        </div>
+        <p class="form-hint project-icon-picker-hint">More icons at <a href="https://phosphoricons.com/" target="_blank" rel="noopener noreferrer">phosphoricons.com</a> — tweak the field below if you need a specific name.</p>
+        `;
+}
+
+function initProjectIconPicker(modalOverlay) {
+    const form = modalOverlay.querySelector('#create-project-form');
+    if (!form) {
+        return;
+    }
+    const input = form.querySelector('#project-icon');
+    const buttons = form.querySelectorAll('.project-icon-option');
+    if (!input || !buttons.length) {
+        return;
+    }
+
+    function normalizePickerValue() {
+        return normalizeStoredProjectIcon(input.value) || (input.value || '').trim().replace(/\s+/g, ' ');
+    }
+
+    function syncSelection() {
+        const v = normalizePickerValue();
+        buttons.forEach((btn) => {
+            const match = btn.dataset.iconClasses === v;
+            btn.classList.toggle('selected', match);
+            btn.setAttribute('aria-pressed', match ? 'true' : 'false');
+        });
+    }
+
+    buttons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            input.value = btn.dataset.iconClasses;
+            syncSelection();
+        });
+    });
+    input.addEventListener('input', syncSelection);
+    input.addEventListener('change', syncSelection);
+    syncSelection();
+}
 
 function randomColor() {
     return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
@@ -370,32 +445,41 @@ function randomColor() {
  * Uses the Modal component from modal.js
  */
 window.showCreateProjectModal = (data = {}) => {
-    Modal.show('Create Project', `
+    const randomSlug = ProjectIconPresetSlugs[Math.floor(Math.random() * ProjectIconPresetSlugs.length)];
+    const defaultIcon = `ph ph-${randomSlug}`;
+    const initialIcon = normalizeStoredProjectIcon(data.icon) || defaultIcon;
+
+    Modal.show(data.id ? 'Update Project' : 'Create Project', `
         <form id="create-project-form" action="${data.id ? '/api/settings/projects/update/' + data.id : '/api/settings/projects'}" method="POST" autocomplete="off">
+            ${csrfHiddenInputHtml()}
             <div class="form-group">
                 <label for="project-name">Project Name</label>
-                <input type="text" id="project-name" name="name" class="form-input" placeholder="e.g., Frontend" value="${data.name || ''}" required>
+                <input type="text" id="project-name" name="name" class="form-input" placeholder="e.g., Frontend" value="${escapeHtmlAttr(data.name || '')}" required>
             </div>
             <div class="form-group">
                 <label for="project-icon">Icon</label>
-                <input type="text" id="project-icon" name="icon" class="form-input" placeholder="e.g., ph ph-browser" value="ph ${data.icon || PhosphorIcons[Math.floor(Math.random() * PhosphorIcons.length)]}">
+                ${buildProjectIconPickerHtml()}
+                <input type="text" id="project-icon" name="icon" class="form-input" placeholder="ph ph-folder" value="${escapeHtmlAttr(initialIcon)}">
             </div>
             <div class="form-group">
                 <label for="project-color">Color</label>
-                <input type="color" id="project-color" name="color"  value="${data.color || randomColor()}">
+                <input type="color" id="project-color" name="color"  value="${data.color ? escapeHtmlAttr(data.color) : randomColor()}">
             </div>
             <div class="form-actions">
                 <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
                 <button type="submit" class="btn btn-primary">${data.id ? 'Update Project' : 'Create Project'}</button>
             </div>
         </form>
-    `);
+    `, {
+        onOpen: (overlay) => initProjectIconPicker(overlay),
+    });
 };
 
 
 window.showInviteModal = () => {
     Modal.show('Invite Team Member', `
         <form id="invite-form" action="${API_URLS.invite_member}" method="POST" autocomplete="off">
+            ${csrfHiddenInputHtml()}
             <div class="form-group">
                 <label for="invite-name">Name</label>
                 <input type="text" id="invite-name" name="name" class="form-input" placeholder="Colleague Name" required>
@@ -420,6 +504,7 @@ window.showInviteModal = () => {
 window.showCreateLabelModal = () => {
     Modal.show('Create Label', `
         <form id="create-label-form" action="/api/settings/labels" method="POST" autocomplete="off">
+            ${csrfHiddenInputHtml()}
             <div class="form-group">
                 <label for="label-name">Label Name</label>
                 <input type="text" id="label-name" name="name" class="form-input" placeholder="e.g., bug, feature" required>
