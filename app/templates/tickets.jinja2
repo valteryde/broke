@@ -318,6 +318,7 @@
 
             const ticketList = new List('ticket-list', {
                 ...TicketListConfig,
+                virtualScroll: { minItems: 1, overscan: 12 },
                 syncUrlState: false,
                 getInitialState: loadTicketListState,
                 onStateChange: saveTicketListState,

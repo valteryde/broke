@@ -1,6 +1,9 @@
 /*
  * Generic List class with modular filtering, grouping, and rendering support.
- * 
+ *
+ * Optional `virtualScroll: true | { minItems?: number, overscan?: number }` window-scroll
+ * virtualization for large lists (reduces DOM size). Default minItems threshold is 48.
+ *
  * Usage:
  * const list = new List('container-id', {
  *     filters: { ... },
@@ -24,6 +27,8 @@ class List {
         this.elements = [];
         this.filteredElements = [];
         this.options = options;
+        /** @type {{ minItems: number, overscan: number } | null} */
+        this._virtualScrollCfg = List._normalizeVirtualScrollOption(options.virtualScroll);
 
         // Configuration
         this.filtersConfig = options.filters || {};
@@ -63,12 +68,35 @@ class List {
         this.selectedIndex = -1;
         this.renderedItems = []; // Array of { element, domNode }
 
+        /** @type {boolean} */
+        this._virtualActive = false;
+        /** Collapsed groups when virtual scrolling (group keys from grouping config). */
+        this.collapsedGroupKeys = new Set();
+        this._vsBound = false;
+        this._vsRafQueued = false;
+        this.virtualFlatElements = [];
+        this.virtualRows = [];
+        this.virtualPrefix = [];
+        this.virtualTotalHeight = 0;
+        /** Pixel offset within the scroll track for each item in virtualFlatElements (prefix Y at row start). */
+        this.virtualItemOffsetY = [];
+        this._vsMeasuredItemHeight = 0;
+        this._vsMeasuredHeaderHeight = 0;
+        this._vsMeasureRecursing = false;
+        this._vsItemHeightDefault = 82;
+        this._vsHeaderHeightDefault = 52;
+        this._vsOverscan = 8;
+
         // Action callback
         this.onUpdate = options.onUpdate || (() => { });
 
         this.initShortcuts();
 
         this.hydrateInitialState();
+
+        if (this._virtualScrollCfg) {
+            this._vsOverscan = this._virtualScrollCfg.overscan;
+        }
 
         this.applyFilters();
     }
@@ -236,19 +264,48 @@ class List {
     }
 
     setSelection(index, scrollToItem = true) {
-        if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]) {
-            this.renderedItems[this.selectedIndex].domNode.classList.remove('selected');
+        const prev = this.renderedItems[this.selectedIndex];
+        if (prev && prev.domNode) {
+            prev.domNode.classList.remove('selected');
         }
 
         this.selectedIndex = index;
 
-        if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]) {
-            const node = this.renderedItems[this.selectedIndex].domNode;
+        if (this.selectedIndex < 0 || !this.renderedItems[this.selectedIndex]) {
+            return;
+        }
+
+        if (this._virtualActive && scrollToItem) {
+            this.scrollItemIndexIntoView(this.selectedIndex);
+            this._runVirtualSlice(false);
+        }
+
+        const node = this.renderedItems[this.selectedIndex].domNode;
+        if (node) {
             node.classList.add('selected');
-            if (scrollToItem) {
+            if (scrollToItem && !this._virtualActive) {
                 node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         }
+    }
+
+    /**
+     * Scroll the page so the flat item at index is in view (window-virtualized lists).
+     */
+    scrollItemIndexIntoView(itemIndex) {
+        if (itemIndex < 0 || !this.virtualItemOffsetY || itemIndex >= this.virtualItemOffsetY.length) {
+            return;
+        }
+        const y = this.virtualItemOffsetY[itemIndex];
+        const anchor = this._vsAnchor;
+        if (!anchor) {
+            return;
+        }
+        const anchorTopDoc = anchor.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({
+            top: anchorTopDoc + y - 96,
+            behavior: 'auto'
+        });
     }
 
     openSelectedItem() {
@@ -274,12 +331,12 @@ class List {
     }
 
     handleUpdate(item, field, value, isToggle = false) {
-        // Optimistic update logic moved to specific list configs? 
-        // Actually, the generic list doesn't know how to update the item object deeply 
+        // Optimistic update logic moved to specific list configs?
+        // Actually, the generic list doesn't know how to update the item object deeply
         // (like arrays etc), so it relies on the caller or the specific logic handled in handler.
         // BUT, `lists.js` originally had logic for updating item state (assignees array etc).
         // This should probably be done inside the `handler` or `onUpdate`?
-        // Let's assume the `handler` in QuickActions takes care of mutating the item if needed, 
+        // Let's assume the `handler` in QuickActions takes care of mutating the item if needed,
         // OR we provide a helper here.
 
         // Original lists.js had this logic:
@@ -726,19 +783,41 @@ class List {
 
     render() {
         this.container.innerHTML = '';
-        this.renderedItems = [];
 
         const elementsToRender = this.filteredElements.length > 0 || Object.keys(this.activeFilters).length > 0
             ? this.filteredElements
             : this.elements;
 
         if (elementsToRender.length === 0 && this.elements.length > 0) {
+            this._teardownVirtualScroll();
+            this.renderedItems = [];
             const noResults = document.createElement('div');
             noResults.className = 'list-no-results';
             noResults.innerHTML = '<i class="ph ph-funnel-x"></i><span>No items match the current filters.</span>';
             this.container.appendChild(noResults);
             return;
         }
+
+        const flatCount = elementsToRender.length;
+        const useVirtual = this._shouldVirtualize(flatCount);
+
+        if (useVirtual) {
+            this._virtualActive = true;
+            this._lastVirtualElementsSource = elementsToRender;
+            this.rebuildVirtualStructure(elementsToRender);
+            this._vsAnchor = document.createElement('div');
+            this._vsAnchor.className = 'list-vs-anchor';
+            this._vsInner = document.createElement('div');
+            this._vsInner.className = 'list-vs-inner';
+            this._vsAnchor.appendChild(this._vsInner);
+            this.container.appendChild(this._vsAnchor);
+            this._ensureVirtualBindings();
+            this._runVirtualSlice(true);
+            return;
+        }
+
+        this._teardownVirtualScroll();
+        this.renderedItems = [];
 
         const groups = this.groupElements(elementsToRender);
 
@@ -759,6 +838,9 @@ class List {
                 const toggle = document.createElement('span');
                 toggle.className = 'list-group-toggle';
                 toggle.innerHTML = '<i class="ph ph-caret-down"></i>';
+                const groupContent = document.createElement('div');
+                groupContent.className = 'list-group-content';
+
                 groupHeader.addEventListener('click', () => {
                     groupContent.classList.toggle('collapsed');
                     toggle.innerHTML = groupContent.classList.contains('collapsed')
@@ -767,11 +849,8 @@ class List {
                 });
                 groupHeader.appendChild(toggle);
 
-                const groupContent = document.createElement('div');
-                groupContent.className = 'list-group-content';
-
                 group.elements.forEach(element => {
-                    groupContent.appendChild(this.renderElement(element));
+                    groupContent.appendChild(this.renderElement(element, true));
                 });
 
                 groupContainer.appendChild(groupContent);
@@ -779,16 +858,284 @@ class List {
             });
         } else {
             elementsToRender.forEach(element => {
-                this.container.appendChild(this.renderElement(element));
+                this.container.appendChild(this.renderElement(element, true));
             });
         }
     }
 
-    renderElement(element) {
-        // Use configured renderer
+    _shouldVirtualize(flatItemCount) {
+        return Boolean(this._virtualScrollCfg && flatItemCount >= this._virtualScrollCfg.minItems);
+    }
+
+    _teardownVirtualScroll() {
+        if (this._vsBound && this._vsOnScroll) {
+            window.removeEventListener('scroll', this._vsOnScroll);
+            window.removeEventListener('resize', this._vsOnScroll);
+        }
+        this._vsBound = false;
+        this._virtualActive = false;
+        this.collapsedGroupKeys.clear();
+        this._vsAnchor = null;
+        this._vsInner = null;
+    }
+
+    _ensureVirtualBindings() {
+        if (this._vsBound) {
+            return;
+        }
+        this._vsBound = true;
+        this._vsOnScroll = () => this._scheduleVirtualRefresh();
+        window.addEventListener('scroll', this._vsOnScroll, { passive: true });
+        window.addEventListener('resize', this._vsOnScroll);
+    }
+
+    _scheduleVirtualRefresh() {
+        if (this._vsRafQueued) {
+            return;
+        }
+        this._vsRafQueued = true;
+        requestAnimationFrame(() => {
+            this._vsRafQueued = false;
+            if (this._virtualActive) {
+                this._runVirtualSlice(false);
+            }
+        });
+    }
+
+    _rowHeight(kind) {
+        if (kind === 'header') {
+            return this._vsMeasuredHeaderHeight || this._vsHeaderHeightDefault;
+        }
+        return this._vsMeasuredItemHeight || this._vsItemHeightDefault;
+    }
+
+    rebuildVirtualStructure(elementsToRender) {
+        const groups = this.groupElements(elementsToRender);
+        const rows = [];
+        const flatElements = [];
+        const itemOffsetY = [];
+        let yAcc = 0;
+
+        if (groups) {
+            groups.forEach((group) => {
+                const hHead = this._rowHeight('header');
+                rows.push({
+                    kind: 'header',
+                    key: group.key,
+                    label: group.label,
+                    count: group.elements.length,
+                    height: hHead
+                });
+                yAcc += hHead;
+
+                const collapsed = this.collapsedGroupKeys.has(group.key);
+                if (!collapsed) {
+                    group.elements.forEach((element) => {
+                        itemOffsetY.push(yAcc);
+                        const ih = this._rowHeight('item');
+                        rows.push({
+                            kind: 'item',
+                            element,
+                            groupKey: group.key,
+                            height: ih
+                        });
+                        yAcc += ih;
+                        flatElements.push(element);
+                    });
+                }
+            });
+        } else {
+            elementsToRender.forEach((element) => {
+                itemOffsetY.push(yAcc);
+                const ih = this._rowHeight('item');
+                rows.push({
+                    kind: 'item',
+                    element,
+                    height: ih
+                });
+                yAcc += ih;
+                flatElements.push(element);
+            });
+        }
+
+        this.virtualRows = rows;
+        this.virtualFlatElements = flatElements;
+        this.virtualItemOffsetY = itemOffsetY;
+
+        const pref = [0];
+        rows.forEach((r) => {
+            pref.push(pref[pref.length - 1] + r.height);
+        });
+        this.virtualPrefix = pref;
+        this.virtualTotalHeight = pref[pref.length - 1] || 0;
+    }
+
+    _createVirtualGroupHeaderRow(meta) {
+        const collapsed = this.collapsedGroupKeys.has(meta.key);
+        const groupWrap = document.createElement('div');
+        groupWrap.className = 'list-group list-vs-virtual-group';
+
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'list-group-header';
+
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'list-group-label';
+        labelSpan.textContent = meta.label;
+
+        const countSpan = document.createElement('span');
+        countSpan.className = 'list-group-count';
+        countSpan.textContent = String(meta.count);
+
+        groupHeader.appendChild(labelSpan);
+        groupHeader.appendChild(countSpan);
+
+        const toggle = document.createElement('span');
+        toggle.className = 'list-group-toggle';
+        toggle.innerHTML = collapsed
+            ? '<i class="ph ph-caret-right"></i>'
+            : '<i class="ph ph-caret-down"></i>';
+
+        groupHeader.appendChild(toggle);
+
+        groupHeader.addEventListener('click', () => {
+            if (this.collapsedGroupKeys.has(meta.key)) {
+                this.collapsedGroupKeys.delete(meta.key);
+            } else {
+                this.collapsedGroupKeys.add(meta.key);
+            }
+            this.rebuildVirtualStructure(this._lastVirtualElementsSource);
+            this._runVirtualSlice(false);
+        });
+
+        groupWrap.appendChild(groupHeader);
+        return groupWrap;
+    }
+
+    /**
+     * Pass true once after structure changes so row heights match CSS; false during scroll/reflow.
+     * @param {boolean} allowRemeasure
+     */
+    _runVirtualSlice(allowRemeasure = false) {
+        const inner = this._vsInner;
+        const anchor = this._vsAnchor;
+        if (!inner || !anchor || !this.virtualRows.length) {
+            this.renderedItems = [];
+            return;
+        }
+
+        if (allowRemeasure === true) {
+            inner.style.paddingTop = '0';
+            inner.style.paddingBottom = '0';
+            inner.replaceChildren();
+            const probeRows = this.virtualRows.slice(0, Math.min(2, this.virtualRows.length));
+            probeRows.forEach((row) => {
+                if (row.kind === 'header') {
+                    inner.appendChild(this._createVirtualGroupHeaderRow(row));
+                } else {
+                    inner.appendChild(this.renderElement(row.element, false));
+                }
+            });
+            const itemEl = inner.querySelector('.list-element');
+            const groupEl = inner.querySelector('.list-vs-virtual-group');
+            let changed = false;
+            if (itemEl) {
+                const oh = List._outerHeight(itemEl);
+                if (oh > 0 && (!this._vsMeasuredItemHeight || Math.abs(oh - this._vsMeasuredItemHeight) > 2)) {
+                    this._vsMeasuredItemHeight = oh;
+                    changed = true;
+                }
+            }
+            if (groupEl) {
+                const oh = List._outerHeight(groupEl);
+                if (oh > 0 && (!this._vsMeasuredHeaderHeight || Math.abs(oh - this._vsMeasuredHeaderHeight) > 2)) {
+                    this._vsMeasuredHeaderHeight = oh;
+                    changed = true;
+                }
+            }
+            if (changed && !this._vsMeasureRecursing) {
+                this._vsMeasureRecursing = true;
+                this.rebuildVirtualStructure(this._lastVirtualElementsSource);
+                this._vsMeasureRecursing = false;
+            }
+        }
+
+        const pref = this.virtualPrefix;
+        const n = this.virtualRows.length;
+        const viewportH = window.innerHeight;
+        const avgRowH = this.virtualTotalHeight > 0 && n > 0 ? this.virtualTotalHeight / n : this._vsItemHeightDefault;
+        const overscanPx = this._vsOverscan * avgRowH;
+
+        const anchorTopDoc = anchor.getBoundingClientRect().top + window.scrollY;
+        const scrollTop = Math.max(0, window.scrollY - anchorTopDoc);
+        const maxTop = Math.max(0, pref[n] - viewportH);
+        const scrollTopClamped = Math.min(scrollTop, maxTop);
+
+        let startRow = 0;
+        let hi = n;
+        const topTarget = scrollTopClamped - overscanPx;
+        while (startRow < hi) {
+            const mid = (startRow + hi) >> 1;
+            if (pref[mid + 1] <= topTarget) {
+                startRow = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+
+        let endRow = startRow;
+        let hi2 = n;
+        const bottomTarget = scrollTopClamped + viewportH + overscanPx;
+        while (endRow < hi2) {
+            const mid = (endRow + hi2 + 1) >> 1;
+            if (pref[mid] < bottomTarget) {
+                endRow = mid;
+            } else {
+                hi2 = mid - 1;
+            }
+        }
+        endRow = Math.min(n - 1, Math.max(startRow, endRow));
+
+        const paddingTop = pref[startRow];
+        const paddingBottom = pref[n] - pref[endRow + 1];
+
+        inner.style.paddingTop = `${paddingTop}px`;
+        inner.style.paddingBottom = `${paddingBottom}px`;
+
+        const visibleMap = new Map();
+        const frag = document.createDocumentFragment();
+        for (let i = startRow; i <= endRow; i += 1) {
+            const row = this.virtualRows[i];
+            if (row.kind === 'header') {
+                frag.appendChild(this._createVirtualGroupHeaderRow(row));
+            } else {
+                const node = this.renderElement(row.element, false);
+                visibleMap.set(row.element.id, node);
+                frag.appendChild(node);
+            }
+        }
+        inner.replaceChildren(frag);
+
+        this.renderedItems = this.virtualFlatElements.map((el) => ({
+            element: el,
+            domNode: visibleMap.get(el.id) || null
+        }));
+
+        if (this.selectedIndex >= 0 && this.renderedItems[this.selectedIndex]?.domNode) {
+            this.renderedItems[this.selectedIndex].domNode.classList.add('selected');
+        }
+    }
+
+    static _outerHeight(el) {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        const mb = parseFloat(style.marginBottom) || 0;
+        const mt = parseFloat(style.marginTop) || 0;
+        return rect.height + mb + mt;
+    }
+
+    renderElement(element, collectToRendered = true) {
         const inner = this.renderer(element);
 
-        // Wrap in list-element and add event listeners
         const elDiv = document.createElement('div');
         elDiv.className = 'list-element';
 
@@ -804,14 +1151,13 @@ class List {
             }
         });
 
-        // Add delete button if onDelete is configured
         if (this.onDelete) {
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'list-element-delete-btn';
             deleteBtn.innerHTML = '<i class="ph ph-trash"></i>';
             deleteBtn.title = 'Delete';
             deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent item click
+                e.stopPropagation();
                 if (confirm('Are you sure you want to delete this item?')) {
                     this.onDelete(element);
                 }
@@ -819,19 +1165,33 @@ class List {
             elDiv.appendChild(deleteBtn);
         }
 
-        this.renderedItems.push({ element, domNode: elDiv });
+        if (collectToRendered) {
+            this.renderedItems.push({ element, domNode: elDiv });
+        }
+
         return elDiv;
     }
 
     remove(itemId) {
-        // Remove from data source
         const index = this.elements.findIndex(el => el.id === itemId);
         if (index > -1) {
             this.elements.splice(index, 1);
         }
 
-        // Re-apply filters to update rendered list
         this.applyFilters();
     }
 }
+
+List._normalizeVirtualScrollOption = function (vs) {
+    if (!vs) {
+        return null;
+    }
+    if (vs === true) {
+        return { minItems: 48, overscan: 8 };
+    }
+    return {
+        minItems: Number.isFinite(vs.minItems) ? vs.minItems : 48,
+        overscan: Number.isFinite(vs.overscan) ? vs.overscan : 8
+    };
+};
 

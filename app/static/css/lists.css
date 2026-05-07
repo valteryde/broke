@@ -440,6 +440,15 @@
     color: #16a34a;
 }
 
+.list-vs-anchor {
+    position: relative;
+    width: 100%;
+}
+
+.list-vs-inner {
+    width: 100%;
+}
+
 .list-container {
     width: 100%;
     display: flex;
