@@ -136,6 +136,9 @@ class ErrorGroup(BaseModel):
     # Status for issue tracking
     status = CharField(default="unresolved")  # unresolved, resolved, ignored
 
+    # Last spike-style escalation email sent (unix ts); used for cooldown deduplication
+    last_escalation_spike_email_at = IntegerField(null=True)
+
     class Meta:  # type: ignore
         indexes = ((("part", "fingerprint"), True),)  # Unique per part
 
@@ -452,6 +455,7 @@ def initialize_db():
     _ensure_dsn_token_columns()
     _ensure_project_settings_column()
     _ensure_project_archived_column()
+    _ensure_errorgroup_escalation_spike_column()
     database.close()
 
 
@@ -516,6 +520,14 @@ def _ensure_project_archived_column() -> None:
     columns = [row[1] for row in database.execute_sql("PRAGMA table_info(project);").fetchall()]
     if "archived" not in columns:
         database.execute_sql("ALTER TABLE project ADD COLUMN archived INTEGER DEFAULT 0;")
+
+
+def _ensure_errorgroup_escalation_spike_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(errorgroup);").fetchall()]
+    if columns and "last_escalation_spike_email_at" not in columns:
+        database.execute_sql(
+            "ALTER TABLE errorgroup ADD COLUMN last_escalation_spike_email_at INTEGER;"
+        )
 
 
 def setup_test_data():  # noqa: C901

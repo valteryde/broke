@@ -12,6 +12,7 @@ from scripts.migrate_005_ticket_parent import run_migration as run_migration_005
 from scripts.migrate_006_work_cycles import run_migration as run_migration_006
 from scripts.migrate_007_agent_tokens import run_migration as run_migration_007
 from scripts.migrate_008_project_settings import run_migration as run_migration_008
+from scripts.migrate_009_error_escalation_spike import run_migration as run_migration_009
 
 if __name__ == "__main__":
     # Docker entrypoint runs migrations before the app boots; create_tables only
@@ -23,3 +24,4 @@ if __name__ == "__main__":
     run_migration_006()
     run_migration_007()
     run_migration_008()
+    run_migration_009()

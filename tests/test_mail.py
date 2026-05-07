@@ -110,3 +110,41 @@ def _():
                 assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is False
                 smtp_cls.assert_not_called()
                 ssl_cls.assert_not_called()
+
+
+@test("send_email attaches plain and HTML parts when text_content is set")
+def _():
+    from email import policy
+    from email.parser import Parser
+    from app.utils import mail
+
+    settings = {
+        "host": "smtp.example.com",
+        "port": 587,
+        "username": "",
+        "password": "",
+        "from": "noreply@example.com",
+        "use_tls": False,
+    }
+    with patch.object(mail, "_load_smtp_settings", return_value=settings):
+        with patch("app.utils.mail.smtplib.SMTP_SSL"):
+            with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
+                inst = smtp_cls.return_value
+                assert (
+                    mail.send_email(
+                        "dest@example.com",
+                        "Subject",
+                        "<p>hi</p>",
+                        text_content="plain hi",
+                    )
+                    is True
+                )
+                inst.sendmail.assert_called_once()
+                raw_msg = inst.sendmail.call_args.args[2]
+                msg = Parser(policy=policy.default).parsestr(raw_msg)
+                types = [
+                    p.get_content_type()
+                    for p in msg.iter_parts()
+                    if p.get_content_type() in ("text/plain", "text/html")
+                ]
+                assert types == ["text/plain", "text/html"]

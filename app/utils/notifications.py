@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from .email_branding import email_base_url, event_accent_hex, render_email
 from .events import bus, EventTypes
 from .mail import send_email
 from .models import GlobalSetting, NotificationEventLog, User, database
@@ -24,6 +25,9 @@ DEFAULT_ENGINE_SETTINGS = {
         EventTypes.TICKET_STATUS_CHANGED: ["email"],
         EventTypes.TICKET_COMMENTED: ["email"],
         EventTypes.ANON_TICKET_SUBMITTED: ["email"],
+        EventTypes.ERROR_NEW: ["email"],
+        EventTypes.ERROR_REGRESSION: ["email"],
+        EventTypes.ERROR_ESCALATING: ["email"],
     },
 }
 
@@ -33,6 +37,9 @@ EVENT_SUBJECTS = {
     EventTypes.TICKET_STATUS_CHANGED: "Ticket status changed",
     EventTypes.TICKET_COMMENTED: "New ticket comment",
     EventTypes.ANON_TICKET_SUBMITTED: "Anonymous ticket submitted",
+    EventTypes.ERROR_NEW: "New error group",
+    EventTypes.ERROR_REGRESSION: "Error regressed",
+    EventTypes.ERROR_ESCALATING: "Error escalating",
 }
 
 
@@ -120,6 +127,11 @@ def _build_event_text(event: dict) -> str:
     event_type = event.get("event_type", "Unknown Event")
     ticket_id = event.get("ticket_id")
     ticket_title = event.get("ticket_title")
+    error_group_id = event.get("error_group_id")
+    part_name = event.get("part_name")
+    error_url = event.get("error_url")
+    environment = event.get("environment")
+    release = event.get("release")
     actor = event.get("actor") or event.get("user") or "System"
     details = event.get("details") or ""
     project = event.get("project")
@@ -130,24 +142,58 @@ def _build_event_text(event: dict) -> str:
         lines.append(f"Ticket: {ticket_id}")
     if ticket_title:
         lines.append(f"Title: {ticket_title}")
+    if error_group_id is not None:
+        lines.append(f"Error group: {error_group_id}")
+    if part_name:
+        lines.append(f"Part: {part_name}")
     if project:
         lines.append(f"Project: {project}")
+    if environment:
+        lines.append(f"Environment: {environment}")
+    if release:
+        lines.append(f"Release: {release}")
     if status:
         lines.append(f"Status: {status}")
-    lines.append(f"Actor: {actor}")
     if details:
         lines.append(f"Details: {details}")
+    if error_url:
+        lines.append(f"Link: {error_url}")
+    lines.append(f"Actor: {actor}")
 
     return "\n".join(lines)
 
 
+def _ticket_link(event: dict) -> str | None:
+    base = email_base_url().strip().rstrip("/")
+    tid = event.get("ticket_id")
+    proj = event.get("project")
+    if not base or tid is None or proj is None:
+        return None
+    return f"{base}/tickets/{proj}/{tid}"
+
+
 def _dispatch_email(event: dict, recipients: Iterable[str]):
     subject = EVENT_SUBJECTS.get(event.get("event_type"), event.get("event_type", "Broke notification"))
-    body_text = _build_event_text(event).replace("\n", "<br>")
-    html = f"<html><body><pre style='font-family:inherit'>{body_text}</pre></body></html>"
+    headline = subject
+    accent = event_accent_hex(event.get("event_type"))
+    ticket_url = _ticket_link(event)
+
+    html = render_email(
+        "email/notification_event.jinja2",
+        event=event,
+        headline=headline,
+        accent=accent,
+        ticket_url=ticket_url,
+    )
+    text = render_email(
+        "email/notification_event.txt.jinja2",
+        event=event,
+        headline=headline,
+        ticket_url=ticket_url,
+    )
 
     for email in recipients:
-        if not send_email(email, f"Broke: {subject}", html):
+        if not send_email(email, f"Broke: {subject}", html, text_content=text):
             raise RuntimeError(f"Failed to send notification email to {email}")
 
 
@@ -234,6 +280,9 @@ def initialize_notification_engine():
         EventTypes.TICKET_STATUS_CHANGED,
         EventTypes.TICKET_COMMENTED,
         EventTypes.ANON_TICKET_SUBMITTED,
+        EventTypes.ERROR_NEW,
+        EventTypes.ERROR_REGRESSION,
+        EventTypes.ERROR_ESCALATING,
     ]:
         bus.subscribe(event_type, handle_notification_event)
 

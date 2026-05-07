@@ -1,4 +1,7 @@
+import os
+
 from ..utils.security import protected
+from ..utils.events import EventTypes, bus
 from ..utils.models import (
     User,
     Project,
@@ -27,6 +30,95 @@ logger = getLogger(__name__)
 
 # Create blueprint
 bug_bp = Blueprint("bug", __name__)
+
+ERROR_ESCALATION_MILESTONES = (10, 50, 100, 500, 1000)
+ERROR_SPIKE_WINDOW_SEC = 600
+ERROR_SPIKE_MIN_OCCURRENCES = 5
+ERROR_SPIKE_EMAIL_COOLDOWN_SEC = 3600
+
+
+def _format_error_core_details(error_group: ErrorGroup) -> str:
+    et = error_group.exception_type or "Unknown"
+    ev = error_group.exception_value or ""
+    lines = [f"Exception: {et}: {ev}".strip()]
+    if error_group.culprit:
+        lines.append(f"Culprit: {error_group.culprit}")
+    lines.append(f"Total occurrences: {error_group.event_count}")
+    return "\n".join(lines)
+
+
+def _error_event_kwargs(part: ProjectPart, error_group: ErrorGroup, details: str) -> dict:
+    base_url = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
+    kwargs: dict = {
+        "project": str(part.project_id),
+        "part_name": part.name,
+        "error_group_id": error_group.id,
+        "actor": "ingest",
+        "status": error_group.status,
+        "details": details,
+        "environment": error_group.environment,
+        "release": error_group.release,
+    }
+    if base_url:
+        kwargs["error_url"] = f"{base_url}/errors/{part.project_id}/{part.id}/{error_group.id}"
+    return kwargs
+
+
+def _emit_error_notifications_after_occurrence(
+    part: ProjectPart,
+    error_group: ErrorGroup,
+    *,
+    is_new: bool,
+    was_resolved: bool,
+    was_ignored: bool,
+    old_count: int,
+    timestamp: int,
+) -> None:
+    core = _format_error_core_details(error_group)
+    if is_new:
+        bus.emit(EventTypes.ERROR_NEW, **_error_event_kwargs(part, error_group, core))
+        return
+
+    if was_resolved:
+        reg_details = f"{core}\nPreviously resolved; reopened on new occurrence."
+        bus.emit(EventTypes.ERROR_REGRESSION, **_error_event_kwargs(part, error_group, reg_details))
+
+    if was_ignored or error_group.status == "ignored":
+        return
+
+    new_count = error_group.event_count
+    escalation_reasons: list[str] = []
+    spike_notifies = False
+
+    for m in ERROR_ESCALATION_MILESTONES:
+        if old_count < m <= new_count:
+            escalation_reasons.append(
+                f"Volume milestone: {new_count} total occurrences (crossed {m})"
+            )
+            break
+
+    cutoff = timestamp - ERROR_SPIKE_WINDOW_SEC
+    n_spike = (
+        ErrorOccurrence.select()
+        .where(
+            (ErrorOccurrence.error_group == error_group) & (ErrorOccurrence.timestamp >= cutoff)
+        )
+        .count()
+    )
+    if n_spike >= ERROR_SPIKE_MIN_OCCURRENCES:
+        last_spike = error_group.last_escalation_spike_email_at
+        if last_spike is None or timestamp - last_spike >= ERROR_SPIKE_EMAIL_COOLDOWN_SEC:
+            escalation_reasons.append(
+                f"Spike: {n_spike} events in the last {ERROR_SPIKE_WINDOW_SEC // 60} minutes"
+            )
+            spike_notifies = True
+
+    if escalation_reasons:
+        details = f"{core}\n" + "\n".join(escalation_reasons)
+        bus.emit(EventTypes.ERROR_ESCALATING, **_error_event_kwargs(part, error_group, details))
+        if spike_notifies:
+            error_group.last_escalation_spike_email_at = timestamp
+            error_group.save(only=[ErrorGroup.last_escalation_spike_email_at])
 
 
 def normalize_message(message: str | None) -> str:
@@ -172,15 +264,21 @@ def handle_event_item(part: ProjectPart, payload: dict, event_id: str | None = N
         error_group = ErrorGroup.get(
             (ErrorGroup.part == part) & (ErrorGroup.fingerprint == fingerprint)
         )
-        # Update existing group
+        old_count = error_group.event_count
+        was_resolved = error_group.status == "resolved"
+        was_ignored = error_group.status == "ignored"
         error_group.event_count += 1
         error_group.last_seen = timestamp
         # Regression detection: reopen issues that were previously resolved.
         if error_group.status == "resolved":
             error_group.status = "unresolved"
         error_group.save()
+        is_new = False
     except DoesNotExist:
-        # Create new group
+        old_count = 0
+        was_resolved = False
+        was_ignored = False
+        is_new = True
         error_group = ErrorGroup.create(
             part=part,
             fingerprint=fingerprint,
@@ -203,6 +301,16 @@ def handle_event_item(part: ProjectPart, payload: dict, event_id: str | None = N
     # Record this occurrence
     ErrorOccurrence.create(
         error_group=error_group, timestamp=timestamp, event_id=event_id or payload.get("event_id")
+    )
+
+    _emit_error_notifications_after_occurrence(
+        part,
+        error_group,
+        is_new=is_new,
+        was_resolved=was_resolved,
+        was_ignored=was_ignored,
+        old_count=old_count,
+        timestamp=timestamp,
     )
 
     return error_group

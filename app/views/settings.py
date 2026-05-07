@@ -16,6 +16,7 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request
 from peewee import DoesNotExist
 
 from ..utils import mail
+from ..utils.email_branding import render_email
 from ..utils.agent_auth import DEFAULT_AGENT_TTL_SECONDS
 from ..utils.ai_changelog import get_ai_config
 from ..utils.models import (
@@ -601,18 +602,10 @@ def api_send_test_email(user: User):
     if not recipient:
         return json.dumps({"error": "Recipient email is required"}), 400
 
-    html = f"""
-    <html>
-        <body>
-            <h2>Broke SMTP Test</h2>
-            <p>Hello {user.username},</p>
-            <p>This is a test email from Broke.</p>
-            <p>If you received this message, your SMTP configuration is working.</p>
-        </body>
-    </html>
-    """
+    html = render_email("email/smtp_test.jinja2", username=user.username)
+    text = render_email("email/smtp_test.txt.jinja2", username=user.username)
 
-    if not mail.send_email(recipient, "Broke SMTP Test Email", html):
+    if not mail.send_email(recipient, "Broke SMTP Test Email", html, text_content=text):
         return (
             json.dumps(
                 {

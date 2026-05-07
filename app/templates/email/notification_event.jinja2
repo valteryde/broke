@@ -1,0 +1,64 @@
+{% extends "email/base.jinja2" %}
+{% block email_title %}{{ headline }} · Broke{% endblock %}
+{% block preheader %}{{ headline }} — {% if event.ticket_title %}{{ event.ticket_title }}{% elif event.ticket_id %}Ticket #{{ event.ticket_id }}{% else %}Broke notification{% endif %}{% endblock %}
+{% block content %}
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 20px;">
+  <tr>
+    <td style="border-left: 4px solid {{ accent }};padding: 0 0 0 16px;">
+      <h1 style="margin:0 0 6px;font-family: {{ brand.heading_font }};font-size: 20px;font-weight: 600;color: #111827;line-height: 1.25;">
+        {{ headline }}
+      </h1>
+      {% if event.ticket_title %}
+      <p style="margin:0;font-family: {{ brand.body_font }};font-size: 17px;font-weight: 500;color: #1f2937;line-height: 1.35;">
+        {{ event.ticket_title }}
+      </p>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background-color: #fafafa;border: 1px dashed #9ca3af;border-radius: 10px;">
+  {% if event.ticket_id %}
+  <tr>
+    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;border-bottom: 1px solid {{ brand.bg_light_gray }};">
+      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Ticket</span>
+      <span style="color: #111827;">#{{ event.ticket_id }}</span>
+    </td>
+  </tr>
+  {% endif %}
+  {% if event.project %}
+  <tr>
+    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;border-bottom: 1px solid {{ brand.bg_light_gray }};">
+      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Project</span>
+      <span style="color: #111827;">{{ event.project }}</span>
+    </td>
+  </tr>
+  {% endif %}
+  {% if event.status %}
+  <tr>
+    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;border-bottom: 1px solid {{ brand.bg_light_gray }};">
+      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Status</span>
+      <span style="color: #111827;">{{ event.status }}</span>
+    </td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;{% if event.details %}border-bottom: 1px solid {{ brand.bg_light_gray }};{% endif %}">
+      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Actor</span>
+      <span style="color: #111827;">{{ event.actor or event.user or 'System' }}</span>
+    </td>
+  </tr>
+  {% if event.details %}
+  <tr>
+    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;">
+      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Details</span>
+      <span style="color: #374151;white-space: pre-wrap;">{{ event.details }}</span>
+    </td>
+  </tr>
+  {% endif %}
+</table>
+{% if ticket_url %}
+<p style="margin:20px 0 0;font-family: {{ brand.body_font }};font-size: 15px;">
+  <a href="{{ ticket_url }}" style="color: {{ brand.logo_blue }};font-weight: 600;text-decoration: none;">Open ticket →</a>
+</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <title>{% block email_title %}Broke{% endblock %}</title>
+</head>
+<body style="margin:0;padding:0;background-color: {{ brand.bg_gray }};">
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+    {% block preheader %}Broke{% endblock %}
+  </div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: {{ brand.bg_gray }};border:0;margin:0;">
+    <tr>
+      <td align="center" style="padding: 24px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background-color: {{ brand.bg_white }};border: 1px solid {{ brand.bg_light_gray }};border-radius: 8px;border-collapse: separate;">
+          <tr>
+            <td style="background-color: {{ brand.logo_blue }};padding: 22px 24px;border-radius: 7px 7px 0 0;">
+              {% if email_logo_url %}
+              <img src="{{ email_logo_url }}" alt="Broke" width="112" style="display:block;height:auto;max-height:36px;width:auto;border:0;">
+              {% else %}
+              <p style="margin:0;font-family: {{ brand.heading_font }};font-size:22px;font-weight:600;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">
+                Broke
+              </p>
+              {% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 28px 24px 12px;font-family: {{ brand.body_font }};font-size: 16px;line-height: 1.55;color: #111827;">
+              {% block content %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 24px 24px;font-family: {{ brand.body_font }};font-size: 13px;line-height: 1.5;color: {{ brand.secondary }};">
+              {% if email_base_url %}
+              <a href="{{ email_base_url }}" style="color: {{ brand.logo_blue }};text-decoration: underline;">Open Broke</a>
+              <span aria-hidden="true" style="color: #9ca3af;"> · </span>
+              {% endif %}
+              <span>Sent by Broke</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

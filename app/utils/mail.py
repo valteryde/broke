@@ -58,8 +58,8 @@ def _load_smtp_settings() -> dict:
     return settings
 
 
-def send_email(to_email, subject, html_content):
-    """Send one HTML email. Returns True on success, False when skipped or on failure."""
+def send_email(to_email, subject, html_content, text_content=None):
+    """Send one HTML email (optional multipart plain + HTML). Returns True on success, False when skipped or on failure."""
     smtp_settings = _load_smtp_settings()
     smtp_host = smtp_settings["host"]
     smtp_port = smtp_settings["port"]
@@ -85,8 +85,9 @@ def send_email(to_email, subject, html_content):
     msg["From"] = smtp_from
     msg["To"] = to_email
 
-    part1 = MIMEText(html_content, "html", "utf-8")
-    msg.attach(part1)
+    if text_content:
+        msg.attach(MIMEText(text_content, "plain", "utf-8"))
+    msg.attach(MIMEText(html_content, "html", "utf-8"))
 
     port = int(smtp_port)
     host_lower = smtp_host.strip().lower()
@@ -140,18 +141,20 @@ def handle_password_reset(
             return
         reset_link = f"{base_url}/reset-password/{token}"
 
-    html = f"""
-    <html>
-      <body>
-        <h2>Password Reset</h2>
-        <p>Hello {display_name or 'there'},</p>
-        <p>You requested a password reset. Click the link below to set a new password:</p>
-        <p><a href="{reset_link}">Reset Password</a></p>
-        <p>If you didn't request this, you can safely ignore this email.</p>
-      </body>
-    </html>
-    """
-    send_email(to_email, "Password Reset", html)
+    greeting = display_name or "there"
+    from .email_branding import render_email
+
+    html = render_email(
+        "email/password_reset.jinja2",
+        display_name=greeting,
+        reset_link=reset_link,
+    )
+    text = render_email(
+        "email/password_reset.txt.jinja2",
+        display_name=greeting,
+        reset_link=reset_link,
+    )
+    send_email(to_email, "Password Reset", html, text_content=text)
 
 
 # Subscribe to events

@@ -1,4 +1,6 @@
 """Extended tests for bug/error tracking functionality"""
+from unittest.mock import patch
+
 from ward import test, fixture, Scope
 from tests.fixtures import app, client, auth_client, auth_user, create_test_project
 from app.utils.models import Project, ProjectPart, ErrorGroup, ErrorOccurrence, DSNToken
@@ -312,7 +314,8 @@ def _(part=error_project_part):
         "event_id": "test-event-123"
     }
 
-    error_group = handle_event_item(part, payload, "test-event-123")
+    with patch("app.views.bug.bus.emit"):
+        error_group = handle_event_item(part, payload, "test-event-123")
 
     assert error_group is not None
     assert error_group.exception_type == "RuntimeError"
@@ -340,13 +343,14 @@ def _(part=error_project_part):
         }
     }
 
-    # First occurrence
-    error_group1 = handle_event_item(part, payload, "event-1")
-    count1 = error_group1.event_count
+    with patch("app.views.bug.bus.emit"):
+        # First occurrence
+        error_group1 = handle_event_item(part, payload, "event-1")
+        count1 = error_group1.event_count
 
-    # Second occurrence (should be same group)
-    error_group2 = handle_event_item(part, payload, "event-2")
-    count2 = error_group2.event_count
+        # Second occurrence (should be same group)
+        error_group2 = handle_event_item(part, payload, "event-2")
+        count2 = error_group2.event_count
 
     assert error_group1.id == error_group2.id
     assert count2 > count1
@@ -373,11 +377,12 @@ def _(part=error_project_part):
         }
     }
 
-    error_group = handle_event_item(part, payload, "regression-event-1")
-    error_group.status = "resolved"
-    error_group.save()
+    with patch("app.views.bug.bus.emit"):
+        error_group = handle_event_item(part, payload, "regression-event-1")
+        error_group.status = "resolved"
+        error_group.save()
 
-    reopened = handle_event_item(part, payload, "regression-event-2")
+        reopened = handle_event_item(part, payload, "regression-event-2")
 
     assert reopened.id == error_group.id
     assert reopened.event_count >= 2
@@ -385,6 +390,186 @@ def _(part=error_project_part):
 
     ErrorOccurrence.delete().where(ErrorOccurrence.error_group == reopened).execute()
     reopened.delete_instance()
+
+
+@test("handle_event_item emits ERROR_NEW for new error group")
+def _(part=error_project_part):
+    from app.utils.events import EventTypes
+    from app.views.bug import handle_event_item
+
+    payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "RuntimeError",
+                    "value": f"new-emit-{time.time()}",
+                    "stacktrace": {"frames": [{"module": "a", "function": "b"}]},
+                }
+            ]
+        }
+    }
+    with patch("app.views.bug.bus.emit") as emit_mock:
+        eg = handle_event_item(part, payload, "n1")
+    assert emit_mock.call_count == 1
+    assert emit_mock.call_args[0][0] == EventTypes.ERROR_NEW
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == eg).execute()
+    eg.delete_instance()
+
+
+@test("handle_event_item emits ERROR_REGRESSION when resolved group reopens")
+def _(part=error_project_part):
+    from app.utils.events import EventTypes
+    from app.views.bug import handle_event_item
+
+    payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "RuntimeError",
+                    "value": f"reg-emit-{time.time()}",
+                    "stacktrace": {"frames": [{"module": "svc", "function": "run"}]},
+                }
+            ]
+        }
+    }
+    with patch("app.views.bug.bus.emit"):
+        eg = handle_event_item(part, payload, "r1")
+        eg.status = "resolved"
+        eg.save()
+
+    with patch("app.views.bug.bus.emit") as emit_mock:
+        handle_event_item(part, payload, "r2")
+
+    types = [c[0][0] for c in emit_mock.call_args_list]
+    assert EventTypes.ERROR_REGRESSION in types
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == eg).execute()
+    eg.delete_instance()
+
+
+@test("handle_event_item emits ERROR_ESCALATING on volume milestone")
+def _(part=error_project_part):
+    from app.utils.events import EventTypes
+    from app.views.bug import handle_event_item
+
+    payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "KeyError",
+                    "value": f"milestone-{time.time()}",
+                    "stacktrace": {"frames": [{"module": "k", "function": "v"}]},
+                }
+            ]
+        }
+    }
+    with patch("app.views.bug.bus.emit"):
+        eg = handle_event_item(part, payload, "m1")
+        eg.event_count = 9
+        eg.save()
+
+    with patch("app.views.bug.bus.emit") as emit_mock:
+        handle_event_item(part, payload, "m2")
+
+    types = [c[0][0] for c in emit_mock.call_args_list]
+    assert EventTypes.ERROR_ESCALATING in types
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == eg).execute()
+    eg.delete_instance()
+
+
+@test("handle_event_item emits ERROR_ESCALATING on spike in short window")
+def _(part=error_project_part):
+    from app.utils.events import EventTypes
+    from app.views.bug import handle_event_item
+
+    payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "OSError",
+                    "value": f"spike-{time.time()}",
+                    "stacktrace": {"frames": [{"module": "spike", "function": "main"}]},
+                }
+            ]
+        }
+    }
+    ts = int(time.time())
+    with patch("app.views.bug.bus.emit"):
+        eg = handle_event_item(part, payload, "s0")
+        for i in range(3):
+            ErrorOccurrence.create(error_group=eg, timestamp=ts, event_id=f"seed{i}")
+
+    with patch("app.views.bug.bus.emit") as emit_mock:
+        handle_event_item(part, payload, "s4")
+
+    types = [c[0][0] for c in emit_mock.call_args_list]
+    assert EventTypes.ERROR_ESCALATING in types
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == eg).execute()
+    eg.delete_instance()
+
+
+@test("handle_event_item spike cooldown suppresses repeat ERROR_ESCALATING")
+def _(part=error_project_part):
+    from app.utils.events import EventTypes
+    from app.views.bug import handle_event_item
+
+    payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "OSError",
+                    "value": f"cool-{time.time()}",
+                    "stacktrace": {"frames": [{"module": "c", "function": "d"}]},
+                }
+            ]
+        }
+    }
+    ts = int(time.time())
+    with patch("app.views.bug.bus.emit"):
+        eg = handle_event_item(part, payload, "c0")
+        for i in range(3):
+            ErrorOccurrence.create(error_group=eg, timestamp=ts, event_id=f"cd{i}")
+
+    with patch("app.views.bug.bus.emit") as e_first:
+        handle_event_item(part, payload, "c1")
+    assert any(c[0][0] == EventTypes.ERROR_ESCALATING for c in e_first.call_args_list)
+
+    with patch("app.views.bug.bus.emit") as e_second:
+        handle_event_item(part, payload, "c2")
+    assert not any(c[0][0] == EventTypes.ERROR_ESCALATING for c in e_second.call_args_list)
+
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == eg).execute()
+    eg.delete_instance()
+
+
+@test("handle_event_item skips ERROR_ESCALATING when group is ignored")
+def _(part=error_project_part):
+    from app.utils.events import EventTypes
+    from app.views.bug import handle_event_item
+
+    payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "ValueError",
+                    "value": f"ign-{time.time()}",
+                    "stacktrace": {"frames": [{"module": "i", "function": "j"}]},
+                }
+            ]
+        }
+    }
+    with patch("app.views.bug.bus.emit"):
+        eg = handle_event_item(part, payload, "i0")
+        eg.status = "ignored"
+        eg.event_count = 9
+        eg.save()
+
+    with patch("app.views.bug.bus.emit") as emit_mock:
+        handle_event_item(part, payload, "i1")
+
+    types = [c[0][0] for c in emit_mock.call_args_list]
+    assert EventTypes.ERROR_ESCALATING not in types
+    ErrorOccurrence.delete().where(ErrorOccurrence.error_group == eg).execute()
+    eg.delete_instance()
 
 
 @test("/api/errors/<id>/status requires authentication")

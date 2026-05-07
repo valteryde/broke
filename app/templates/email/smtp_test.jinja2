@@ -1,0 +1,15 @@
+{% extends "email/base.jinja2" %}
+{% block email_title %}SMTP test · Broke{% endblock %}
+{% block preheader %}Your Broke SMTP configuration is working.{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 18px;font-family: {{ brand.heading_font }};font-size: 22px;font-weight: 600;color: #111827;line-height: 1.25;">
+  SMTP looks good
+</h1>
+<p style="margin:0 0 16px;">Hello {{ username }},</p>
+<p style="margin:0 0 16px;color: #374151;">
+  This is a test message from your Broke workspace. If you are reading it, outbound email is configured correctly.
+</p>
+<p style="margin:0;font-size: 14px;color: {{ brand.secondary }};">
+  You can close this email — no action is required.
+</p>
+{% endblock %}
