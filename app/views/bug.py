@@ -25,6 +25,7 @@ import time
 import re
 import base64
 from logging import getLogger
+from urllib.parse import urlparse
 
 logger = getLogger(__name__)
 
@@ -395,21 +396,19 @@ def handle_transaction_item(part: ProjectPart, payload: dict):
 
 
 def handle_attachment_item(
-    part: ProjectPart, error_group: ErrorGroup, item_headers: dict, payload: str
+    part: ProjectPart, error_group: ErrorGroup, item_headers: dict, payload: str | bytes
 ):
     """Handle an attachment item from a Sentry envelope."""
     filename = item_headers.get("filename", "unknown")
     content_type = item_headers.get("content_type") or item_headers.get("type")
 
-    # Store attachment data (base64 encode if binary)
-    try:
-        # Try to store as-is if it's text
-        if isinstance(payload, str):
-            data = payload
-        else:
-            data = base64.b64encode(payload).decode("utf-8")
-    except Exception:
-        data = str(payload)
+    if isinstance(payload, bytes):
+        try:
+            data = payload.decode("utf-8")
+        except UnicodeDecodeError:
+            data = base64.b64encode(payload).decode("ascii")
+    else:
+        data = payload
 
     attachment = Attachment.create(
         error_group=error_group,
@@ -646,45 +645,173 @@ def update_error_status(user: User, error_id: int):
     return json.dumps({"success": True, "status": new_status}), 200
 
 
-def verify_dsn_token() -> bool:
-    """Verify the DSN token from the request.
+def _ingest_content_type_allowed() -> bool:
+    """Sentry allows a small set of Content-Types for the same envelope body behavior."""
+    ct = (request.content_type or "").partition(";")[0].strip().lower()
+    return ct in {
+        "",
+        "application/x-sentry-envelope",
+        "text/plain",
+        "multipart/form-data",
+        "application/x-www-form-urlencoded",
+    }
 
-    The token can be provided in multiple ways:
-    1. Basic auth username in Authorization header (Sentry SDK default)
-    2. X-Sentry-Auth header
-    3. sentry_key query parameter (deprecated, rejected)
-    """
-    token = None
 
-    # Method 1: Basic auth (most common with Sentry SDK)
-    # Format: Authorization: Basic base64(token:)
+def _decompressed_ingest_body() -> bytes:
+    raw = request.get_data(cache=False)
+    try:
+        return gzip.decompress(raw)
+    except Exception:
+        return raw
+
+
+def _split_envelope_header(raw: bytes) -> tuple[dict, int]:
+    """Parse the envelope header line; return (headers dict, index after first newline)."""
+    if not raw:
+        return {}, 0
+    nl = raw.find(b"\n")
+    if nl < 0:
+        line_b = raw
+        after = len(raw)
+    else:
+        line_b = raw[:nl]
+        after = nl + 1
+    try:
+        line = line_b.decode("utf-8")
+        headers = json.loads(line)
+        if not isinstance(headers, dict):
+            return {}, after
+        return headers, after
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {}, after
+
+
+def sentry_public_key_from_dsn(dsn: str | None) -> str | None:
+    """Extract the public key (username) from a Sentry DSN URL."""
+    if not dsn or not isinstance(dsn, str):
+        return None
+    try:
+        parsed = urlparse(dsn.strip())
+        user = parsed.username
+        return user if user else None
+    except Exception:
+        return None
+
+
+def _basic_auth_public_key() -> str | None:
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Basic "):
         try:
             decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
-            # Format is "token:" or just "token"
-            token = decoded.split(":")[0]
+            return decoded.split(":")[0] or None
         except Exception:
-            pass
+            return None
+    return None
 
-    # Method 2: X-Sentry-Auth header
-    # Format: Sentry sentry_key=token, sentry_version=7, ...
-    if not token:
-        sentry_auth = request.headers.get("X-Sentry-Auth", "")
-        if sentry_auth:
-            # Remove "Sentry " prefix if present
-            if sentry_auth.startswith("Sentry "):
-                sentry_auth = sentry_auth[7:]
 
-            # Parse key=value pairs
-            for part in sentry_auth.split(","):
-                part = part.strip()
-                if part.startswith("sentry_key="):
-                    token = part[11:].strip()  # len('sentry_key=') == 11
+def _x_sentry_auth_public_key() -> str | None:
+    sentry_auth = request.headers.get("X-Sentry-Auth", "")
+    if not sentry_auth:
+        return None
+    if sentry_auth.startswith("Sentry "):
+        sentry_auth = sentry_auth[7:]
+    for part in sentry_auth.split(","):
+        part = part.strip()
+        if part.startswith("sentry_key="):
+            return part[11:].strip() or None
+    return None
+
+
+def _query_sentry_public_key() -> str | None:
+    key = request.args.get("sentry_key", type=str)
+    return key if key else None
+
+
+def iter_sentry_envelope_items(raw: bytes, start: int):
+    """Yield (item_headers dict, payload bytes) per Sentry envelope semantics."""
+    pos = start
+    n = len(raw)
+    while pos < n:
+        while pos < n and raw[pos] == 10:  # \n
+            pos += 1
+        if pos >= n:
+            break
+        nl = raw.find(b"\n", pos)
+        if nl < 0:
+            break
+        try:
+            item_headers = json.loads(raw[pos:nl].decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            break
+        if not isinstance(item_headers, dict):
+            break
+        pos = nl + 1
+        if pos > n:
+            break
+
+        length = item_headers.get("length")
+        if length is not None:
+            try:
+                blen = int(length)
+            except (TypeError, ValueError):
+                break
+            if blen < 0 or pos + blen > n:
+                break
+            payload = raw[pos : pos + blen]
+            pos += blen
+            if pos < n:
+                if raw[pos] == 10:
+                    pos += 1
+                else:
                     break
+        else:
+            next_nl = raw.find(b"\n", pos)
+            if next_nl < 0:
+                payload = raw[pos:]
+                pos = n
+            else:
+                payload = raw[pos:next_nl]
+                pos = next_nl + 1
 
-    if not token:
+        yield item_headers, payload
+
+
+def _decode_item_payload(payload: bytes) -> tuple[object, bytes]:
+    """Return (json object or raw bytes) for dispatch; dict/list primitives for JSON."""
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return payload, payload
+    try:
+        return json.loads(text), payload
+    except json.JSONDecodeError:
+        return text, payload
+
+
+def verify_dsn_token(*, envelope_public_key: str | None = None) -> bool:
+    """Verify the DSN token from the request.
+
+    Credentials may be provided (Sentry-compatible) via:
+    1. Basic auth username (Sentry SDK default)
+    2. X-Sentry-Auth sentry_key
+    3. sentry_key query parameter
+    4. Public key embedded in the envelope ``dsn`` header
+
+    If more than one is present, all must identify the same key.
+    """
+    sources: list[str | None] = [
+        _basic_auth_public_key(),
+        _x_sentry_auth_public_key(),
+        _query_sentry_public_key(),
+        envelope_public_key,
+    ]
+    keys = [s for s in sources if s]
+    if not keys:
         return False
+    if len(set(keys)) != 1:
+        logger.info("DSN auth mismatch: inconsistent credentials in request")
+        return False
+    token = keys[0]
 
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -726,96 +853,37 @@ def ingest_envelope_view(part: int):  # noqa: C901
     - Line 1: Envelope headers (JSON) - contains event_id, sent_at, dsn, etc.
     - For each item:
         - Item header line (JSON) - contains type, length, content_type, etc.
-        - Item payload (JSON or binary depending on type)
+        - Item payload (JSON or binary depending on type); ``length`` is a byte count.
 
     Items are separated by newlines. An envelope can contain multiple items.
     """
+    if not _ingest_content_type_allowed():
+        return "Unsupported Content-Type", 415
 
-    # Verify DSN token authentication
-    if not verify_dsn_token():
+    raw = _decompressed_ingest_body()
+    if not raw:
+        return "Empty envelope", 400
+
+    envelope_headers, items_start = _split_envelope_header(raw)
+    env_key = sentry_public_key_from_dsn(envelope_headers.get("dsn"))
+
+    if not verify_dsn_token(envelope_public_key=env_key):
         logger.info("Unauthorized DSN token attempt")
         return "Unauthorized: Invalid or missing DSN token", 401
 
-    # Validate the project part exists
     try:
         project_part = ProjectPart.get(ProjectPart.id == part)
     except DoesNotExist:
         return "Invalid DSN", 404
 
-    # Try to decompress gzip data, fall back to raw data
-    try:
-        decompressed_data = gzip.decompress(request.data)
-        data = decompressed_data.decode("utf-8")
-    except Exception:
-        # Maybe it's not gzipped
-        try:
-            data = request.data.decode("utf-8")
-        except Exception:
-            return "Invalid data encoding", 400
-
-    # Split into lines
-    lines = data.split("\n")
-    if len(lines) < 1:
-        return "Empty envelope", 400
-
-    # Parse envelope headers (first line)
-    try:
-        envelope_headers = json.loads(lines[0])
-    except json.JSONDecodeError:
-        envelope_headers = {}
-
     event_id = envelope_headers.get("event_id")
-
-    # Process items (remaining lines come in pairs: header + payload)
-    i = 1
     current_error_group = None
     processed_items = []
 
-    while i < len(lines):
-        # Skip empty lines
-        if not lines[i].strip():
-            i += 1
-            continue
-
-        # Parse item header
-        try:
-            item_headers = json.loads(lines[i])
-        except json.JSONDecodeError:
-            i += 1
-            continue
-
+    for item_headers, payload_bytes in iter_sentry_envelope_items(raw, items_start):
         item_type = item_headers.get("type", "unknown")
-        item_length = item_headers.get("length")
+        payload, raw_payload = _decode_item_payload(payload_bytes)
 
-        # Get item payload
-        i += 1
-        if i >= len(lines):
-            break
-
-        # Handle multi-line payloads based on length
-        if item_length:
-            # Reconstruct payload from length
-            payload_str = ""
-            remaining_length = item_length
-            while i < len(lines) and remaining_length > 0:
-                line = lines[i]
-                payload_str += line
-                remaining_length -= len(line.encode("utf-8"))
-                if remaining_length > 0:
-                    payload_str += "\n"
-                    remaining_length -= 1
-                i += 1
-        else:
-            payload_str = lines[i]
-            i += 1
-
-        # Parse payload as JSON if possible
-        try:
-            payload = json.loads(payload_str)
-        except json.JSONDecodeError:
-            payload = payload_str  # Keep as string for attachments
-
-        # Handle different item types
         try:
             if item_type == "event" and isinstance(payload, dict):
                 current_error_group = handle_event_item(project_part, payload, event_id)
@@ -826,9 +894,7 @@ def ingest_envelope_view(part: int):  # noqa: C901
                 processed_items.append("session")
 
             elif item_type == "sessions" and isinstance(payload, dict):
-                # Aggregated sessions format
                 for session_data in payload.get("aggregates", []):
-                    # Create a synthetic session payload
                     synthetic_payload = {
                         "sid": f"aggregate_{int(time.time())}",
                         "status": "ok",
@@ -845,16 +911,14 @@ def ingest_envelope_view(part: int):  # noqa: C901
             elif item_type == "attachment":
                 if current_error_group:
                     handle_attachment_item(
-                        project_part, current_error_group, item_headers, payload_str
+                        project_part, current_error_group, item_headers, raw_payload
                     )
                 processed_items.append("attachment")
 
             elif item_type == "client_report":
-                # Client reports are telemetry about dropped events, we can ignore or log
                 processed_items.append("client_report")
 
             else:
-                # Unknown type, log and continue
                 print(f"Unknown envelope item type: {item_type}")
                 processed_items.append(f"unknown:{item_type}")
 

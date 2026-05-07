@@ -83,9 +83,6 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
         "sdk": {"name": "sentry.python", "version": "1.0.0"},
     }
 
-    envelope = json.dumps(envelope_header) + "\n"
-    envelope += '{"type":"event","length":150,"content_type":"application/json"}\n'
-
     event_payload = {
         "event_id": event_id,
         "timestamp": timestamp,
@@ -93,8 +90,18 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
         "level": "error",
         "message": "Full header test",
     }
+    event_body = json.dumps(event_payload)
+    item_header = json.dumps(
+        {
+            "type": "event",
+            "length": len(event_body.encode("utf-8")),
+            "content_type": "application/json",
+        }
+    )
 
-    envelope += json.dumps(event_payload) + "\n"
+    envelope = json.dumps(envelope_header) + "\n"
+    envelope += item_header + "\n"
+    envelope += event_body + "\n"
 
     response = c.post(
         f"/ingest/{part.id}/envelope",
@@ -112,7 +119,7 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
     event_id = uuid.uuid4().hex
 
     # Valid single-line header
-    envelope = f'{{"event_id":"{event_id}","dsn":"https://key@sentry.io/42"}}\n'
+    envelope = f'{{"event_id":"{event_id}","dsn":"https://{token.token}@sentry.io/42"}}\n'
     envelope += '{"type":"event"}\n'
     envelope += f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z","platform":"python","level":"error"}}\n'
 
@@ -132,9 +139,15 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
     """Test that item header requires 'type' field"""
     event_id = uuid.uuid4().hex
 
+    body_line = (
+        f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z",'
+        f'"platform":"python","level":"error"}}'
+    )
+    body_len = len(body_line.encode("utf-8"))
+
     envelope = f'{{"event_id":"{event_id}"}}\n'
-    envelope += '{"type":"event","length":100}\n'  # type is required
-    envelope += f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z","platform":"python","level":"error"}}\n'
+    envelope += f'{{"type":"event","length":{body_len}}}\n'
+    envelope += body_line + "\n"
 
     response = c.post(
         f"/ingest/{part.id}/envelope",
@@ -558,14 +571,18 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
     assert response.status_code == 400
 
 
-@test("Envelope rejects DSN token passed via query parameter")
+@test("Envelope accepts DSN token via sentry_key query parameter")
 def _(c=client, part=sentry_project_part, token=dsn_token):
-    """DSN auth should require headers, not query-string credentials."""
+    """Query-string sentry_key is supported for Sentry backward compatibility."""
     event_id = uuid.uuid4().hex
 
     envelope = f'{{"event_id":"{event_id}"}}\n'
     envelope += '{"type":"event"}\n'
-    envelope += f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z","platform":"python","level":"error","message":"query token should fail"}}\n'
+    envelope += (
+        f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z",'
+        f'"platform":"python","level":"error","message":"query token ok"}}'
+        f"\n"
+    )
 
     response = c.post(
         f"/ingest/{part.id}/envelope?sentry_key={token.token}",
@@ -573,7 +590,124 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
         content_type="application/x-sentry-envelope",
     )
 
+    assert response.status_code == 200
+
+
+@test("Envelope rejects mismatched HTTP auth vs envelope DSN key")
+def _(c=client, part=sentry_project_part, token=dsn_token):
+    """Sentry requires credentials agree when multiple forms are sent."""
+    event_id = uuid.uuid4().hex
+
+    envelope = f'{{"event_id":"{event_id}","dsn":"https://some-other-key@sentry.io/42"}}\n'
+    envelope += '{"type":"event"}\n'
+    envelope += (
+        f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z",'
+        f'"platform":"python","level":"error","message":"mismatch"}}\n'
+    )
+
+    response = c.post(
+        f"/ingest/{part.id}/envelope",
+        data=envelope.encode("utf-8"),
+        headers={"X-Sentry-Auth": f"Sentry sentry_key={token.token}"},
+        content_type="application/x-sentry-envelope",
+    )
+
     assert response.status_code == 401
+
+
+@test("Envelope authenticates with DSN in envelope header only")
+def _(c=client, part=sentry_project_part, token=dsn_token):
+    event_id = uuid.uuid4().hex
+
+    envelope = f'{{"event_id":"{event_id}","dsn":"https://{token.token}@sentry.io/42"}}\n'
+    envelope += '{"type":"event"}\n'
+    envelope += (
+        f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z",'
+        f'"platform":"python","level":"error"}}\n'
+    )
+
+    response = c.post(
+        f"/ingest/{part.id}/envelope",
+        data=envelope.encode("utf-8"),
+        content_type="application/x-sentry-envelope",
+    )
+
+    assert response.status_code == 200
+
+
+@test("Envelope with text/plain content-type")
+def _(c=client, part=sentry_project_part, token=dsn_token):
+    event_id = uuid.uuid4().hex
+    envelope = f'{{"event_id":"{event_id}"}}\n'
+    envelope += '{"type":"event"}\n'
+    envelope += (
+        f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z",'
+        f'"platform":"python","level":"error"}}\n'
+    )
+
+    response = c.post(
+        f"/ingest/{part.id}/envelope",
+        data=envelope.encode("utf-8"),
+        headers={"X-Sentry-Auth": f"Sentry sentry_key={token.token}"},
+        content_type="text/plain",
+    )
+
+    assert response.status_code == 200
+
+
+@test("Length-prefixed attachment preserves binary payload bytes")
+def _(c=client, part=sentry_project_part, token=dsn_token):
+    """Sentry attachment length counts raw bytes including embedded CR/LF (spec example shape)."""
+    event_id = uuid.uuid4().hex
+    attachment_bytes = b"\xef\xbb\xbfHello\r\n"
+    assert len(attachment_bytes) == 10
+
+    event_body = json.dumps(
+        {"event_id": event_id, "timestamp": "2024-10-01T10:12:17Z", "level": "error", "message": "x"}
+    )
+    event_len = len(event_body.encode("utf-8"))
+
+    envelope_parts = [
+        f'{{"event_id":"{event_id}"}}\n'.encode("utf-8"),
+        f'{{"type":"event","length":{event_len}}}\n'.encode("utf-8"),
+        event_body.encode("utf-8") + b"\n",
+        (
+            '{"type":"attachment","length":10,"content_type":"text/plain","filename":"hello.txt"}\n'
+        ).encode("utf-8"),
+        attachment_bytes + b"\n",
+    ]
+    envelope = b"".join(envelope_parts)
+
+    response = c.post(
+        f"/ingest/{part.id}/envelope",
+        data=envelope,
+        headers={"X-Sentry-Auth": f"Sentry sentry_key={token.token}"},
+        content_type="application/x-sentry-envelope",
+    )
+
+    assert response.status_code == 200
+    assert b"attachment" in response.data
+    assert b"event" in response.data
+
+
+@test("Unsupported Content-Type returns 415")
+def _(c=client, part=sentry_project_part, token=dsn_token):
+    event_id = uuid.uuid4().hex
+    envelope = f'{{"event_id":"{event_id}"}}\n'
+    envelope += '{"type":"event"}\n'
+    envelope += (
+        f'{{"event_id":"{event_id}","timestamp":"2024-10-01T10:12:17Z",'
+        f'"platform":"python","level":"error"}}\n'
+    )
+
+    response = c.post(
+        f"/ingest/{part.id}/envelope",
+        data=envelope.encode("utf-8"),
+        headers={"X-Sentry-Auth": f"Sentry sentry_key={token.token}"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 415
 
 
 @test("Envelope with malformed JSON header")

@@ -445,7 +445,7 @@ MODELS = [
 
 
 def initialize_db():
-    database.connect()
+    database.connect(reuse_if_open=True)
     database.create_tables(MODELS, safe=True)
     _ensure_ticket_parent_column()
     _ensure_work_cycle_schema()

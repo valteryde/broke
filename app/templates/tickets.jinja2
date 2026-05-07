@@ -259,6 +259,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            const bootTicketsPage = () => {
             const tickets = [
                 {% for ticket in tickets %}
                 {
@@ -391,8 +392,15 @@
 
             window.ticketList = ticketList;
 
-            viewTickets.forEach(ticket => ticketList.add(ticket));
+            ticketList.addAll(viewTickets);
 
+            };
+
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(() => requestAnimationFrame(bootTicketsPage));
+            } else {
+                setTimeout(bootTicketsPage, 0);
+            }
         });
     </script>
 
