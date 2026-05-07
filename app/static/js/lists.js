@@ -74,8 +74,8 @@ class List {
         /** Collapsed groups when virtual scrolling (group keys from grouping config). */
         this.collapsedGroupKeys = new Set();
         this._vsBound = false;
-        /** @type {Window | Element | null} */
-        this._vsScrollListenerTarget = null;
+        /** @type {Array<Window | Element>} */
+        this._vsScrollListenerTargets = [];
         this._vsRafQueued = false;
         this.virtualFlatElements = [];
         this.virtualRows = [];
@@ -872,13 +872,13 @@ class List {
 
     _teardownVirtualScroll() {
         if (this._vsBound && this._vsOnScroll) {
-            if (this._vsScrollListenerTarget) {
-                this._vsScrollListenerTarget.removeEventListener('scroll', this._vsOnScroll);
+            for (const t of this._vsScrollListenerTargets) {
+                t.removeEventListener('scroll', this._vsOnScroll);
             }
             window.removeEventListener('resize', this._vsOnScroll);
         }
         this._vsBound = false;
-        this._vsScrollListenerTarget = null;
+        this._vsScrollListenerTargets = [];
         this._virtualActive = false;
         this.collapsedGroupKeys.clear();
         this._vsAnchor = null;
@@ -891,9 +891,17 @@ class List {
         }
         this._vsBound = true;
         this._vsOnScroll = () => this._scheduleVirtualRefresh();
-        const scrollRoot = List._getVirtualScrollRoot(this._vsAnchor);
-        this._vsScrollListenerTarget = List._virtualScrollListenerTarget(scrollRoot);
-        this._vsScrollListenerTarget.addEventListener('scroll', this._vsOnScroll, { passive: true });
+        const roots = List._collectVirtualScrollRoots(this._vsAnchor);
+        const seen = new Set();
+        this._vsScrollListenerTargets = [];
+        for (const r of roots) {
+            const t = List._virtualScrollListenerTarget(r);
+            if (!seen.has(t)) {
+                seen.add(t);
+                this._vsScrollListenerTargets.push(t);
+                t.addEventListener('scroll', this._vsOnScroll, { passive: true });
+            }
+        }
         window.addEventListener('resize', this._vsOnScroll);
     }
 
@@ -926,7 +934,7 @@ class List {
 
         if (groups) {
             groups.forEach((group) => {
-                const hHead = this._rowHeight('header');
+                const hHead = Math.max(1, this._rowHeight('header'));
                 rows.push({
                     kind: 'header',
                     key: group.key,
@@ -940,7 +948,7 @@ class List {
                 if (!collapsed) {
                     group.elements.forEach((element) => {
                         itemOffsetY.push(yAcc);
-                        const ih = this._rowHeight('item');
+                        const ih = Math.max(1, this._rowHeight('item'));
                         rows.push({
                             kind: 'item',
                             element,
@@ -955,7 +963,7 @@ class List {
         } else {
             elementsToRender.forEach((element) => {
                 itemOffsetY.push(yAcc);
-                const ih = this._rowHeight('item');
+                const ih = Math.max(1, this._rowHeight('item'));
                 rows.push({
                     kind: 'item',
                     element,
@@ -1069,22 +1077,16 @@ class List {
 
         const pref = this.virtualPrefix;
         const n = this.virtualRows.length;
-        const scrollRoot = List._getVirtualScrollRoot(anchor);
+        const scrollRoot = List._getOuterVirtualScrollRoot(anchor);
         const viewportH = List._isDocumentScrollRoot(scrollRoot)
             ? window.innerHeight
             : scrollRoot.clientHeight;
         const avgRowH = this.virtualTotalHeight > 0 && n > 0 ? this.virtualTotalHeight / n : this._vsItemHeightDefault;
         const overscanPx = this._vsOverscan * avgRowH;
 
-        const anchorRect = anchor.getBoundingClientRect();
-        const scrollTop = List._isDocumentScrollRoot(scrollRoot)
-            ? Math.max(0, -anchorRect.top)
-            : (() => {
-                const rootRect = scrollRoot.getBoundingClientRect();
-                return Math.max(0, rootRect.top - anchorRect.top);
-            })();
+        const scrollTop = List._virtualScrollY(anchor, scrollRoot);
         const maxTop = Math.max(0, pref[n] - viewportH);
-        const scrollTopClamped = Math.min(scrollTop, maxTop);
+        const scrollTopClamped = Math.min(Math.max(0, scrollTop), maxTop);
 
         let startRow = 0;
         let hi = n;
@@ -1097,6 +1099,7 @@ class List {
                 hi = mid;
             }
         }
+        startRow = Math.min(Math.max(0, startRow), Math.max(0, n - 1));
 
         let endRow = startRow;
         let hi2 = n;
@@ -1198,9 +1201,11 @@ class List {
     }
 }
 
-List._getVirtualScrollRoot = function (fromEl) {
+List._collectVirtualScrollRoots = function (fromEl) {
+    const out = [];
     if (!fromEl) {
-        return document.scrollingElement || document.documentElement;
+        out.push(document.scrollingElement || document.documentElement);
+        return out;
     }
     let p = fromEl.parentElement;
     while (p) {
@@ -1213,11 +1218,41 @@ List._getVirtualScrollRoot = function (fromEl) {
             (oy === 'auto' || oy === 'scroll' || oy === 'overlay') &&
             p.scrollHeight > p.clientHeight
         ) {
-            return p;
+            out.push(p);
         }
         p = p.parentElement;
     }
-    return document.scrollingElement || document.documentElement;
+    if (out.length === 0) {
+        out.push(document.scrollingElement || document.documentElement);
+    }
+    return out;
+};
+
+List._getOuterVirtualScrollRoot = function (fromEl) {
+    const all = List._collectVirtualScrollRoots(fromEl);
+    return all[all.length - 1];
+};
+
+List._virtualScrollportTop = function (scrollRoot) {
+    if (List._isDocumentScrollRoot(scrollRoot)) {
+        return 0;
+    }
+    const rootRect = scrollRoot.getBoundingClientRect();
+    const st = window.getComputedStyle(scrollRoot);
+    const padTop = parseFloat(st.paddingTop) || 0;
+    return rootRect.top + scrollRoot.clientTop + padTop;
+};
+
+/**
+ * Pixels of virtual content scrolled past the top edge of the scrollport
+ * (window viewport for document scrolling, outermost scroll container’s pad edge otherwise).
+ */
+List._virtualScrollY = function (anchor, scrollRoot) {
+    const aTop = anchor.getBoundingClientRect().top;
+    if (List._isDocumentScrollRoot(scrollRoot)) {
+        return Math.max(0, -aTop);
+    }
+    return Math.max(0, List._virtualScrollportTop(scrollRoot) - aTop);
 };
 
 List._isDocumentScrollRoot = function (el) {
