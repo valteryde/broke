@@ -1,8 +1,9 @@
 /*
  * Generic List class with modular filtering, grouping, and rendering support.
  *
- * Optional `virtualScroll: true | { minItems?: number, overscan?: number }` window-scroll
- * virtualization for large lists (reduces DOM size). Default minItems threshold is 48.
+ * Optional `virtualScroll: true | { minItems?: number, overscan?: number }` scroll-root
+ * virtualization for large lists (reduces DOM size). Uses the nearest scrollable ancestor
+ * of the list (falls back to the document). Default minItems threshold is 48.
  *
  * Usage:
  * const list = new List('container-id', {
@@ -73,6 +74,8 @@ class List {
         /** Collapsed groups when virtual scrolling (group keys from grouping config). */
         this.collapsedGroupKeys = new Set();
         this._vsBound = false;
+        /** @type {Window | Element | null} */
+        this._vsScrollListenerTarget = null;
         this._vsRafQueued = false;
         this.virtualFlatElements = [];
         this.virtualRows = [];
@@ -869,10 +872,13 @@ class List {
 
     _teardownVirtualScroll() {
         if (this._vsBound && this._vsOnScroll) {
-            window.removeEventListener('scroll', this._vsOnScroll);
+            if (this._vsScrollListenerTarget) {
+                this._vsScrollListenerTarget.removeEventListener('scroll', this._vsOnScroll);
+            }
             window.removeEventListener('resize', this._vsOnScroll);
         }
         this._vsBound = false;
+        this._vsScrollListenerTarget = null;
         this._virtualActive = false;
         this.collapsedGroupKeys.clear();
         this._vsAnchor = null;
@@ -885,7 +891,9 @@ class List {
         }
         this._vsBound = true;
         this._vsOnScroll = () => this._scheduleVirtualRefresh();
-        window.addEventListener('scroll', this._vsOnScroll, { passive: true });
+        const scrollRoot = List._getVirtualScrollRoot(this._vsAnchor);
+        this._vsScrollListenerTarget = List._virtualScrollListenerTarget(scrollRoot);
+        this._vsScrollListenerTarget.addEventListener('scroll', this._vsOnScroll, { passive: true });
         window.addEventListener('resize', this._vsOnScroll);
     }
 
@@ -1061,12 +1069,20 @@ class List {
 
         const pref = this.virtualPrefix;
         const n = this.virtualRows.length;
-        const viewportH = window.innerHeight;
+        const scrollRoot = List._getVirtualScrollRoot(anchor);
+        const viewportH = List._isDocumentScrollRoot(scrollRoot)
+            ? window.innerHeight
+            : scrollRoot.clientHeight;
         const avgRowH = this.virtualTotalHeight > 0 && n > 0 ? this.virtualTotalHeight / n : this._vsItemHeightDefault;
         const overscanPx = this._vsOverscan * avgRowH;
 
-        const anchorTopDoc = anchor.getBoundingClientRect().top + window.scrollY;
-        const scrollTop = Math.max(0, window.scrollY - anchorTopDoc);
+        const anchorRect = anchor.getBoundingClientRect();
+        const scrollTop = List._isDocumentScrollRoot(scrollRoot)
+            ? Math.max(0, -anchorRect.top)
+            : (() => {
+                const rootRect = scrollRoot.getBoundingClientRect();
+                return Math.max(0, rootRect.top - anchorRect.top);
+            })();
         const maxTop = Math.max(0, pref[n] - viewportH);
         const scrollTopClamped = Math.min(scrollTop, maxTop);
 
@@ -1181,6 +1197,40 @@ class List {
         this.applyFilters();
     }
 }
+
+List._getVirtualScrollRoot = function (fromEl) {
+    if (!fromEl) {
+        return document.scrollingElement || document.documentElement;
+    }
+    let p = fromEl.parentElement;
+    while (p) {
+        if (p === document.body || p === document.documentElement) {
+            break;
+        }
+        const style = window.getComputedStyle(p);
+        const oy = style.overflowY;
+        if (
+            (oy === 'auto' || oy === 'scroll' || oy === 'overlay') &&
+            p.scrollHeight > p.clientHeight
+        ) {
+            return p;
+        }
+        p = p.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+};
+
+List._isDocumentScrollRoot = function (el) {
+    if (!el) {
+        return true;
+    }
+    const sc = document.scrollingElement;
+    return el === document.documentElement || el === document.body || el === sc;
+};
+
+List._virtualScrollListenerTarget = function (scrollRoot) {
+    return List._isDocumentScrollRoot(scrollRoot) ? window : scrollRoot;
+};
 
 List._normalizeVirtualScrollOption = function (vs) {
     if (!vs) {
