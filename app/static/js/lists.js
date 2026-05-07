@@ -1078,9 +1078,7 @@ class List {
         const pref = this.virtualPrefix;
         const n = this.virtualRows.length;
         const scrollRoot = List._getOuterVirtualScrollRoot(anchor);
-        const viewportH = List._isDocumentScrollRoot(scrollRoot)
-            ? window.innerHeight
-            : scrollRoot.clientHeight;
+        const viewportH = List._viewportHeightForVirtualScroll(scrollRoot);
         const avgRowH = this.virtualTotalHeight > 0 && n > 0 ? this.virtualTotalHeight / n : this._vsItemHeightDefault;
         const overscanPx = this._vsOverscan * avgRowH;
 
@@ -1214,10 +1212,10 @@ List._collectVirtualScrollRoots = function (fromEl) {
         }
         const style = window.getComputedStyle(p);
         const oy = style.overflowY;
-        if (
-            (oy === 'auto' || oy === 'scroll' || oy === 'overlay') &&
-            p.scrollHeight > p.clientHeight
-        ) {
+        // Do not require scrollHeight > clientHeight: on first paint the main shell
+        // (#content-wrapper) can still be non-overflowing; listeners must be on the real
+        // scroll container before content grows, or we fall back to window and never refresh.
+        if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') {
             out.push(p);
         }
         p = p.parentElement;
@@ -1231,6 +1229,19 @@ List._collectVirtualScrollRoots = function (fromEl) {
 List._getOuterVirtualScrollRoot = function (fromEl) {
     const all = List._collectVirtualScrollRoots(fromEl);
     return all[all.length - 1];
+};
+
+List._viewportHeightForVirtualScroll = function (scrollRoot) {
+    if (List._isDocumentScrollRoot(scrollRoot)) {
+        const vv = window.visualViewport && window.visualViewport.height;
+        return Math.max(1, window.innerHeight || vv || document.documentElement.clientHeight || 1);
+    }
+    const ch = scrollRoot.clientHeight;
+    if (ch > 0) {
+        return Math.max(1, Math.round(ch));
+    }
+    const rb = scrollRoot.getBoundingClientRect().height;
+    return Math.max(1, Math.round(rb || 1));
 };
 
 List._virtualScrollportTop = function (scrollRoot) {
