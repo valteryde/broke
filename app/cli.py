@@ -1,8 +1,16 @@
-import os
 import argparse
+import io
+import json
+import os
 import re
+import tarfile
+import time
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
 import requests
+import tomllib
 from utils.models import (
     User,
     create_user,
@@ -13,7 +21,72 @@ from utils.models import (
     UserTicketJoin,
     database,
 )
-from utils.path import data_path
+from utils.path import data_path, path as app_path
+
+
+def _read_broke_version() -> str:
+    toml_path = app_path("..", "pyproject.toml")
+    if not toml_path.is_file():
+        return "unknown"
+    try:
+        with open(toml_path, "rb") as f:
+            data = tomllib.load(f)
+        return str(data.get("project", {}).get("version", "unknown"))
+    except OSError:
+        return "unknown"
+
+
+def cmd_export(args):
+    """Write a gzip tar of the entire Broke data directory (SQLite, uploads, etc.)."""
+    root = data_path()
+    if not root.is_dir():
+        print(f"Error: data directory is not a directory: {root}")
+        return
+
+    if args.output:
+        out = Path(args.output).expanduser()
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
+        out = Path(f"broke-export-{stamp}.tar.gz")
+
+    out_parent = out.resolve().parent
+    out_parent.mkdir(parents=True, exist_ok=True)
+
+    file_paths: list[Path] = []
+    total_bytes = 0
+    for dirpath, _dirnames, filenames in os.walk(root, followlinks=False):
+        for name in filenames:
+            p = Path(dirpath) / name
+            if not p.is_file():
+                continue
+            try:
+                total_bytes += p.stat().st_size
+            except OSError:
+                total_bytes += 0
+            file_paths.append(p)
+
+    manifest = {
+        "schema_version": 1,
+        "exported_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "broke_version": _read_broke_version(),
+        "source_data_directory": str(root.resolve()),
+        "file_count": len(file_paths),
+        "bytes_total": total_bytes,
+        "note": "Redis (sessions/cache) is not included. Stop Broke before exporting for a consistent SQLite snapshot.",
+    }
+    manifest_bytes = json.dumps(manifest, indent=2).encode("utf-8")
+
+    with tarfile.open(out, "w:gz") as tf:
+        info = tarfile.TarInfo(name="broke-export-manifest.json")
+        info.size = len(manifest_bytes)
+        info.mtime = int(time.time())
+        tf.addfile(info, fileobj=io.BytesIO(manifest_bytes))
+
+        for p in sorted(file_paths, key=lambda x: str(x)):
+            arcname = p.relative_to(root).as_posix()
+            tf.add(p, arcname=arcname, recursive=False)
+
+    print(f"Wrote {out.resolve()} ({len(file_paths)} data files, manifest included).")
 
 
 def download_linear_image(url: str, api_key: str) -> str | None:
@@ -471,6 +544,18 @@ def main():
     upgrade_parser = subparsers.add_parser("upgrade-user", help="Upgrade a user to admin")
     upgrade_parser.add_argument("username", help="Username of the user to upgrade")
     upgrade_parser.set_defaults(func=cmd_upgrade_user)
+
+    export_parser = subparsers.add_parser(
+        "export",
+        help="Archive the full data directory (database, uploads, branding, secrets on disk)",
+    )
+    export_parser.add_argument(
+        "-o",
+        "--output",
+        metavar="PATH",
+        help="Output .tar.gz path (default: broke-export-<utc-timestamp>.tar.gz in current directory)",
+    )
+    export_parser.set_defaults(func=cmd_export)
 
     # import command with subcommands
     import_parser = subparsers.add_parser("import", help="Import data from external services")

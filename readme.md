@@ -66,8 +66,10 @@ The easiest way to run Broke in production is with Docker:
 
 3. Create your first admin user:
    ```bash
-   docker compose exec broke-server python cli.py create-user admin yourpassword admin@example.com 1
+   docker compose exec broke-server python app/cli.py create-user admin yourpassword admin@example.com --admin 1
    ```
+
+> **Note:** CLI examples use `python app/cli.py` inside the container (`WORKDIR` is `/usr/local/app`).
 
 4. Open your browser and navigate to `http://localhost:8080`
 
@@ -103,20 +105,34 @@ Data is persisted in a Docker volume at `/data`.
 
 ## CLI
 
-Broke includes a command-line interface for administrative tasks:
+Broke includes a command-line interface for administrative tasks. From the repository root (with dependencies installed), run commands via `app/cli.py`. The first argument after `create-user` is `--admin 0` or `--admin 1`.
 
 ```bash
 # Create a new user
-python cli.py create-user <username> <password> <email> <admin:0|1>
+python app/cli.py create-user <username> <password> <email> --admin <0|1>
 
 # Examples
-python cli.py create-user john secret123 john@example.com 0    # Regular user
-python cli.py create-user admin secret123 admin@example.com 1  # Admin user
+python app/cli.py create-user john secret123 john@example.com --admin 0   # Regular user
+python app/cli.py create-user admin secret123 admin@example.com --admin 1 # Admin user
+
+# Full backup of all on-disk data (SQLite, uploads, branding, avatars, webhook secret files, etc.)
+python app/cli.py export -o ./broke-backup.tar.gz
 ```
 
-When running with Docker:
+When running with Docker, stop the service first if you need a consistent database snapshot, then export (writes the archive wherever you pass `-o`; using `/data/…` puts the file in the volume so you can copy it off the host):
+
 ```bash
-docker compose exec broke-server python cli.py create-user admin password admin@example.com 1
+docker compose stop broke-server
+docker compose run --rm --no-deps -v data:/data broke-server python app/cli.py export -o /data/broke-export.tar.gz
+docker compose start broke-server
+```
+
+To restore from an export later: stop Broke, unpack the tarball **into** your data directory (`DATA_PATH`, e.g. `/data`), and skip `broke-export-manifest.json` if you use plain `tar -xzf`—or remove it after extract. It is only metadata. Redis is not part of the export; users may need to sign in again on the new server.
+
+When running with Docker (quick admin commands while the stack is up):
+
+```bash
+docker compose exec broke-server python app/cli.py create-user admin password admin@example.com --admin 1
 ```
 
 ## Error Tracking (Sentry DSN)
