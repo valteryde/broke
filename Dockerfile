@@ -7,7 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY scripts ./scripts
 COPY run.py ./run.py
-COPY cli.py ./cli.py
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 # Copy the pyproject file
 COPY pyproject.toml ./pyproject.toml
