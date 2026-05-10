@@ -233,6 +233,11 @@ def settings_section_view(user: User, section: str):  # noqa: C901
             context["dsn_token"] = None
             context["dsn_token_preview"] = ""
 
+    elif section == "branding":
+        from ..utils.public_site import show_public_home
+
+        context["show_public_home"] = show_public_home()
+
     elif section == "trash":
         # Fetch deleted tickets
         context["deleted_tickets"] = list(
@@ -399,6 +404,23 @@ def api_instance_branding_logo(user: User):
     if not ok:
         return json.dumps({"error": message}), status
     return json.dumps({"success": True}), 200
+
+
+@settings_bp.route("/api/settings/public-site", methods=["POST"])
+@protected
+def api_update_public_site_settings(user: User):
+    """Toggle public landing page vs redirect root to News (admin only)."""
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
+    data = request.get_json(silent=True) or {}
+    if "show_public_home" not in data:
+        return json.dumps({"error": "Missing show_public_home"}), 400
+
+    from ..utils.public_site import set_show_public_home
+
+    settings = set_show_public_home(bool(data["show_public_home"]))
+    return json.dumps({"success": True, "settings": settings}), 200
 
 
 @settings_bp.route("/api/settings/preferences", methods=["POST"])

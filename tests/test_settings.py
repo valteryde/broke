@@ -582,6 +582,67 @@ def _(c=auth_client):
     assert response.status_code == 302
 
 
+@test("Admin can toggle public site landing via API")
+def _(app=app, f=fake):
+    GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+    admin_username = f"publ_{f.uuid4()[:8]}"
+    admin_email = f"publ_{int(time.time() * 1000000)}@example.com"
+    create_user(admin_username, "password123", admin_email, admin=1)
+
+    try:
+        with app.test_client() as ac:
+            assert ac.post(
+                "/callback",
+                data={"username": admin_username, "password": "password123"},
+                follow_redirects=False,
+            ).status_code in (302, 200)
+
+            r = ac.post(
+                "/api/settings/public-site",
+                json={"show_public_home": True},
+                content_type="application/json",
+            )
+            assert r.status_code == 200
+            payload = json.loads(r.data)
+            assert payload.get("success") is True
+            assert payload["settings"]["show_public_home"] is True
+
+            r2 = ac.post(
+                "/api/settings/public-site",
+                json={"show_public_home": False},
+                content_type="application/json",
+            )
+            assert r2.status_code == 200
+            assert json.loads(r2.data)["settings"]["show_public_home"] is False
+    finally:
+        GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+
+
+@test("Non-admin cannot toggle public site landing API")
+def _(app=app, f=fake):
+    GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+    username = f"npubl_{f.uuid4()[:8]}"
+    email = f"npubl_{int(time.time() * 1000000)}@example.com"
+    create_user(username, "password123", email, admin=0)
+
+    try:
+        with app.test_client() as tc:
+            assert tc.post(
+                "/callback",
+                data={"username": username, "password": "password123"},
+                follow_redirects=False,
+            ).status_code in (302, 200)
+
+            r = tc.post(
+                "/api/settings/public-site",
+                json={"show_public_home": True},
+                content_type="application/json",
+            )
+            assert r.status_code == 403
+    finally:
+        GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+
+
 @test("Settings pages do not render raw SMTP password")
 def _(c=client, f=fake):
     admin_username = f"admin_sec_mail_{f.uuid4()[:8]}"

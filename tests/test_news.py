@@ -40,7 +40,7 @@ def _(c=auth_client, f=fake):
     response = c.post('/api/news',
                      data={'title': f.sentence(), 'content': f.text()},
                      follow_redirects=False)
-    
+
     assert response.status_code in [200, 201, 302, 401, 404]
 
 
@@ -51,12 +51,58 @@ def _(c=auth_client):
     assert response.status_code in [200, 302, 401, 404]
 
 
-@test("/ redirects to /news")
+@test("/ redirects to /news when public landing is off")
 def _(c=client):
     """Test root redirect"""
-    response = c.get('/', follow_redirects=False)
+    from app.utils.models import GlobalSetting
+
+    GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+    response = c.get("/", follow_redirects=False)
     assert response.status_code == 302
-    assert '/news' in response.location
+    assert "/news" in response.location
+
+
+@test("/ serves public landing when enabled")
+def _(c=client):
+    from app.utils.models import GlobalSetting
+    import json
+
+    GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+    try:
+        GlobalSetting.create(
+            key="public_site_settings",
+            value=json.dumps({"show_public_home": True}),
+        )
+        response = c.get("/", follow_redirects=False)
+        assert response.status_code == 200
+        assert b"ticket" in response.data.lower()
+    finally:
+        GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+
+
+@test("/ redirects to /news for authenticated users when landing is on")
+def _(c=auth_client):
+    from app.utils.models import GlobalSetting
+    import json
+
+    GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+    try:
+        GlobalSetting.create(
+            key="public_site_settings",
+            value=json.dumps({"show_public_home": True}),
+        )
+        response = c.get("/", follow_redirects=False)
+        assert response.status_code == 302
+        assert "/news" in response.location
+    finally:
+        GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
+
+
+@test("/docs GET is public")
+def _(c=client):
+    r = c.get("/docs", follow_redirects=False)
+    assert r.status_code == 200
+    assert b"Broke Documentation" in r.data
 
 
 @test("/reports GET requires authentication")

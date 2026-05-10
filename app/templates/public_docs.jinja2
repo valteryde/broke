@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Broke Documentation</title>
+
+    <link rel="stylesheet" type="text/css"
+        href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" type="text/css"
+        href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/public_site.css') }}">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/javascript.min.js"></script>
+
+    <style>
+        :root {
+            --body-padding: 50px;
+            --sidebar-width: 260px;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: var(--body-padding);
+            background-color: var(--bg-white);
+        }
+
+        #navbar {
+            border-radius: 10px;
+            {# padding: 20px; #}
+            text-align: center;
+            display: flex;
+            align-items: center;
+            flex-direction: row;
+        }
+
+        #navbar a {
+            color: black;
+            text-decoration: none;
+            margin: 0 15px;
+            display: flex;
+            flex-direction: row;
+            gap: 5px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #navbar a:hover {
+            color: var(--logo-blue)
+        }
+
+        #navbar img {
+            margin-right: auto;
+        }
+
+        .flex-aligned {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .hljs {
+            background-color: var(--bg-gray);
+            border-radius: 5px;
+            width: fit-content;
+            min-width: 300px;
+        }
+
+        /* Documentation specific styles */
+        #docs-container {
+            display: flex;
+            gap: 40px;
+            margin-top: 30px;
+        }
+
+        #sidebar {
+            position: sticky;
+            top: 30px;
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            height: fit-content;
+            padding: 20px;
+            background-color: var(--bg-light-gray);
+            border-radius: 10px;
+        }
+
+        #sidebar h3 {
+            margin-bottom: 15px;
+            color: var(--logo-blue);
+        }
+
+        #sidebar ul {
+            list-style: none;
+        }
+
+        #sidebar ul li {
+            margin: 8px 0;
+        }
+
+        #sidebar ul li a {
+            color: #333;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s ease;
+        }
+
+        #sidebar ul li a:hover {
+            color: var(--logo-blue);
+        }
+
+        #main-content {
+            flex: 1;
+            max-width: calc(100% - var(--sidebar-width) - 40px);
+        }
+
+        #docs-hero {
+            margin-top:50px;
+            text-align: left;
+            {# padding: 40px 20px; #}
+            margin-bottom: 40px;
+        }
+
+        #docs-hero img {
+            width: 150px;
+            margin-bottom: 20px;
+        }
+
+        #docs-hero h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        #docs-hero p {
+            color: var(--secondary-color);
+            font-size: 1.2rem;
+        }
+
+        .doc-section {
+            padding: 30px;
+            margin-bottom: 30px;
+            {# border: dashed 3px var(--logo-blue); #}
+            border-radius: 15px;
+            background-color: white;
+        }
+
+        .doc-section h2 {
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--bg-light-gray);
+        }
+
+        .doc-section h3 {
+            margin-top: 25px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .doc-section h4 {
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: var(--secondary-color);
+        }
+
+        .doc-section p {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+
+        .doc-section ul,
+        .doc-section ol {
+            margin: 15px 0 15px 25px;
+            line-height: 1.8;
+        }
+
+        .doc-section pre {
+            margin: 15px 0;
+        }
+
+        .doc-section code:not(.hljs) {
+            background-color: var(--bg-light-gray);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .doc-section a {
+            color: var(--logo-blue);
+            text-decoration: none;
+        }
+
+        .doc-section a:hover {
+            text-decoration: underline;
+        }
+
+        .what-you-can-do {
+            list-style: none;
+            margin-left: 0 !important;
+        }
+
+        .what-you-can-do li {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tip-box {
+            background-color: #f0fdf4;
+            border-left: 4px solid #88c49e;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .tip-box strong {
+            color: #22c55e;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .feature-card {
+            padding: 20px;
+            background-color: var(--bg-light-gray);
+            border-radius: 10px;
+        }
+
+        .feature-card h4 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feature-card p {
+            margin: 0;
+            color: var(--secondary-color);
+            font-size: 0.95rem;
+        }
+
+        #footer {
+            text-align: center;
+            padding: 40px;
+            color: var(--secondary-color);
+            font-style: italic;
+        }
+
+        @media (max-width: 900px) {
+            #docs-container {
+                flex-direction: column;
+            }
+
+            #sidebar {
+                position: relative;
+                top: 0;
+                width: 100%;
+            }
+
+            #main-content {
+                max-width: 100%;
+            }
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <nav id="navbar">
+        <a href="/"><img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}" width="100"></a>
+        <a href="/docs#installation"> <i class="ph ph-download"></i> Download </a>
+        <a href="/docs"> <i class="ph ph-book"></i> Documentation </a>
+        <a href="{{ url_for('auth.login', next='/news') }}"><i class="ph ph-sign-in"></i> Open Broke</a>
+        <a href="https://github.com/valteryde/broke"><i class="ph ph-github-logo"></i> GitHub </a>
+    </nav>
+
+    <div id="docs-hero">
+        <h1>Broke Documentation</h1>
+    </div>
+
+    <div id="docs-container">
+
+        <aside id="sidebar">
+            <h3><i class="ph ph-list"></i> Table of Contents</h3>
+            <ul>
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#creating-users">Creating Users</a></li>
+                <li><a href="#projects">Projects</a></li>
+                <li><a href="#tickets">Tickets</a></li>
+                <li><a href="#error-tracking">Error Tracking</a></li>
+                <li><a href="#importing-from-linear">Importing from Linear</a></li>
+                <li><a href="#settings">Settings</a></li>
+                <li><a href="#updating-broke">Updating Broke</a></li>
+                <li><a href="#tips">Tips</a></li>
+            </ul>
+        </aside>
+
+        <main id="main-content">
+
+            <!-- Getting Started Section -->
+            <section id="getting-started" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-rocket-launch"></i> Getting Started</h2>
+                <p>
+                    Broke is a simple ticket and error tracking system. It's designed for small teams who need a
+                    straightforward way to manage issues and capture errors from their applications.
+                </p>
+
+                <h3>What you can do with Broke:</h3>
+                <ul class="what-you-can-do">
+                    <li>
+                        <i class="ph ph-check-circle" style="color: var(--logo-blue);"></i>
+                        <span>Create and manage tickets with priorities, labels, and assignees</span>
+                    </li>
+                    <li>
+                        <i class="ph ph-check-circle" style="color: var(--logo-blue);"></i>
+                        <span>Track errors from your applications (compatible with Sentry SDK)</span>
+                    </li>
+                    <li>
+                        <i class="ph ph-check-circle" style="color: var(--logo-blue);"></i>
+                        <span>Organize work into projects</span>
+                    </li>
+                    <li>
+                        <i class="ph ph-check-circle" style="color: var(--logo-blue);"></i>
+                        <span>Collaborate with your team</span>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Features Section -->
+            <section id="features" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-star"></i> Features</h2>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h4><i class="ph ph-ticket"></i> Ticket Management</h4>
+                        <p>Create, assign, and track tickets with priorities and labels</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4><i class="ph ph-bug"></i> Error Tracking</h4>
+                        <p>Sentry-compatible error ingestion with grouping and stack traces</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4><i class="ph ph-users"></i> Multi-user</h4>
+                        <p>Invite team members with role-based access</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4><i class="ph ph-newspaper"></i> News Feed</h4>
+                        <p>Activity feed showing recent updates</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4><i class="ph ph-tag"></i> Labels</h4>
+                        <p>Organize tickets with custom labels</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4><i class="ph ph-folder"></i> Projects</h4>
+                        <p>Organize work into separate projects</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4><i class="ph ph-lock"></i> Secure Auth</h4>
+                        <p>Argon2 password hashing for security</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4><i class="ph ph-shipping-container"></i> Docker Ready</h4>
+                        <p>Production-ready containerization</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Installation Section -->
+            <section id="installation" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-download"></i> Installation</h2>
+
+                <h3>Quick Start with Docker</h3>
+
+                <p><strong>1. Clone and start:</strong></p>
+                <pre><code class="language-bash">git clone https://github.com/valteryde/broke.git
+cd broke
+docker compose up -d</code></pre>
+
+                <p><strong>2. Create your admin account:</strong></p>
+                <pre><code class="language-bash">docker compose exec broke-server python cli.py create-user admin yourpassword admin@example.com --admin 1</code></pre>
+
+                <p><strong>3. Open Broke:</strong></p>
+                <p>Go to <code>http://localhost:8080</code> in your browser</p>
+
+            </section>
+
+            <!-- Creating Users Section -->
+            <section id="creating-users" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-users"></i> Creating Users</h2>
+
+                <h3>First User (Admin)</h3>
+                <p>After installation, create your first admin user via the command line:</p>
+                <pre><code class="language-bash">docker compose exec broke-server python cli.py create-user &lt;username&gt; &lt;password&gt; &lt;email&gt; --admin 1</code></pre>
+
+                <h3>Inviting Team Members</h3>
+                <p>Once logged in as an admin:</p>
+                <ol>
+                    <li>Go to <strong>Settings</strong></li>
+                    <li>Navigate to the <strong>Invites</strong> section</li>
+                    <li>Create an invite link</li>
+                    <li>Share the link with your team member</li>
+                </ol>
+                <p>They can use the link to create their own account.</p>
+            </section>
+
+            <!-- Projects Section -->
+            <section id="projects" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-folder"></i> Projects</h2>
+                <p>Projects help you organize your work. Each project can contain tickets and error tracking services.</p>
+
+                <h3>Creating a Project</h3>
+                <ol>
+                    <li>Go to the settings &rightarrow; Projects</li>
+                    <li>Click <strong>New Project</strong></li>
+                </ol>
+
+                <h3>Project Parts (Services)</h3>
+                <p>
+                    Within each project, you can create "parts" — these represent different services or components of your application.
+                    Parts are used for error tracking, allowing you to separate errors by service. This can be found in the error page.
+                </p>
+            </section>
+
+            <!-- Tickets Section -->
+            <section id="tickets" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-ticket"></i> Tickets</h2>
+
+                <h3>Creating a Ticket</h3>
+                <ol>
+                    <li>Navigate to a project</li>
+                    <li>Click <strong>New Ticket</strong></li>
+                    <li>Fill in:
+                        <ul>
+                            <li><strong>Title</strong> — A brief description of the issue</li>
+                            <li><strong>Description</strong> — Detailed information (supports rich text)</li>
+                            <li><strong>Priority</strong> — None, Low, Medium, High, or Urgent</li>
+                            <li><strong>Status</strong> — Backlog, Todo, In Progress, Done, or Closed</li>
+                            <li><strong>Labels</strong> — Add tags to categorize the ticket</li>
+                            <li><strong>Assignees</strong> — Assign team members</li>
+                        </ul>
+                    </li>
+                </ol>
+
+                <h3>Managing Tickets</h3>
+                <ul>
+                    <li><strong>Filter</strong> tickets by status, priority, or label using the filter options</li>
+                    <li><strong>Search</strong> for tickets using the search bar</li>
+                    <li><strong>Edit</strong> a ticket by clicking on it to open the detail view</li>
+                    <li><strong>Close</strong> a ticket by changing its status to Done or Closed</li>
+                </ul>
+
+                <h3>Labels</h3>
+                <p>Labels help categorize tickets. Create custom labels with colors to organize your work:</p>
+                <ol>
+                    <li>Go to <strong>Settings → Labels</strong></li>
+                    <li>Click <strong>Add Label</strong></li>
+                    <li>Enter a name and choose a color</li>
+                </ol>
+            </section>
+
+            <!-- Error Tracking Section -->
+            <section id="error-tracking" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-bug"></i> Error Tracking</h2>
+                <p>Broke can capture errors from your applications using the Sentry SDK.</p>
+
+                <h3>Setup</h3>
+                <ol>
+                    <li>Go to <strong>Settings → Sentry DSN</strong></li>
+                    <li>Click <strong>Generate Token</strong> to create a DSN token</li>
+                    <li>Create a <strong>Project Part</strong> for your service (e.g., "Backend API", "Web App")</li>
+                    <li>Copy your DSN URL</li>
+                </ol>
+
+                <h3>Connecting Your Application</h3>
+                <p>Use the Sentry SDK in your application with your Broke DSN:</p>
+
+                <p><strong>Python:</strong></p>
+                <pre><code class="language-python">import sentry_sdk
+
+sentry_sdk.init(
+    dsn="http://your-token@your-server:8080/ingest/1",
+)</code></pre>
+
+                <p><strong>JavaScript:</strong></p>
+                <pre><code class="language-javascript">import * as Sentry from "@sentry/browser";
+
+Sentry.init({
+  dsn: "http://your-token@your-server:8080/ingest/1",
+});</code></pre>
+
+                <h3>Viewing Errors</h3>
+                <ul>
+                    <li>Errors appear in the <strong>Errors</strong> section of your project</li>
+                    <li>Similar errors are automatically grouped together</li>
+                    <li>Click on an error to see the full stack trace and details</li>
+                    <li>Create a ticket directly from an error to track the fix</li>
+                </ul>
+
+                <h3>Error Status</h3>
+                <ul>
+                    <li><strong>Unresolved</strong> — New errors that need attention</li>
+                    <li><strong>Resolved</strong> — Errors that have been fixed</li>
+                    <li><strong>Ignored</strong> — Errors you've chosen to ignore</li>
+                </ul>
+            </section>
+
+            <!-- Importing from Linear Section -->
+            <section id="importing-from-linear" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-upload"></i> Importing from Linear</h2>
+                <p>If you're migrating from Linear, you can import your existing data:</p>
+                <pre><code class="language-bash">docker compose exec broke-server python app/cli.py import linear &lt;your-linear-api-key&gt;</code></pre>
+
+                <h3>To get your Linear API key:</h3>
+                <ol>
+                    <li>Go to <a href="https://linear.app/settings/account/security" target="_blank">Linear Settings → Security</a></li>
+                    <li>Create a new personal API key</li>
+                    <li>Copy the key</li>
+                </ol>
+
+                <h3>What gets imported:</h3>
+                <ul>
+                    <li>Teams become Projects</li>
+                    <li>Issues become Tickets (with status, priority, and descriptions)</li>
+                    <li>Labels (with colors)</li>
+                    <li>Images are downloaded and stored locally</li>
+                </ul>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-gear"></i> Settings</h2>
+                <p>Access settings by clicking the gear icon or navigating to <strong>Settings</strong>.</p>
+
+                <h3>Profile</h3>
+                <p>Update your display name and profile information.</p>
+
+                <h3>Security</h3>
+                <ul>
+                    <li>Change your password</li>
+                    <li>Manage your account security</li>
+                </ul>
+
+                <h3>Webhooks</h3>
+                <p>
+                    Set up outgoing webhooks to notify external services when events occur in Broke.
+                    Useful for integrations with chat tools or other systems.
+                </p>
+
+                <h3>Danger Zone</h3>
+                <p>Delete your account (this action cannot be undone).</p>
+            </section>
+
+            <!-- Updating Broke Section -->
+            <section id="updating-broke" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-arrows-clockwise"></i> Updating Broke</h2>
+                <p>For a typical Docker Compose deployment:</p>
+                <pre><code class="language-bash">docker compose pull
+docker compose up -d</code></pre>
+                <p>Keep backups of your data volume before major upgrades.</p>
+            </section>
+
+            <!-- Tips Section -->
+            <section id="tips" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-lightbulb"></i> Tips</h2>
+                <ul>
+                    <li><strong>Keyboard shortcuts</strong> — Press <code>?</code> anywhere to see available shortcuts</li>
+                    <li><strong>Quick search</strong> — Use the search bar to find tickets across all projects</li>
+                    <li><strong>News feed</strong> — Check the dashboard to see recent activity across your team</li>
+                </ul>
+            </section>
+
+        </main>
+
+    </div>
+
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>

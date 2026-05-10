@@ -433,9 +433,21 @@ def create_app():  # noqa: C901
 
     @app.route("/")
     def index():
-        from flask import redirect
+        from flask import redirect, render_template, session
 
+        from .public_site import show_public_home
+
+        if session.get("user_id"):
+            return redirect("/news")
+        if show_public_home():
+            return render_template("public_landing.jinja2")
         return redirect("/news")
+
+    @app.route("/docs")
+    def public_documentation():
+        from flask import render_template
+
+        return render_template("public_docs.jinja2")
 
     # Store global reference
     _app = app

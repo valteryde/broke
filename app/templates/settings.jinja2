@@ -926,7 +926,7 @@
         <div class="settings-section">
             <div class="section-header">
                 <h1>Branding</h1>
-                <p class="section-description">Customize the logo shown in the app header, login page, and desktop client</p>
+                <p class="section-description">Customize the logo shown in the app header, login page, and desktop client, and control the public landing page</p>
             </div>
 
             <div class="settings-card">
@@ -949,6 +949,52 @@
                     </div>
                 </div>
             </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Public home page</h3>
+                    <p class="card-description">Controls the site root (<code>/</code>) for visitors who are not logged in. Documentation stays available at <code>/docs</code> either way.</p>
+                    <div class="preference-group">
+                        <div class="preference-item">
+                            <div class="preference-info">
+                                <span class="preference-label">Marketing overview</span>
+                                <span class="preference-description">Show the public landing page. When off, <code>/</code> redirects to News (sign-in as usual).</span>
+                            </div>
+                            <div class="preference-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="show-public-home-toggle" data-skip-pref="1" {% if show_public_home %}checked{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                (function () {
+                    const el = document.getElementById('show-public-home-toggle');
+                    if (!el) return;
+                    el.addEventListener('change', async () => {
+                        const next = el.checked;
+                        try {
+                            const r = await fetch('/api/settings/public-site', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ show_public_home: next }),
+                            });
+                            const data = await r.json();
+                            if (!r.ok) {
+                                throw new Error(data.error || 'Failed to save');
+                            }
+                            showToast(next ? 'Public home enabled at /' : 'Root now redirects to News', 'success');
+                        } catch (e) {
+                            el.checked = !next;
+                            showToast(e.message || 'Failed to save', 'error');
+                        }
+                    });
+                })();
+            </script>
             <script>
                 function uploadInstanceLogo(input) {
                     if (!input.files || !input.files[0]) return;

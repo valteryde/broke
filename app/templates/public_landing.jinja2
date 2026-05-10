@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Broke</title>
+
+    <link rel="stylesheet" type="text/css"
+        href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" type="text/css"
+        href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/public_site.css') }}">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+
+    <!-- and it's easy to individually load additional languages -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/bash.min.js"></script>
+
+
+    <style>
+        :root {
+            --body-padding: 50px;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: var(--body-padding);
+            background-color: var(--bg-white);
+        }
+
+        #navbar {
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            flex-direction: row;
+        }
+
+        #navbar a {
+            color: black;
+            text-decoration: none;
+            margin: 0 15px;
+            display: flex;
+            flex-direction: row;
+            gap:5px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #navbar a:hover {
+            color: var(--logo-blue)
+        }
+
+        #navbar img {
+            margin-right: auto;
+        }
+
+        #hero-wrapper {
+            position: relative;
+            padding: 20px;
+            height:100vh;
+            width:calc(100% + var(--body-padding));
+            overflow: hidden;
+        }
+
+        .hero-image {
+            width: 90%;
+            max-width: 1388px;
+            border-radius: 10px;
+            margin-top: 30px;
+            position: absolute;
+            right: 0;
+            rotate: -10deg;
+        }
+
+        #info-wrapper {
+            position: relative;
+            padding: 50px;
+            height:fit-content;
+            width:calc(100% + var(--body-padding));
+            border: dashed 4px var(--logo-blue);
+            border-radius:20px 0 0 20px;
+            border-right:none;
+        }
+
+        #info-wrapper * {
+            margin: 5px 0;
+        }
+
+        .flex-aligned {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .hljs {
+            background-color: var(--bg-gray);
+            border-radius: 5px;
+            width: fit-content;
+            min-width: 300px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <nav id="navbar">
+        <img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}" width="100">
+        <a href="/docs#installation"> <i class="ph ph-download"></i> Download </a>
+        <a href="/docs"> <i class="ph ph-book"></i> Documentation </a>
+        <a href="{{ url_for('auth.login', next='/news') }}"><i class="ph ph-sign-in"></i> Open Broke</a>
+        <a href="https://github.com/valteryde/broke"><i class="ph ph-github-logo"></i> GitHub </a>
+    </nav>
+
+    <div id="hero-wrapper">
+
+        <h1 style="max-width:900px;font-size:4rem">Lightweight <i>open source</i> ticket and error management system</h1>
+
+        <img src="{{ url_for('static', filename='images/preview_tickets.png') }}" class="hero-image" alt="">
+
+    </div>
+
+    <div id="info-wrapper">
+
+        <h2>0. Why Broke?</h2>
+        <ol style="margin-left:30px;">
+            <li>Broke is a simple and lightweight ticket management system designed for small teams and personal projects.</li>
+            <li>It allows users to easily report issues, track progress, and manage tasks <i>without the complexity of larger
+            systems</i>.</li>
+            <li>It also ships with an error managing system compliant with Sentry's SDK.</li>
+            <li>It is free and open source.</li>
+            <li>It is simple and focused</li>
+        </ol>
+
+        <br>
+
+
+        <h2 class="flex-aligned">1. Install using <i class="ph ph-shipping-container"></i> Docker</h2>
+
+        <pre><code class="language-bash">git clone https://github.com/valteryde/broke.git</code></pre>
+
+        And change the directory:
+        <pre><code class="language-bash">cd broke</code></pre>
+
+        Finally, start Broke with Docker Compose:
+        <pre><code class="language-bash">docker compose up -d</code></pre>
+
+        <br>
+
+        <h2 class="flex-aligned">2. Set up your first <i class="ph ph-user"></i> admin</h2>
+        <pre><code class="language-bash">docker compose exec broke-server python app/cli.py create-user &lt;username&gt; &lt;password&gt; &lt;email&gt; --admin 1</code></pre>
+
+        <br>
+
+        Open <code>http://localhost:8080</code> after the stack is healthy.
+
+    </div>
+
+    <script>hljs.highlightAll();</script>
+
+</body>
+</html>
