@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Broke{% endblock %}</title>
+    <script>window.__BROKE_SCRIPT_ROOT__ = {{ request.script_root | tojson }};</script>
 
     <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js" async
         integrity="sha384-LfouGM03m83ArVtne1JPk926e3SGD0Tz8XHtW2OKGsgeBU/UfR0Fa8eX+UlwSSAZ"
@@ -68,17 +69,17 @@
                 <span>News</span>
             </div>
 
-            <div class="sb-element {% if page == 'triage' %}active{% endif %}" onclick="window.location.href = '/intake'">
+            <div class="sb-element {% if page == 'triage' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/intake'">
                 <i class="ph ph-tray"></i>
                 <span>Intake</span>
             </div>
 
-            <div class="sb-element {% if page == 'tickets' %}active{% endif %}" onclick="window.location.href = '/tickets'">
+            <div class="sb-element {% if page == 'tickets' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/tickets'">
                 <i class="ph ph-ticket"></i>
                 <span>Tickets</span>
             </div>
 
-            <div class="sb-element {% if page == 'work_cycles' %}active{% endif %}" onclick="window.location.href = '/work-cycles'">
+            <div class="sb-element {% if page == 'work_cycles' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/work-cycles'">
                 <i class="ph ph-calendar-dots"></i>
                 <span>Sprints</span>
             </div>
@@ -88,17 +89,17 @@
                 <span>Errors</span>
             </div>
 
-            <div class="sb-element {% if page == 'reports' %}active{% endif %}" onclick="window.location.href = '/reports'">
+            <div class="sb-element {% if page == 'reports' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/reports'">
                 <i class="ph ph-chart-bar"></i>
                 <span>Reports</span>
             </div>
 
-            <div class="sb-element {% if page == 'changelog' %}active{% endif %}" onclick="window.location.href = '/changelog/manage'">
+            <div class="sb-element {% if page == 'changelog' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/changelog/manage'">
                 <i class="ph ph-scroll"></i>
                 <span>Changelog</span>
             </div>
 
-            <div class="sb-element {% if page == 'settings' %}active{% endif %}" onclick="window.location.href = '/settings'" style="position: relative;">
+            <div class="sb-element {% if page == 'settings' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/settings'" style="position: relative;">
                 <i class="ph ph-gear-six"></i>
                 <span>Settings</span>
                 {% if update_info and update_info.available %}
@@ -111,7 +112,7 @@
          <div class="sb-bottom">
             <span class="avatar-stack avatar-stack-40" aria-hidden="true">
                 <svg width="40" height="40" data-jdenticon-value="{{ user.username }}"></svg>
-                <img src="/avatar/{{ user.username }}" alt="{{ user.username }} avatar" width="40" height="40" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
+                <img src="{{ request.script_root }}/avatar/{{ user.username }}" alt="{{ user.username }} avatar" width="40" height="40" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
             </span>
             <span>{{ user.username }}</span>
             {% if is_desktop_client %}
@@ -119,7 +120,7 @@
                 <i class="ph ph-arrows-left-right"></i>
             </a>
             {% else %}
-            <a href="/logout" class="sb-logout" title="Sign out">
+            <a href="{{ url_for('auth.logout') }}" class="sb-logout" title="Sign out">
                 <i class="ph ph-sign-out"></i>
             </a>
             {% endif %}
@@ -185,6 +186,7 @@
         </div>
     </div>
 
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/shortcuts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/master.js') }}"></script>
 

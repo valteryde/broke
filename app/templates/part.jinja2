@@ -46,7 +46,7 @@
                 onUpdate: async (item, field, value) => {
                     if (field === 'status') {
                         try {
-                            const response = await fetch(`/api/errors/${item.id}/status`, {
+                            const response = await fetch(brokeAppUrl('/api/errors/' + item.id + '/status'), {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -70,7 +70,7 @@
                 },
                 onDelete: async (item) => {
                     try {
-                        const response = await fetch(`/api/errors/${item.id}`, {
+                        const response = await fetch(brokeAppUrl('/api/errors/' + item.id), {
                             method: 'DELETE'
                         });
 
@@ -110,7 +110,7 @@
                     ],
                     createdAt: {{ error.last_seen }} * 1000,
                     meta: '{{ error.event_count }} events',
-                    onClick: () => { window.location.href = '/errors/{{ project.id }}/{{ part.id }}/{{ error.id }}'; }
+                    onClick: () => { window.location.href = '{{ request.script_root }}/errors/{{ project.id }}/{{ part.id }}/{{ error.id }}'; }
                 },
                 {% endfor %}
             ];
@@ -130,7 +130,7 @@
                     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
                     try {
                         const response = await fetch(
-                            `/api/projects/${projectId}/parts/${partId}/errors`,
+                            brokeAppUrl('/api/projects/' + projectId + '/parts/' + partId + '/errors'),
                             {
                                 method: 'DELETE',
                                 headers: csrf ? { 'X-CSRF-Token': csrf } : {}

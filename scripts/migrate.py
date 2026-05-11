@@ -4,6 +4,10 @@ import sys
 # Add parent directory to path so we can import from app
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from app.utils.models import initialize_db
 
 from scripts.migrate_001_ticket_active import run_migration as run_migration_001

@@ -8,7 +8,7 @@
 
 {% block content %}
 <h1>Agent integration</h1>
-<p>Use short-lived <strong>agent tokens</strong> from <a href="/settings/api">Settings → API &amp; Tokens</a> so tools can call Broke without browser cookies.</p>
+<p>Use short-lived <strong>agent tokens</strong> from <a href="{{ request.script_root }}/settings/api">Settings → API &amp; Tokens</a> so tools can call Broke without browser cookies.</p>
 
 <h2>Environment</h2>
 <ul>
@@ -34,5 +34,5 @@
 <h2>Optional MCP</h2>
 <p>Any MCP server can wrap these HTTP calls with tools that read <code>BROKE_AGENT_TOKEN</code> from MCP <code>env</code> in Cursor. No changes to the Broke desktop app are required.</p>
 
-<p><a href="/settings/api">← Back to API settings</a></p>
+<p><a href="{{ request.script_root }}/settings/api">← Back to API settings</a></p>
 {% endblock %}

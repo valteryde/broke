@@ -117,6 +117,12 @@ python app/cli.py create-user admin secret123 admin@example.com --admin 1 # Admi
 
 # Full backup of all on-disk data (SQLite, uploads, branding, avatars, webhook secret files, etc.)
 python app/cli.py export -o ./broke-backup.tar.gz
+
+# Restore from an export (merge: overwrites paths that exist in the archive only)
+python app/cli.py restore ./broke-backup.tar.gz
+
+# Replace the entire data directory with the archive (typical for a clean migration)
+python app/cli.py restore ./broke-backup.tar.gz --wipe --force
 ```
 
 When running with Docker, stop the service first if you need a consistent database snapshot, then export (writes the archive wherever you pass `-o`; using `/data/…` puts the file in the volume so you can copy it off the host):
@@ -127,7 +133,15 @@ docker compose run --rm --no-deps -v data:/data broke-server python app/cli.py e
 docker compose start broke-server
 ```
 
-To restore from an export later: stop Broke, unpack the tarball **into** your data directory (`DATA_PATH`, e.g. `/data`), and skip `broke-export-manifest.json` if you use plain `tar -xzf`—or remove it after extract. It is only metadata. Redis is not part of the export; users may need to sign in again on the new server.
+To restore on the new server (stop Broke first; use `--wipe` on a fresh data dir to match the old instance exactly):
+
+```bash
+docker compose stop broke-server
+docker compose run --rm --no-deps -v data:/data broke-server python app/cli.py restore /data/broke-export.tar.gz --wipe --force
+docker compose start broke-server
+```
+
+`--force` skips the interactive confirmation (required in CI and non-TTY shells). Without `--wipe`, files already on disk that are **not** in the archive are left as-is. Redis is not part of the export; users may need to sign in again.
 
 When running with Docker (quick admin commands while the stack is up):
 

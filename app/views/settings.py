@@ -12,7 +12,7 @@ import time
 import uuid
 
 import pyargon2
-from flask import Blueprint, flash, jsonify, redirect, render_template, request
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from peewee import DoesNotExist
 
 from ..utils import mail
@@ -81,7 +81,7 @@ def _delete_existing_avatar_files(avatar_dir: str, username: str):
 @protected
 def settings_view(user: User):
     """Default settings view - redirects to profile"""
-    return redirect("/settings/profile")
+    return redirect(url_for("settings.settings_section_view", section="profile"))
 
 
 @settings_bp.route("/docs/agent-integration")
@@ -102,7 +102,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
     admin_only_sections = {"email", "webhooks", "sentry", "ai", "branding"}
     if section in admin_only_sections and user.admin != 1:
         flash("Unauthorized. Admins only.", "error")
-        return redirect("/settings/profile")
+        return redirect(url_for("settings.settings_section_view", section="profile"))
 
     # Map sections to their display titles
     section_titles = {
@@ -793,7 +793,7 @@ def api_invite_team_member(user: User):
 
     if not name:
         flash("Name is required to invite a team member.", "error")
-        return redirect("/settings/team")
+        return redirect(url_for("settings.settings_section_view", section="team"))
 
     # Generate a temporary invite token
     invite_token = secrets.token_urlsafe(32)
@@ -889,7 +889,7 @@ def welcome_new_member(token: str):
 
     except DoesNotExist:
         flash("Invalid or expired invite token.", "error")
-        return redirect("/login")
+        return redirect(url_for("auth.login"))
 
     if request.method == "POST":
         username = request.form["username"].strip()
@@ -911,7 +911,7 @@ def welcome_new_member(token: str):
         invite.delete_instance()
 
         flash("Account created successfully! Please log in.", "success")
-        return redirect("/news")
+        return redirect(url_for("news.news_view"))
 
     return render_template("welcome_new_member.jinja2", token=token, name=invite.name)
 
@@ -1141,7 +1141,7 @@ def api_create_project(user: User):
         # TODO: Handle ID conflicts better (e.g., append numbers)
         flash("Project ID already exists. Please choose a different name.", "error")
 
-        return redirect("/settings/projects")
+        return redirect(url_for("settings.settings_section_view", section="projects"))
     except DoesNotExist:
         pass
 
@@ -1154,7 +1154,7 @@ def api_create_project(user: User):
 
     flash(f'Project "{name}" created successfully.', "success")
 
-    return redirect("/settings/projects")
+    return redirect(url_for("settings.settings_section_view", section="projects"))
 
 
 @settings_bp.route("/api/settings/projects/delete/<project_id>", methods=["GET"])
@@ -1170,11 +1170,11 @@ def api_delete_project(user: User, project_id: str):
 
         flash(f'Project "{project.name}" deleted successfully.', "success")
 
-        return redirect("/settings/projects")
+        return redirect(url_for("settings.settings_section_view", section="projects"))
     except DoesNotExist:
         flash("Project not found.", "error")
 
-        return redirect("/settings/projects")
+        return redirect(url_for("settings.settings_section_view", section="projects"))
 
 
 @settings_bp.route("/api/settings/projects/update/<project_id>", methods=["GET", "POST"])
@@ -1186,7 +1186,7 @@ def api_update_project(user: User, project_id: str):
         project = Project.get(Project.id == project_id)
     except DoesNotExist:
         flash("Project not found.", "error")
-        return redirect("/settings/projects")
+        return redirect(url_for("settings.settings_section_view", section="projects"))
 
     data = request.form
 
@@ -1196,7 +1196,7 @@ def api_update_project(user: User, project_id: str):
     project.save()
 
     flash(f'Project "{project.id}" updated successfully.', "success")
-    return redirect("/settings/projects")
+    return redirect(url_for("settings.settings_section_view", section="projects"))
 
 
 @settings_bp.route("/api/settings/projects/archive/<project_id>", methods=["GET"])
@@ -1207,12 +1207,12 @@ def api_archive_project(user: User, project_id: str):
         project = Project.get(Project.id == project_id)
     except DoesNotExist:
         flash("Project not found.", "error")
-        return redirect("/settings/projects")
+        return redirect(url_for("settings.settings_section_view", section="projects"))
 
     project.archived = 1
     project.save()
     flash(f'Project "{project.name}" archived.', "success")
-    return redirect("/settings/projects")
+    return redirect(url_for("settings.settings_section_view", section="projects"))
 
 
 @settings_bp.route("/api/settings/projects/unarchive/<project_id>", methods=["GET"])
@@ -1222,12 +1222,12 @@ def api_unarchive_project(user: User, project_id: str):
         project = Project.get(Project.id == project_id)
     except DoesNotExist:
         flash("Project not found.", "error")
-        return redirect("/settings/projects")
+        return redirect(url_for("settings.settings_section_view", section="projects"))
 
     project.archived = 0
     project.save()
     flash(f'Project "{project.name}" restored.', "success")
-    return redirect("/settings/projects")
+    return redirect(url_for("settings.settings_section_view", section="projects"))
 
 
 @settings_bp.route("/api/settings/labels", methods=["POST"])
@@ -1241,19 +1241,19 @@ def api_create_label(user: User):
 
     if not name:
         flash("Label name is required.", "error")
-        return redirect("/settings/labels")
+        return redirect(url_for("settings.settings_section_view", section="labels"))
 
     try:
         Label.get(Label.name == name)
         flash("Label already exists.", "error")
-        return redirect("/settings/labels")
+        return redirect(url_for("settings.settings_section_view", section="labels"))
     except DoesNotExist:
         pass
 
     Label.create(name=name, color=color)
 
     flash(f'Label "{name}" created successfully.', "success")
-    return redirect("/settings/labels")
+    return redirect(url_for("settings.settings_section_view", section="labels"))
 
 
 @settings_bp.route("/api/settings/labels/delete/<label_name>")
@@ -1267,7 +1267,7 @@ def api_delete_label(user: User, label_name: str):
         flash(f'Label "{label_name}" deleted successfully.', "success")
     except DoesNotExist:
         flash("Label not found.", "error")
-    return redirect("/settings/labels")
+    return redirect(url_for("settings.settings_section_view", section="labels"))
 
 
 # ============ Danger Zone ============

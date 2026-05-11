@@ -9,22 +9,22 @@
 {% endblock %}
 
 {% block path %}
-    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a> 
-    <i class="ph ph-caret-right"></i> 
+    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a>
+    <i class="ph ph-caret-right"></i>
     <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
-    <i class="ph ph-caret-right"></i> 
+    <i class="ph ph-caret-right"></i>
     <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}/{{ part.id }}'); return false;"><i class="ph ph-puzzle-piece"></i> {{ part.name }}</a>
-    <i class="ph ph-caret-right"></i> 
+    <i class="ph ph-caret-right"></i>
     <span><i class="ph ph-warning-circle"></i> {{ error.exception_type or 'Error' }}</span>
 {% endblock %}
 
 {% block content %}
 
 <div class="error-page">
-    
+
     <!-- Main Content -->
     <div class="error-main">
-        
+
         <!-- Error Header -->
         <div class="error-header">
             <div class="error-status-badge status-{{ error.status }}">
@@ -51,7 +51,7 @@
                     <i class="ph ph-arrows-out-simple"></i> Expand All
                 </button>
             </div>
-            
+
             <div class="stacktrace-container">
                 {# TODO rewrite this code to be alot more readable... somehow #}
                 {% if stacktrace_frames %}
@@ -83,7 +83,7 @@
                             {% else %}
                             <p class="no-context">No source context available</p>
                             {% endif %}
-                            
+
                             {% if frame.vars %}
                             <div class="frame-vars">
                                 <h4>Local Variables</h4>
@@ -114,7 +114,7 @@
             <div class="error-section-header">
                 <h2><i class="ph ph-clock-countdown"></i> Occurrences ({{ occurrences|length }})</h2>
             </div>
-            
+
             <div class="occurrences-chart">
                 <div class="chart-bars">
                     {% for day, count in occurrence_chart %}
@@ -152,18 +152,18 @@
 
     <!-- Sidebar -->
     <div class="error-sidebar">
-        
+
         <!-- Status Actions -->
         <div class="sidebar-section">
             <h3>Actions</h3>
             <div class="action-buttons">
 
                 {% if ticket %}
-                <button class="action-btn btn-primary" onclick="window.location.href = '/tickets/{{ ticket.project }}/{{ ticket.id }}'" title="Open a ticket for this error">
+                <button class="action-btn btn-primary" onclick="window.location.href = '{{ request.script_root }}/tickets/{{ ticket.project }}/{{ ticket.id }}'" title="Open a ticket for this error">
                     <i class="ph ph-ticket"></i> See Ticket
                 </button>
                 {% else %}
-                <button class="action-btn btn-primary" onclick="window.location.href = '/api/errors/{{ error.id }}/create_ticket'" title="Open a ticket for this error">
+                <button class="action-btn btn-primary" onclick="window.location.href = '{{ request.script_root }}/api/errors/{{ error.id }}/create_ticket'" title="Open a ticket for this error">
                     <i class="ph ph-ticket"></i> Open Ticket
                 </button>
                 {% endif %}

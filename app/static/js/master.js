@@ -4,8 +4,12 @@ function openUrlWithArgs(url) {
     // Get the current URL's search parameters
     const currentParams = new URLSearchParams(window.location.search);
 
+    const root = typeof window.__BROKE_SCRIPT_ROOT__ === "string" ? window.__BROKE_SCRIPT_ROOT__ : "";
+    const pathOrUrl =
+        typeof url === "string" && url.startsWith("/") ? root + url : url;
+
     // Create a new URL object
-    const newUrl = new URL(url, window.location.origin);
+    const newUrl = new URL(pathOrUrl, window.location.origin);
 
     // Append current search parameters to the new URL
     currentParams.forEach((value, key) => {
@@ -64,7 +68,7 @@ function openUrlWithArgs(url) {
         setResultsHtml(results, '<div class="global-search-loading">Searching...</div>');
 
         try {
-            const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=12`);
+            const response = await fetch(brokeAppUrl(`/api/search?q=${encodeURIComponent(query)}&limit=12`));
             if (!response.ok) {
                 throw new Error('Search request failed');
             }

@@ -11,24 +11,24 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/tickets"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i>
+    <a href="{{ request.script_root }}/tickets"><i class="ph ph-ticket"></i> Tickets</a> <i class="ph ph-caret-right"></i>
     {% if ticket.project == 'TRIAGE' %}
-        <a href="/intake"><i class="ph ph-tray"></i> Intake</a>
+        <a href="{{ request.script_root }}/intake"><i class="ph ph-tray"></i> Intake</a>
     {% elif project %}
-        <a href="/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+        <a href="{{ request.script_root }}/tickets/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
     {% else %}
-        <a href="/tickets/{{ ticket.project }}"><i class="ph ph-folder-simple"></i> {{ ticket.project }}</a>
+        <a href="{{ request.script_root }}/tickets/{{ ticket.project }}"><i class="ph ph-folder-simple"></i> {{ ticket.project }}</a>
     {% endif %}
-    <i class="ph ph-caret-right"></i> <a href="/tickets/{{ ticket.project }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a>
+    <i class="ph ph-caret-right"></i> <a href="{{ request.script_root }}/tickets/{{ ticket.project }}/{{ ticket.id }}"><i class="ph ph-pen"></i> {{ ticket.id }}</a>
 {% endblock %}
 
 {% block content %}
 
 <div class="ticket-top-actions" aria-label="Ticket actions">
-    <a class="ticket-icon-action" href="/api/tickets/{{ ticket.id }}/export?format=markdown" title="Export markdown" aria-label="Export ticket as markdown" target="_blank" rel="noopener noreferrer">
+    <a class="ticket-icon-action" href="{{ request.script_root }}/api/tickets/{{ ticket.id }}/export?format=markdown" title="Export markdown" aria-label="Export ticket as markdown" target="_blank" rel="noopener noreferrer">
         <i class="ph ph-file-text"></i>
     </a>
-    <a class="ticket-icon-action" href="/api/tickets/{{ ticket.id }}/export?format=json" title="Export JSON" aria-label="Export ticket as JSON" target="_blank" rel="noopener noreferrer">
+    <a class="ticket-icon-action" href="{{ request.script_root }}/api/tickets/{{ ticket.id }}/export?format=json" title="Export JSON" aria-label="Export ticket as JSON" target="_blank" rel="noopener noreferrer">
         <i class="ph ph-brackets-curly"></i>
     </a>
     <button class="ticket-icon-action ticket-icon-action-primary ticket-icon-action-labeled" type="button" title="Create subticket" aria-label="Create subticket" onclick="createSubticket()">
@@ -47,7 +47,7 @@
             {% if parent_ticket %}
             <p>
                 Parent:
-                <a href="/tickets/{{ parent_ticket.project }}/{{ parent_ticket.id }}">{{ parent_ticket.id }}</a>
+                <a href="{{ request.script_root }}/tickets/{{ parent_ticket.project }}/{{ parent_ticket.id }}">{{ parent_ticket.id }}</a>
             </p>
             {% endif %}
             {% if subticket_count > 0 %}
@@ -71,7 +71,7 @@
     <ul class="ticket-subtickets-list">
         {% for child in subtickets %}
         <li>
-            <a href="/tickets/{{ child.project }}/{{ child.id }}"><strong>{{ child.id }}</strong></a>
+            <a href="{{ request.script_root }}/tickets/{{ child.project }}/{{ child.id }}"><strong>{{ child.id }}</strong></a>
             - {{ child.title }}
             <span>({{ child.status }}, {{ child.priority }})</span>
         </li>
@@ -105,7 +105,7 @@
 
         async function createSubticket() {
             try {
-                const response = await fetch('/api/tickets', {
+                const response = await fetch(brokeAppUrl('/api/tickets'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -124,7 +124,7 @@
                     return;
                 }
 
-                window.location.href = `/tickets/${payload.ticket.project}/${payload.ticket.id}`;
+                window.location.href = brokeAppUrl('/tickets/' + payload.ticket.project + '/' + payload.ticket.id);
             } catch (error) {
                 console.error('Create subticket error:', error);
                 alert('Failed to create subticket');
@@ -135,7 +135,7 @@
             if (!confirm('Close this parent ticket?')) return;
 
             try {
-                const response = await fetch('/api/tickets/{{ ticket.id }}', {
+                const response = await fetch(brokeAppUrl('/api/tickets/{{ ticket.id }}'), {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ field: 'status', value: 'done' })
@@ -295,7 +295,7 @@
                 onSave: async (field, value, oldValue) => {
                     console.log('Saving:', field, value);
                     try {
-                        const response = await fetch('/api/tickets/{{ ticket.id }}', {
+                        const response = await fetch(brokeAppUrl('/api/tickets/{{ ticket.id }}'), {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ field, value, oldValue })
@@ -313,7 +313,7 @@
                 onComment: async (content, comment) => {
                     console.log('New comment:', content);
                     try {
-                        const response = await fetch('/api/tickets/{{ ticket.id }}/comments', {
+                        const response = await fetch(brokeAppUrl('/api/tickets/{{ ticket.id }}/comments'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ content })
@@ -338,7 +338,7 @@
                 onDeleteComment: async (commentId) => {
                     console.log('Delete comment:', commentId);
                     try {
-                        const response = await fetch(`/api/comments/${commentId}`, {
+                        const response = await fetch(brokeAppUrl('/api/comments/' + commentId), {
                             method: 'DELETE'
                         });
 

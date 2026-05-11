@@ -3,7 +3,7 @@
 {% block title %}Invite Sent | Broke{% endblock %}
 
 {% block head %}
-    
+
 {% endblock %}
 
 {% block path %}
@@ -25,6 +25,6 @@
     <code style="font-family: monospace; font-size: 1.1rem; word-break: break-all;">{{ base_url }}/welcome/{{ token }}</code>
 </div>
 
-<button class="btn btn-primary" style="display:flex;align-items:center;gap:5px;" onclick="window.location.href = '/settings/team'"> <i class="ph ph-arrow-left"></i> Go back</button>
+<button class="btn btn-primary" style="display:flex;align-items:center;gap:5px;" onclick="window.location.href = '{{ request.script_root }}/settings/team'"> <i class="ph ph-arrow-left"></i> Go back</button>
 
 {% endblock %}

@@ -1,6 +1,6 @@
 import os
 
-from ..utils.security import protected
+from ..utils.security import protected, redirect_with_script_root
 from ..utils.events import EventTypes, bus
 from ..utils.models import (
     User,
@@ -15,7 +15,7 @@ from ..utils.models import (
     DSNToken,
     active_projects_ordered,
 )
-from flask import redirect, render_template, request, Blueprint
+from flask import Blueprint, redirect, render_template, request
 from peewee import DoesNotExist
 import gzip
 import json
@@ -957,7 +957,7 @@ def create_ticket_from_error(user: User, error_id: int):
         error=error,
     )
 
-    return redirect(f"/tickets/{error.part.project.id}/{ticket_id}")
+    return redirect_with_script_root(f"/tickets/{error.part.project.id}/{ticket_id}")
 
 
 @bug_bp.route("/api/errors/<int:error_id>", methods=["DELETE"])

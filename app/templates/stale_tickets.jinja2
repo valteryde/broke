@@ -16,7 +16,7 @@
 <div class="stale-page">
     <h1 style="margin-bottom: 1rem;">Stale tickets</h1>
 
-    <form class="stale-toolbar" method="get" action="/tickets/stale">
+    <form class="stale-toolbar" method="get" action="{{ request.script_root }}/tickets/stale">
         <label>
             Project
             <select name="project">
@@ -56,7 +56,7 @@
                 {% set t = row.ticket %}
                 <tr data-stale-row="{{ t.id }}">
                     <td class="stale-title-cell">
-                        <a href="/tickets/{{ t.project }}/{{ t.id }}">{{ t.id }}</a>
+                        <a href="{{ request.script_root }}/tickets/{{ t.project }}/{{ t.id }}">{{ t.id }}</a>
                         <span class="stale-title-main">{{ t.title }}</span>
                         {% if row.blocked %}
                         <span class="stale-badge-blocked">Has open subtickets</span>
@@ -97,7 +97,7 @@
             btn.disabled = true;
             var headers = { 'Content-Type': 'application/json' };
             if (window.BROKE_CSRF_TOKEN) headers['X-CSRF-Token'] = window.BROKE_CSRF_TOKEN;
-            fetch('/api/tickets/' + encodeURIComponent(id) + '/close-stale', {
+            fetch(brokeAppUrl('/api/tickets/' + encodeURIComponent(id) + '/close-stale'), {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify({ inactive_days: inactiveDays })

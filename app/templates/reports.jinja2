@@ -12,7 +12,7 @@
         <h1 style="margin:0;">Reports</h1>
         <p style="margin:0.3rem 0 0 0;opacity:0.75;">Operational snapshot for the last {{ summary.window_days }} days.</p>
     </div>
-    <a class="btn btn-secondary" href="/reports/export.csv"><i class="ph ph-download-simple"></i> Export CSV</a>
+    <a class="btn btn-secondary" href="{{ request.script_root }}/reports/export.csv"><i class="ph ph-download-simple"></i> Export CSV</a>
 </div>
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.75rem;margin-bottom:1rem;">

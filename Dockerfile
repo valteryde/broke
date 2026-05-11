@@ -22,6 +22,7 @@ USER app
 
 EXPOSE 8080
 ENV DATA_PATH=/data
+# Optional: path prefix when served under a subpath (e.g. reverse proxy at /broke). See BROKE_APPLICATION_PREFIX.
 
 # Run migration and then start the server
 CMD ["./docker-entrypoint.sh"]

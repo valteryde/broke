@@ -9,6 +9,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from .path import data_path, path
+from .wsgi_application_prefix import ApplicationPrefixMiddleware, normalize_application_prefix
 
 # Global app instance (for backwards compatibility during migration)
 _app = None
@@ -124,12 +125,17 @@ def create_app():  # noqa: C901
     }
     public_base_url = (os.environ.get("BROKE_PUBLIC_BASE_URL") or "").strip().rstrip("/")
 
+    application_prefix = normalize_application_prefix(os.environ.get("BROKE_APPLICATION_PREFIX", ""))
+    session_cookie_path = f"{application_prefix}/" if application_prefix else "/"
+
     app.config.update(
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=session_cookie_secure,
         BROKE_TRUST_PROXY_HEADERS=trust_proxy_headers,
         BROKE_PUBLIC_BASE_URL=public_base_url,
+        BROKE_APPLICATION_PREFIX=application_prefix,
+        SESSION_COOKIE_PATH=session_cookie_path,
     )
 
     app.template_folder = path("templates")
@@ -248,7 +254,7 @@ def create_app():  # noqa: C901
                 httponly=False,
                 samesite="Lax",
                 secure=bool(app.config.get("SESSION_COOKIE_SECURE", False)),
-                path="/",
+                path=str(app.config.get("SESSION_COOKIE_PATH") or "/"),
             )
         return response
 
@@ -433,15 +439,15 @@ def create_app():  # noqa: C901
 
     @app.route("/")
     def index():
-        from flask import redirect, render_template, session
+        from flask import redirect, render_template, session, url_for
 
         from .public_site import show_public_home
 
         if session.get("user_id"):
-            return redirect("/news")
+            return redirect(url_for("news.news_view"))
         if show_public_home():
             return render_template("public_landing.jinja2")
-        return redirect("/news")
+        return redirect(url_for("news.news_view"))
 
     @app.route("/docs")
     def public_documentation():
@@ -456,5 +462,8 @@ def create_app():  # noqa: C901
     @app.context_processor
     def inject_current_year():
         return {"current_year": datetime.now().year}
+
+    if application_prefix:
+        app.wsgi_app = ApplicationPrefixMiddleware(app.wsgi_app, application_prefix)
 
     return app

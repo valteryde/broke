@@ -3,6 +3,8 @@ import io
 import json
 import os
 import re
+import shutil
+import sys
 import tarfile
 import time
 import uuid
@@ -87,6 +89,96 @@ def cmd_export(args):
             tf.add(p, arcname=arcname, recursive=False)
 
     print(f"Wrote {out.resolve()} ({len(file_paths)} data files, manifest included).")
+
+
+def _restore_member_destination(name: str, dest: Path) -> None:
+    """Reject path traversal and absolute paths in archive member names."""
+    if not name or name.startswith("/") or name.startswith("\\"):
+        raise ValueError(f"Refusing unsafe archive member: {name!r}")
+    if ".." in Path(name).parts:
+        raise ValueError(f"Refusing unsafe archive member: {name!r}")
+    out = (dest / name).resolve()
+    dest_resolved = dest.resolve()
+    if out != dest_resolved:
+        out.relative_to(dest_resolved)
+
+
+def _extract_tar_to_data_dir(tf: tarfile.TarFile, dest: Path) -> int:
+    """Extract all members into dest with path checks. Returns number of members."""
+    dest.mkdir(parents=True, exist_ok=True)
+    members = tf.getmembers()
+    for m in members:
+        _restore_member_destination(m.name, dest)
+    extract_kw = {}
+    if sys.version_info >= (3, 12):
+        extract_kw["filter"] = "data"
+    tf.extractall(path=dest, **extract_kw)
+    return len(members)
+
+
+def cmd_restore(args):
+    """Extract a `broke export` archive into DATA_PATH, overwriting existing paths."""
+    archive = Path(args.archive).expanduser().resolve()
+    if not archive.is_file():
+        print(f"Error: archive not found: {archive}")
+        return
+
+    root = data_path()
+    root.mkdir(parents=True, exist_ok=True)
+
+    with tarfile.open(archive, "r:*") as tf:
+        names = set(tf.getnames())
+
+    if not args.skip_manifest_check and "broke-export-manifest.json" not in names:
+        print("Error: not a Broke export archive (missing broke-export-manifest.json).")
+        print("If you trust this tarball, pass --skip-manifest-check.")
+        return
+
+    if "broke-export-manifest.json" in names:
+        with tarfile.open(archive, "r:*") as tf:
+            manifest_reader = tf.extractfile("broke-export-manifest.json")
+            if manifest_reader:
+                try:
+                    manifest = json.load(manifest_reader)
+                    preview = {
+                        k: manifest[k]
+                        for k in ("exported_at", "broke_version", "file_count", "bytes_total")
+                        if k in manifest
+                    }
+                    if preview:
+                        print("Archive manifest:")
+                        print(json.dumps(preview, indent=2))
+                except json.JSONDecodeError:
+                    print("Warning: broke-export-manifest.json is not valid JSON.")
+
+    wipe_note = "wipe existing data, then " if args.wipe else ""
+    if not args.force:
+        if not sys.stdin.isatty():
+            print("Error: stdin is not a TTY; pass --force to restore without confirmation.")
+            return
+        prompt = (
+            f"This will {wipe_note}extract files into {root.resolve()} "
+            f"from {archive.name}, overwriting matching paths. Continue? [y/N] "
+        )
+        if input(prompt).strip().lower() not in ("y", "yes"):
+            print("Aborted.")
+            return
+
+    if args.wipe:
+        for child in list(root.iterdir()):
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+
+    try:
+        with tarfile.open(archive, "r:*") as tf:
+            n = _extract_tar_to_data_dir(tf, root)
+    except (ValueError, tarfile.TarError) as e:
+        print(f"Error: could not extract archive: {e}")
+        return
+
+    print(f"Restored {n} archive entries into {root.resolve()}.")
 
 
 def download_linear_image(url: str, api_key: str) -> str | None:
@@ -556,6 +648,32 @@ def main():
         help="Output .tar.gz path (default: broke-export-<utc-timestamp>.tar.gz in current directory)",
     )
     export_parser.set_defaults(func=cmd_export)
+
+    restore_parser = subparsers.add_parser(
+        "restore",
+        help="Extract a broke export tarball into the data directory (overwrites existing paths)",
+    )
+    restore_parser.add_argument(
+        "archive",
+        help="Path to .tar.gz produced by `broke export`",
+    )
+    restore_parser.add_argument(
+        "--wipe",
+        action="store_true",
+        help="Delete everything under the data directory before extracting (full replace; if extract fails after this, the directory may be empty or partial)",
+    )
+    restore_parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Skip confirmation (required when stdin is not a TTY)",
+    )
+    restore_parser.add_argument(
+        "--skip-manifest-check",
+        action="store_true",
+        help="Allow archives that lack broke-export-manifest.json (only if you trust the file)",
+    )
+    restore_parser.set_defaults(func=cmd_restore)
 
     # import command with subcommands
     import_parser = subparsers.add_parser("import", help="Import data from external services")

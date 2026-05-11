@@ -791,7 +791,7 @@ class TicketEditor {
     async toggleAiDelegate() {
         const next = !this.ticket.aiDelegate;
         try {
-            const response = await fetch(`/api/tickets/${this.ticket.id}`, {
+            const response = await fetch(brokeAppUrl('/api/tickets/' + this.ticket.id), {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ field: 'ai_delegate', value: next })
@@ -837,7 +837,7 @@ class TicketEditor {
             btn.innerHTML = '<i class="ph ph-circle-notch"></i> Minting…';
         }
         try {
-            const r = await fetch(`/api/tickets/${this.ticket.id}/ai-delegate-pack`, {
+            const r = await fetch(brokeAppUrl('/api/tickets/' + this.ticket.id + '/ai-delegate-pack'), {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {

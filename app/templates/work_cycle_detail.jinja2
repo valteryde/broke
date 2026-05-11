@@ -15,7 +15,7 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/work-cycles"><i class="ph ph-calendar-dots"></i> Sprints</a>
+    <a href="{{ request.script_root }}/work-cycles"><i class="ph ph-calendar-dots"></i> Sprints</a>
     <i class="ph ph-caret-right"></i>
     <span>{{ cycle.name }}</span>
 {% endblock %}
@@ -51,9 +51,9 @@
 </div>
 
 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
-    <a class="btn btn-secondary" href="/api/work-cycles/{{ cycle.id }}/export?format=markdown" target="_blank" rel="noopener noreferrer"><i class="ph ph-download-simple"></i> Markdown</a>
+    <a class="btn btn-secondary" href="{{ request.script_root }}/api/work-cycles/{{ cycle.id }}/export?format=markdown" target="_blank" rel="noopener noreferrer"><i class="ph ph-download-simple"></i> Markdown</a>
     <button type="button" class="btn btn-secondary" id="wc-copy-md"><i class="ph ph-copy"></i> Copy markdown</button>
-    <a class="btn btn-secondary" href="/tickets?view=board&cycle={{ cycle.id }}"><i class="ph ph-kanban"></i> Open as board</a>
+    <a class="btn btn-secondary" href="{{ request.script_root }}/tickets?view=board&cycle={{ cycle.id }}"><i class="ph ph-kanban"></i> Open as board</a>
 </div>
 
 <div class="wc-diagram" role="region" aria-label="Sprint flow by status">
@@ -77,7 +77,7 @@
             <div class="wc-diagram-tickets">
                 {% for t in lane.tickets %}
                 <div class="wc-diagram-ticket-wrap">
-                    <a href="/tickets/{{ t.project }}/{{ t.id }}" class="wc-diagram-ticket">
+                    <a href="{{ request.script_root }}/tickets/{{ t.project }}/{{ t.id }}" class="wc-diagram-ticket">
                         <div class="wc-diagram-ticket-id">{{ t.id }} <span class="wc-diagram-proj">{{ t.project }}</span></div>
                         <div class="wc-diagram-ticket-title">{{ t.title }}</div>
                         <div class="wc-diagram-ticket-meta">
@@ -133,7 +133,7 @@
     const csrf = () => window.BROKE_CSRF_TOKEN || '';
 
     function postTickets(body) {
-        return fetch('/api/work-cycles/' + cycleId + '/tickets', {
+        return fetch(brokeAppUrl('/api/work-cycles/' + cycleId + '/tickets'), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -248,7 +248,7 @@
     async function ensureBacklogLoaded() {
         if (backlogRows !== null) return;
         if (backlogLoadPromise) return backlogLoadPromise;
-        backlogLoadPromise = fetch('/api/work-cycles/' + cycleId + '/backlog-tickets?limit=250', {
+        backlogLoadPromise = fetch(brokeAppUrl('/api/work-cycles/' + cycleId + '/backlog-tickets?limit=250'), {
             credentials: 'same-origin',
             headers: { 'Accept': 'application/json' }
         }).then(async function (r) {
@@ -292,7 +292,7 @@
             if (searchResults) searchResults.innerHTML = '';
         } else {
             searchTimer = setTimeout(async function () {
-                const r = await fetch('/api/search?q=' + encodeURIComponent(q) + '&limit=20', {
+                const r = await fetch(brokeAppUrl('/api/search?q=' + encodeURIComponent(q) + '&limit=20'), {
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' }
                 });
@@ -322,7 +322,7 @@
 
     document.getElementById('wc-copy-md')?.addEventListener('click', async () => {
         try {
-            const r = await fetch('/api/work-cycles/' + cycleId + '/export?format=markdown');
+            const r = await fetch(brokeAppUrl('/api/work-cycles/' + cycleId + '/export?format=markdown'));
             const t = await r.text();
             await navigator.clipboard.writeText(t);
             if (window.showToast) showToast('Copied', 'success');
@@ -335,7 +335,7 @@
         e.preventDefault();
         const name = document.getElementById('wc-edit-name').value.trim();
         const goal = document.getElementById('wc-edit-goal').value.trim();
-        const r = await fetch('/api/work-cycles/' + cycleId, {
+        const r = await fetch(brokeAppUrl('/api/work-cycles/' + cycleId), {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -349,11 +349,11 @@
 
     document.getElementById('wc-delete')?.addEventListener('click', async () => {
         if (!confirm('Delete this sprint? Tickets will be unassigned from it.')) return;
-        const r = await fetch('/api/work-cycles/' + cycleId, {
+        const r = await fetch(brokeAppUrl('/api/work-cycles/' + cycleId), {
             method: 'DELETE',
             headers: { 'X-CSRF-Token': csrf() }
         });
-        if (r.ok) window.location.href = '/work-cycles';
+        if (r.ok) window.location.href = '{{ request.script_root }}/work-cycles';
         else alert('Delete failed');
     });
 

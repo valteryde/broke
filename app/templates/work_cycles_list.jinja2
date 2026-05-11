@@ -50,7 +50,7 @@
                 {% for c in cycles %}
                 {% set st = cycle_stats.get(c.id, {'total': 0, 'done': 0}) %}
                 <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px 6px;"><a href="/work-cycles/{{ c.id }}">{{ c.name }}</a></td>
+                    <td style="padding:10px 6px;"><a href="{{ request.script_root }}/work-cycles/{{ c.id }}">{{ c.name }}</a></td>
                     <td style="padding:10px 6px;">{{ st.total }}</td>
                     <td style="padding:10px 6px;">{{ st.done }}</td>
                 </tr>
@@ -68,7 +68,7 @@ document.getElementById('work-cycle-create-form')?.addEventListener('submit', as
     const goal = document.getElementById('wc-goal').value.trim();
     const body = { name, goal: goal || null };
     try {
-        const r = await fetch('/api/work-cycles', {
+        const r = await fetch(brokeAppUrl('/api/work-cycles'), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -92,7 +92,7 @@ document.getElementById('work-cycle-create-form')?.addEventListener('submit', as
             alert(data.error || 'Unexpected response from server. Try refreshing the page.');
             return;
         }
-        window.location.href = '/work-cycles/' + id;
+        window.location.href = '{{ request.script_root }}/work-cycles/' + id;
     } catch (err) {
         alert('Network error while creating sprint. Check your connection and try again.');
     }

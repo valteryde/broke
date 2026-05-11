@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from app.server import run_test_app
 from app.utils.app import create_app

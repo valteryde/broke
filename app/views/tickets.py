@@ -28,7 +28,7 @@ from ..utils.models import (
 )
 from ..utils.path import data_path
 from ..utils.reltime import time_ago
-from ..utils.security import protected
+from ..utils.security import protected, redirect_with_script_root
 from ..utils.stale_tickets import (
     clamp_inactive_days,
     close_ticket_as_stale,
@@ -42,6 +42,14 @@ from ..utils.ticket_markdown import build_ticket_export_payload, ticket_payload_
 tickets_bp = Blueprint("tickets", __name__)
 
 INTAKE_STATUSES = {"intake", "triage"}
+
+
+def _scoped_public_path(local_path: str) -> str:
+    """Browser-facing path: prepends ``request.script_root`` when the app uses a URL prefix."""
+    p = (local_path or "").strip()
+    if not p.startswith("/"):
+        p = "/" + p
+    return (request.script_root or "") + p
 
 
 def _work_cycles_for_scope(project_id: str | None) -> list:
@@ -209,11 +217,11 @@ def tickets_view(user: User):
         available_labels=available_labels,
         available_work_cycles=_work_cycles_for_scope(None),
         ticket_view=ticket_view,
-        ticket_view_path="/tickets",
+        ticket_view_path=_scoped_public_path("/tickets"),
         ticket_page_title="Tickets",
-        ticket_create_endpoint="/api/tickets",
+        ticket_create_endpoint=_scoped_public_path("/api/tickets"),
         ticket_create_status="backlog",
-        ticket_base_path="/tickets",
+        ticket_base_path=_scoped_public_path("/tickets"),
     )
 
 
@@ -291,11 +299,11 @@ def project_tickets_view(user: User, project_id: str):
         available_labels=available_labels,
         available_work_cycles=_work_cycles_for_scope(project_id),
         ticket_view=ticket_view,
-        ticket_view_path=f"/tickets/{project_id}",
+        ticket_view_path=_scoped_public_path(f"/tickets/{project_id}"),
         ticket_page_title="Tickets",
-        ticket_create_endpoint="/api/tickets",
+        ticket_create_endpoint=_scoped_public_path("/api/tickets"),
         ticket_create_status="backlog",
-        ticket_base_path="/tickets",
+        ticket_base_path=_scoped_public_path("/tickets"),
     )
 
 
@@ -323,11 +331,11 @@ def triage_view(user: User):
         available_users=available_users,
         available_labels=available_labels,
         ticket_view="list",
-        ticket_view_path="/intake",
+        ticket_view_path=_scoped_public_path("/intake"),
         ticket_page_title="Intake Inbox",
-        ticket_create_endpoint="/api/tickets/intake",
+        ticket_create_endpoint=_scoped_public_path("/api/tickets/intake"),
         ticket_create_status="intake",
-        ticket_base_path="/intake",
+        ticket_base_path=_scoped_public_path("/intake"),
         ai_intake_enabled=get_ai_config() is not None,
     )
 
@@ -361,11 +369,11 @@ def triage_project_view(user: User, project_id: str):
         available_users=available_users,
         available_labels=available_labels,
         ticket_view="list",
-        ticket_view_path=f"/intake/{project_id}",
+        ticket_view_path=_scoped_public_path(f"/intake/{project_id}"),
         ticket_page_title="Intake Inbox",
-        ticket_create_endpoint="/api/tickets/intake",
+        ticket_create_endpoint=_scoped_public_path("/api/tickets/intake"),
         ticket_create_status="intake",
-        ticket_base_path="/intake",
+        ticket_base_path=_scoped_public_path("/intake"),
         ai_intake_enabled=get_ai_config() is not None,
     )
 
@@ -376,10 +384,10 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
     ticket = Ticket.get_or_none(Ticket.id == ticket_id)
 
     if ticket is None or ticket.active == 0:
-        return redirect(f"/tickets/{project_id}")
+        return redirect_with_script_root(f"/tickets/{project_id}")
 
     if ticket.project != project_id:
-        return redirect(f"/tickets/{ticket.project}/{ticket.id}")
+        return redirect_with_script_root(f"/tickets/{ticket.project}/{ticket.id}")
 
     populateTickets([ticket])  # type: ignore
 

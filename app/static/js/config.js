@@ -1,4 +1,23 @@
 /**
+ * Browser-visible path (prepends BROKE_APPLICATION_PREFIX via __BROKE_SCRIPT_ROOT__ from templates).
+ */
+function brokeAppUrl(path) {
+    const root =
+        typeof window !== "undefined" && typeof window.__BROKE_SCRIPT_ROOT__ === "string"
+            ? window.__BROKE_SCRIPT_ROOT__
+            : "";
+    let p = path || "/";
+    if (p.charAt(0) !== "/") {
+        p = "/" + p;
+    }
+    return root + p;
+}
+
+if (typeof window !== "undefined") {
+    window.brokeAppUrl = brokeAppUrl;
+}
+
+/**
  * Centralized configuration for ticket statuses and priorities.
  * This file should be loaded before other JS files that depend on it.
  */
@@ -21,52 +40,52 @@ const StatusConfig = {
         color: '#0ea5e9',
         colorClass: 'status-triage'
     },
-    'backlog': { 
+    'backlog': {
         value: 'backlog',
-        label: 'Backlog', 
-        icon: 'ph-circle-dashed', 
+        label: 'Backlog',
+        icon: 'ph-circle-dashed',
         color: '#6b7280',
         colorClass: 'status-backlog'
     },
-    'todo': { 
+    'todo': {
         value: 'todo',
-        label: 'Todo', 
-        icon: 'ph-circle', 
+        label: 'Todo',
+        icon: 'ph-circle',
         color: '#8b5cf6',
         colorClass: 'status-todo'
     },
-    'in-progress': { 
+    'in-progress': {
         value: 'in-progress',
-        label: 'In Progress', 
-        icon: 'ph-circle-half', 
+        label: 'In Progress',
+        icon: 'ph-circle-half',
         color: '#3b82f6',
         colorClass: 'status-in-progress'
     },
-    'in-review': { 
+    'in-review': {
         value: 'in-review',
-        label: 'In Review', 
-        icon: 'ph-circle-notch', 
+        label: 'In Review',
+        icon: 'ph-circle-notch',
         color: '#f59e0b',
         colorClass: 'status-in-review'
     },
-    'done': { 
+    'done': {
         value: 'done',
-        label: 'Done', 
-        icon: 'ph-check-circle', 
+        label: 'Done',
+        icon: 'ph-check-circle',
         color: '#22c55e',
         colorClass: 'status-done'
     },
-    'closed': { 
+    'closed': {
         value: 'closed',
-        label: 'Closed', 
-        icon: 'ph-x-circle', 
+        label: 'Closed',
+        icon: 'ph-x-circle',
         color: '#9ca3af',
         colorClass: 'status-closed'
     },
-    'duplicate': { 
+    'duplicate': {
         value: 'duplicate',
-        label: 'Duplicate', 
-        icon: 'ph-copy', 
+        label: 'Duplicate',
+        icon: 'ph-copy',
         color: '#ef4444',
         colorClass: 'status-duplicate'
     }

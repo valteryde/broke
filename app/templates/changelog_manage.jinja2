@@ -81,11 +81,11 @@
         }
 
         try {
-            const res = await fetch(`/api/changelog/${releaseId}`, {
+            const res = await fetch(brokeAppUrl('/api/changelog/' + releaseId), {
                 method: 'DELETE',
             });
             const data = await res.json();
-            
+
             if (res.ok && data.success) {
                 const row = document.getElementById(`release-${releaseId}`);
                 row.style.opacity = '0';

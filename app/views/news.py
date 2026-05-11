@@ -1,4 +1,4 @@
-from ..utils.security import protected
+from ..utils.security import protected, redirect_with_script_root
 from peewee import prefetch
 from ..utils.models import (
     User,
@@ -13,7 +13,7 @@ from ..utils.models import (
     Label,
     active_projects_ordered,
 )
-from flask import render_template, redirect, Blueprint, request, Response
+from flask import Blueprint, redirect, render_template, request, Response, url_for
 from urllib.parse import urlencode
 import json
 import time
@@ -660,6 +660,8 @@ def timeline_view(user: User):
     data = build_timeline_events(project_id=None, days=days, detailed=detail_mode)
     summary = build_reports_summary(days=30)
 
+    sr = request.script_root or ""
+
     return render_template(
         "timeline.jinja2",
         user=user,
@@ -671,8 +673,8 @@ def timeline_view(user: User):
         events_json=json.dumps(data["events"]),
         activity_by_day=json.dumps(data["activity_by_day"]),
         query_suffix=_timeline_query_suffix(days, detail_mode),
-        compact_url=_timeline_mode_url("/timeline", days, False),
-        detailed_url=_timeline_mode_url("/timeline", days, True),
+        compact_url=_timeline_mode_url(f"{sr}/timeline", days, False),
+        detailed_url=_timeline_mode_url(f"{sr}/timeline", days, True),
         detail_mode=detail_mode,
         selected_days="all" if days == 0 else str(days),
         has_more_events=len(data["events"]) > 50,
@@ -697,12 +699,14 @@ def timeline_view(user: User):
 def timeline_project_view(user: User, project_id: str):
     project = Project.get_or_none(Project.id == project_id)
     if not project:
-        return redirect("/timeline")
+        return redirect_with_script_root("/timeline")
 
     days = _parse_timeline_days(request.args.get("days"))
     detail_mode = _parse_timeline_detail(request.args.get("detail"))
     data = build_timeline_events(project_id=project_id, days=days, detailed=detail_mode)
     summary = build_reports_summary(days=30)
+
+    sr = request.script_root or ""
 
     return render_template(
         "timeline.jinja2",
@@ -715,8 +719,8 @@ def timeline_project_view(user: User, project_id: str):
         events_json=json.dumps(data["events"]),
         activity_by_day=json.dumps(data["activity_by_day"]),
         query_suffix=_timeline_query_suffix(days, detail_mode),
-        compact_url=_timeline_mode_url(f"/timeline/{project.id}", days, False),
-        detailed_url=_timeline_mode_url(f"/timeline/{project.id}", days, True),
+        compact_url=_timeline_mode_url(f"{sr}/timeline/{project.id}", days, False),
+        detailed_url=_timeline_mode_url(f"{sr}/timeline/{project.id}", days, True),
         detail_mode=detail_mode,
         selected_days="all" if days == 0 else str(days),
         has_more_events=len(data["events"]) > 50,
@@ -739,7 +743,7 @@ def timeline_project_view(user: User, project_id: str):
 @news_bp.route("/reports")
 @protected
 def reports_view(user: User):
-    return redirect("/timeline")
+    return redirect(url_for("news.timeline_view"))
 
 
 @news_bp.route("/reports/export.csv")

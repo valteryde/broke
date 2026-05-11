@@ -104,7 +104,7 @@
     }
 
     async function patchTicket(ticketId, field, value) {
-        const response = await fetch(`/api/tickets/${ticketId}`, {
+        const response = await fetch(brokeAppUrl('/api/tickets/' + ticketId), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ field, value }),
@@ -217,7 +217,7 @@
             return;
         }
         try {
-            const response = await fetch(`/api/tickets/${ticketId}`, { method: 'DELETE' });
+            const response = await fetch(brokeAppUrl('/api/tickets/' + ticketId), { method: 'DELETE' });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
                 throw new Error(payload.error || 'Failed to discard ticket');

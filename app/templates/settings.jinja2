@@ -31,25 +31,25 @@
     <div class="settings-sidebar">
         <div class="settings-nav-section">
             <h3 class="nav-section-title">Account</h3>
-            <a href="/settings/profile" class="settings-nav-item {% if section == 'profile' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/profile" class="settings-nav-item {% if section == 'profile' %}active{% endif %}">
                 <i class="ph ph-user"></i>
                 <span>Profile</span>
             </a>
             {#
-            <a href="/settings/preferences" class="settings-nav-item {% if section == 'preferences' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/preferences" class="settings-nav-item {% if section == 'preferences' %}active{% endif %}">
                 <i class="ph ph-sliders-horizontal"></i>
                 <span>Preferences</span>
             </a>
             #}
-            <a href="/settings/notifications" class="settings-nav-item {% if section == 'notifications' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/notifications" class="settings-nav-item {% if section == 'notifications' %}active{% endif %}">
                 <i class="ph ph-bell"></i>
                 <span>Notifications</span>
             </a>
-            <a href="/settings/email" class="settings-nav-item {% if section == 'email' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/email" class="settings-nav-item {% if section == 'email' %}active{% endif %}">
                 <i class="ph ph-envelope-simple"></i>
                 <span>Email Service</span>
             </a>
-            <a href="/settings/security" class="settings-nav-item {% if section == 'security' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/security" class="settings-nav-item {% if section == 'security' %}active{% endif %}">
                 <i class="ph ph-shield-check"></i>
                 <span>Security</span>
             </a>
@@ -57,27 +57,27 @@
 
         <div class="settings-nav-section">
             <h3 class="nav-section-title">Workspace</h3>
-            {# <a href="/settings/general" class="settings-nav-item {% if section == 'general' %}active{% endif %}">
+            {# <a href="{{ request.script_root }}/settings/general" class="settings-nav-item {% if section == 'general' %}active{% endif %}">
                 <i class="ph ph-gear"></i>
                 <span>General</span>
             </a> #}
-            <a href="/settings/projects" class="settings-nav-item {% if section == 'projects' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/projects" class="settings-nav-item {% if section == 'projects' %}active{% endif %}">
                 <i class="ph ph-folder-simple"></i>
                 <span>Projects</span>
             </a>
-            <a href="/settings/team" class="settings-nav-item {% if section == 'team' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/team" class="settings-nav-item {% if section == 'team' %}active{% endif %}">
                 <i class="ph ph-users-three"></i>
                 <span>Team Members</span>
             </a>
-            <a href="/settings/branding" class="settings-nav-item {% if section == 'branding' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/branding" class="settings-nav-item {% if section == 'branding' %}active{% endif %}">
                 <i class="ph ph-image"></i>
                 <span>Branding</span>
             </a>
-            <a href="/settings/labels" class="settings-nav-item {% if section == 'labels' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/labels" class="settings-nav-item {% if section == 'labels' %}active{% endif %}">
                 <i class="ph ph-tag"></i>
                 <span>Labels</span>
             </a>
-            <a href="/settings/anonymous" class="settings-nav-item {% if section == 'anonymous' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/anonymous" class="settings-nav-item {% if section == 'anonymous' %}active{% endif %}">
                 <i class="ph ph-mask-happy"></i>
                 <span>Anonymous Access</span>
             </a>
@@ -85,19 +85,19 @@
 
         <div class="settings-nav-section">
             <h3 class="nav-section-title">Integrations</h3>
-            <a href="/settings/api" class="settings-nav-item {% if section == 'api' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/api" class="settings-nav-item {% if section == 'api' %}active{% endif %}">
                 <i class="ph ph-code"></i>
                 <span>API & Tokens</span>
             </a>
-            <a href="/settings/webhooks" class="settings-nav-item {% if section == 'webhooks' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/webhooks" class="settings-nav-item {% if section == 'webhooks' %}active{% endif %}">
                 <i class="ph ph-webhooks-logo"></i>
                 <span>Webhooks</span>
             </a>
-            <a href="/settings/sentry" class="settings-nav-item {% if section == 'sentry' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/sentry" class="settings-nav-item {% if section == 'sentry' %}active{% endif %}">
                 <i class="ph ph-bug"></i>
                 <span>Sentry DSN</span>
             </a>
-            <a href="/settings/ai" class="settings-nav-item {% if section == 'ai' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/ai" class="settings-nav-item {% if section == 'ai' %}active{% endif %}">
                 <i class="ph ph-sparkle"></i>
                 <span>AI Integration</span>
             </a>
@@ -105,14 +105,14 @@
 
         <div class="settings-nav-section">
             <h3 class="nav-section-title">Maintenance</h3>
-            <a href="/settings/updates" class="settings-nav-item {% if section == 'updates' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/updates" class="settings-nav-item {% if section == 'updates' %}active{% endif %}">
                 <i class="ph ph-arrows-clockwise"></i>
                 <span>Updates</span>
                 {% if update_info and update_info.available %}
                 <span class="update-dot"></span>
                 {% endif %}
             </a>
-            <a href="/settings/trash" class="settings-nav-item {% if section == 'trash' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/trash" class="settings-nav-item {% if section == 'trash' %}active{% endif %}">
                 <i class="ph ph-trash"></i>
                 <span>Trash</span>
             </a>
@@ -121,7 +121,7 @@
         <div class="settings-nav-section">
 
             <h3 class="nav-section-title">Danger Zone</h3>
-            <a href="/settings/danger" class="settings-nav-item danger {% if section == 'danger' %}active{% endif %}">
+            <a href="{{ request.script_root }}/settings/danger" class="settings-nav-item danger {% if section == 'danger' %}active{% endif %}">
                 <i class="ph ph-skull"></i>
                 <span>Delete Account</span>
             </a>
@@ -168,7 +168,7 @@
                         const formData = new FormData();
                         formData.append('avatar', input.files[0]);
 
-                        fetch('/api/settings/profile/avatar', {
+                        fetch(brokeAppUrl('/api/settings/profile/avatar'), {
                             method: 'POST',
                             body: formData
                         })
@@ -186,7 +186,7 @@
                 }
 
                 function removeAvatar() {
-                    fetch('/api/settings/profile/avatar', {
+                    fetch(brokeAppUrl('/api/settings/profile/avatar'), {
                         method: 'DELETE'
                     })
                     .then(res => res.json())
@@ -536,7 +536,7 @@
                     if (saveButton) saveButton.disabled = true;
 
                     try {
-                        const response = await fetch('/api/settings/email', {
+                        const response = await fetch(brokeAppUrl('/api/settings/email'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
@@ -563,7 +563,7 @@
 
                         testButton.disabled = true;
                         try {
-                            const response = await fetch('/api/settings/email/test', {
+                            const response = await fetch(brokeAppUrl('/api/settings/email/test'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ recipient })
@@ -655,7 +655,7 @@
                 <div class="header-with-action">
                     <div>
                         <h1>Projects</h1>
-                        <p class="section-description">Archive projects to hide them from pickers and new work while keeping tickets and history. <a href="/tickets/stale">Stale tickets overview</a></p>
+                        <p class="section-description">Archive projects to hide them from pickers and new work while keeping tickets and history. <a href="{{ request.script_root }}/tickets/stale">Stale tickets overview</a></p>
                     </div>
                     <button class="btn btn-primary" onclick="showCreateProjectModal()">
                         <i class="ph ph-plus"></i> New Project
@@ -682,10 +682,10 @@
                                 <button class="btn-icon" title="Edit" onclick="showCreateProjectModal({ id: '{{ project.id }}', name: '{{ project.name }}', icon: '{{ project.icon }}', color: '{{ project.color }}' })">
                                     <i class="ph ph-pencil-simple"></i>
                                 </button>
-                                <button class="btn-icon" title="Archive" onclick="window.location.href = '/api/settings/projects/archive/{{ project.id }}' ">
+                                <button class="btn-icon" title="Archive" onclick="window.location.href = '{{ request.script_root }}/api/settings/projects/archive/{{ project.id }}' ">
                                     <i class="ph ph-archive"></i>
                                 </button>
-                                <button class="btn-icon danger" title="Delete" onclick="window.location.href = '/api/settings/projects/delete/{{ project.id }}' ">
+                                <button class="btn-icon danger" title="Delete" onclick="window.location.href = '{{ request.script_root }}/api/settings/projects/delete/{{ project.id }}' ">
                                     <i class="ph ph-trash"></i>
                                 </button>
                             </div>
@@ -721,10 +721,10 @@
                                 <button class="btn-icon" title="Edit" onclick="showCreateProjectModal({ id: '{{ project.id }}', name: '{{ project.name }}', icon: '{{ project.icon }}', color: '{{ project.color }}' })">
                                     <i class="ph ph-pencil-simple"></i>
                                 </button>
-                                <button class="btn-icon" title="Restore" onclick="window.location.href = '/api/settings/projects/unarchive/{{ project.id }}' ">
+                                <button class="btn-icon" title="Restore" onclick="window.location.href = '{{ request.script_root }}/api/settings/projects/unarchive/{{ project.id }}' ">
                                     <i class="ph ph-arrow-counter-clockwise"></i>
                                 </button>
-                                <button class="btn-icon danger" title="Delete permanently" onclick="window.location.href = '/api/settings/projects/delete/{{ project.id }}' ">
+                                <button class="btn-icon danger" title="Delete permanently" onclick="window.location.href = '{{ request.script_root }}/api/settings/projects/delete/{{ project.id }}' ">
                                     <i class="ph ph-trash"></i>
                                 </button>
                             </div>
@@ -794,7 +794,7 @@
             <script>
             function deleteTeamMember(username) {
                 if(confirm('Are you sure you want to delete user ' + username + '? This action cannot be undone.')) {
-                    fetch('/api/settings/team/' + encodeURIComponent(username), {
+                    fetch(brokeAppUrl('/api/settings/team/' + encodeURIComponent(username)), {
                         method: 'DELETE'
                     }).then(res => res.json()).then(data => {
                         if(data.success) {
@@ -839,7 +839,7 @@
                                 {# <button class="btn-icon" title="Edit">
                                     <i class="ph ph-pencil-simple"></i>
                                 </button> #}
-                                <button class="btn-icon danger" title="Delete" onclick="window.location.href = '/api/settings/labels/delete/{{ label.name }}'">
+                                <button class="btn-icon danger" title="Delete" onclick="window.location.href = '{{ request.script_root }}/api/settings/labels/delete/{{ label.name }}'">
                                     <i class="ph ph-trash"></i>
                                 </button>
                             </div>
@@ -913,7 +913,7 @@
                             <button type="button" class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ request.host_url }}anon">
                                 <i class="ph ph-copy"></i>
                             </button>
-                            <a href="/anon" target="_blank" class="btn-icon">
+                            <a href="{{ request.script_root }}/anon" target="_blank" class="btn-icon">
                                 <i class="ph ph-arrow-square-out"></i>
                             </a>
                         </div>
@@ -978,7 +978,7 @@
                     el.addEventListener('change', async () => {
                         const next = el.checked;
                         try {
-                            const r = await fetch('/api/settings/public-site', {
+                            const r = await fetch(brokeAppUrl('/api/settings/public-site'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ show_public_home: next }),
@@ -1000,7 +1000,7 @@
                     if (!input.files || !input.files[0]) return;
                     const formData = new FormData();
                     formData.append('logo', input.files[0]);
-                    fetch('/api/settings/branding/logo', { method: 'POST', body: formData })
+                    fetch(brokeAppUrl('/api/settings/branding/logo'), { method: 'POST', body: formData })
                         .then(res => res.json())
                         .then(data => {
                             if (data.success) {
@@ -1014,7 +1014,7 @@
                     input.value = '';
                 }
                 function removeInstanceLogo() {
-                    fetch('/api/settings/branding/logo', { method: 'DELETE' })
+                    fetch(brokeAppUrl('/api/settings/branding/logo'), { method: 'DELETE' })
                         .then(res => res.json())
                         .then(data => {
                             if (data.success) {
@@ -1104,7 +1104,7 @@
                     <button class="btn btn-secondary" style="margin-top: 16px;" onclick="generateAgentToken()">
                         <i class="ph ph-plus"></i> Mint agent token
                     </button>
-                    <p class="card-description" style="margin-top: 12px;"><a href="/docs/agent-integration">Agent integration notes</a></p>
+                    <p class="card-description" style="margin-top: 12px;"><a href="{{ request.script_root }}/docs/agent-integration">Agent integration notes</a></p>
                 </div>
             </div>
 
@@ -1114,7 +1114,7 @@
                     <p class="card-description">Learn how to integrate with Broke</p>
 
                     <div class="api-docs-link">
-                        <a href="/docs/api" class="doc-link">
+                        <a href="{{ request.script_root }}/docs/api" class="doc-link">
                             <i class="ph ph-book-open"></i>
                             <span>View API Documentation</span>
                             <i class="ph ph-arrow-right"></i>
@@ -1250,7 +1250,7 @@
                             language: document.getElementById('ai-language').value
                         };
 
-                        fetch('/api/settings/ai', {
+                        fetch(brokeAppUrl('/api/settings/ai'), {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(data)
@@ -1588,7 +1588,7 @@ sentry_sdk.init(
                 <div class="card-section">
                     <h3>Desktop App</h3>
                     <p class="card-description">Download Broke Desktop preconfigured for this backend instance.</p>
-                    <a href="/desktop/download" class="btn btn-primary" style="margin-top: 12px; display: inline-flex; align-items: center; gap: 8px;">
+                    <a href="{{ request.script_root }}/desktop/download" class="btn btn-primary" style="margin-top: 12px; display: inline-flex; align-items: center; gap: 8px;">
                         <i class="ph ph-download-simple"></i> Download Broke Desktop
                     </a>
                 </div>
@@ -1723,6 +1723,7 @@ docker compose up -d broke-server</code></pre>
 {% endblock %}
 
 {% block scripts %}
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
 {% endblock %}

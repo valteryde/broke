@@ -43,7 +43,7 @@
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
     <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
-    
+
     <script>
         // Available projects for the modal dropdown
         const availableProjects = [
@@ -51,12 +51,12 @@
             { id: '{{ proj.id }}', name: '{{ proj.name }}', icon: '{{ proj.icon }}' },
             {% endfor %}
         ];
-        
+
         // Current project filter (if any)
         const currentProjectId = '{{ project.id if project else "" }}';
 
         function showCreatePartModal() {
-            const projectOptions = availableProjects.map(p => 
+            const projectOptions = availableProjects.map(p =>
                 `<option value="${p.id}" ${p.id === currentProjectId ? 'selected' : ''}>${p.name}</option>`
             ).join('');
 
@@ -87,20 +87,20 @@
                     const form = element.querySelector('#create-part-form');
                     form.addEventListener('submit', async (e) => {
                         e.preventDefault();
-                        
+
                         const projectId = document.getElementById('part-project').value;
                         const name = document.getElementById('part-name').value.trim();
                         const description = document.getElementById('part-description').value.trim();
-                        
+
                         try {
-                            const response = await fetch('/api/parts', {
+                            const response = await fetch(brokeAppUrl('/api/parts'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ project_id: projectId, name, description })
                             });
-                            
+
                             const data = await response.json();
-                            
+
                             if (data.success) {
                                 Modal.close();
                                 // Redirect to the new part or reload
@@ -119,7 +119,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const partList = new List('ticket-list', {
                 filters: {
-                    search: { 
+                    search: {
                         placeholder: 'Search parts...',
                         filter: (element, value) => {
                             if (!value) return true;
@@ -156,7 +156,7 @@
                     description: '{{ part.description | default("No description provided.", true) | safe }}',
                     icon: '{{ part.project.icon }}',
                     project: '{{ part.project.id }}',
-                    onClick: () => { window.location.href = '/errors/{{ part.project.id }}/{{ part.id }}'; }
+                    onClick: () => { window.location.href = '{{ request.script_root }}/errors/{{ part.project.id }}/{{ part.id }}'; }
                 },
                 {% endfor %}
             ];

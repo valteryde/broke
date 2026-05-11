@@ -126,7 +126,8 @@ def get_csrf_token() -> str:
 
 def delete_csrf_cookie(response):
     """Call on logout so stale CSRF values are not reused."""
-    response.delete_cookie(CSRF_COOKIE_NAME, path="/")
+    cookie_path = str(current_app.config.get("SESSION_COOKIE_PATH") or "/")
+    response.delete_cookie(CSRF_COOKIE_NAME, path=cookie_path)
     return response
 
 
@@ -227,6 +228,42 @@ def _csrf_valid_for_request() -> bool:
     return _same_origin_request()
 
 
+def sanitize_next_app_path(next_raw: str | None) -> str | None:
+    """
+    Reduce open redirects: allow only slash-rooted paths (PATH_INFO-shaped), reject scheme-like values.
+    If the client mistakenly includes ``request.script_root`` in ``next``, strip it to an internal path.
+
+    Return None when ``next_raw`` should fall back to a default redirect.
+    """
+    if next_raw is None or not isinstance(next_raw, str):
+        return None
+    candidate = next_raw.strip()
+    if not candidate.startswith("/") or candidate.startswith("//") or ":" in candidate:
+        return None
+    root = (getattr(request, "script_root", None) or "").rstrip("/")
+    if root and (candidate == root or candidate.startswith(root + "/")):
+        stripped = candidate[len(root) :] or "/"
+        if not stripped.startswith("/"):
+            stripped = "/" + stripped.lstrip("/")
+        candidate = stripped
+    return candidate
+
+
+def redirect_with_script_root(local_path: str):
+    """``local_path`` must start with ``/``. Prepends ``request.script_root`` for prefixed apps."""
+    root = getattr(request, "script_root", None) or ""
+    return redirect(root + local_path)
+
+
+def login_success_redirect_after_callback(next_arg: str | None):
+    from flask import url_for
+
+    candidate = sanitize_next_app_path(next_arg)
+    if candidate is None:
+        return redirect(url_for("news.news_view"))
+    return redirect_with_script_root(candidate)
+
+
 def init_auth_routes(app):
     """Initialize authentication routes on the app"""
 
@@ -234,7 +271,8 @@ def init_auth_routes(app):
     def login():
         from flask import render_template
 
-        next_url = request.args.get("next", "/news")
+        raw_next = request.args.get("next")
+        next_url = sanitize_next_app_path(raw_next) or "/news"
         return render_template("login.jinja2", next_url=next_url)
 
     @app.route("/callback", methods=["POST"])
@@ -248,16 +286,15 @@ def init_auth_routes(app):
         user = authenticate(username, password)
         if user:
             session["user_id"] = user.username
-            next_url = request.args.get("next") or "/news"
-            return redirect(next_url)
+            return login_success_redirect_after_callback(request.args.get("next"))
         else:
             flash("Invalid username or password", "error")
-            return redirect("/login")
+            return redirect_with_script_root("/login")
 
     @app.route("/logout")
     def logout():
         session.pop("user_id", None)
-        return redirect("/login")
+        return redirect_with_script_root("/login")
 
 
 def authenticate(username, password) -> User | None:

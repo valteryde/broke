@@ -13,43 +13,43 @@
         <h1>Welcome back</h1>
         <p>Sign in to your account to continue</p>
     </div>
-    
+
     <div class="standalone-card-body">
-        <form method="POST" action="/callback?next={{ next_url }}" class="standalone-form">
+        <form method="POST" action="{{ url_for('auth.callback', next=next_url) }}" class="standalone-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-group">
                 <label for="username">Username</label>
-                <input 
-                    type="text" 
-                    id="username" 
-                    name="username" 
-                    class="form-input" 
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    class="form-input"
                     placeholder="Enter your username"
                     autocomplete="username"
                     autofocus
                     required
                 >
             </div>
-            
+
             <div class="form-group">
                 <label for="password">Password</label>
-                <input 
-                    type="password" 
-                    id="password" 
-                    name="password" 
-                    class="form-input" 
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    class="form-input"
                     placeholder="Enter your password"
                     autocomplete="current-password"
                     required
                 >
             </div>
-            
+
             <div class="form-actions" style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
                 <button type="submit" class="btn btn-primary btn-submit" style="width: 100%;">
                     <i class="ph ph-sign-in"></i>
                     Sign In
                 </button>
-                <a href="/forgot-password" style="font-size: 0.9em; color: var(--text-color); opacity: 0.7; text-decoration: none;">Forgot password?</a>
+                <a href="{{ url_for('anon.forgot_password') }}" style="font-size: 0.9em; color: var(--text-color); opacity: 0.7; text-decoration: none;">Forgot password?</a>
             </div>
         </form>
     </div>

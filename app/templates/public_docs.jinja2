@@ -280,9 +280,9 @@
 <body>
 
     <nav id="navbar">
-        <a href="/"><img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}" width="100"></a>
-        <a href="/docs#installation"> <i class="ph ph-download"></i> Download </a>
-        <a href="/docs"> <i class="ph ph-book"></i> Documentation </a>
+        <a href="{{ request.script_root }}/"><img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}" width="100"></a>
+        <a href="{{ request.script_root }}/docs#installation"> <i class="ph ph-download"></i> Download </a>
+        <a href="{{ request.script_root }}/docs"> <i class="ph ph-book"></i> Documentation </a>
         <a href="{{ url_for('auth.login', next='/news') }}"><i class="ph ph-sign-in"></i> Open Broke</a>
         <a href="https://github.com/valteryde/broke"><i class="ph ph-github-logo"></i> GitHub </a>
     </nav>

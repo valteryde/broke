@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}Broke{% endblock %}</title>
+    <script>window.__BROKE_SCRIPT_ROOT__ = {{ request.script_root | tojson }};</script>
 
     <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js" async
         integrity="sha384-LfouGM03m83ArVtne1JPk926e3SGD0Tz8XHtW2OKGsgeBU/UfR0Fa8eX+UlwSSAZ"
@@ -25,7 +26,7 @@
 
     <header class="standalone-header">
         <div class="standalone-header-inner">
-            <a href="/" class="standalone-logo">
+            <a href="{{ url_for('index') }}" class="standalone-logo">
                 <img src="{{ instance_logo_url }}" alt="{{ instance_logo_alt }}">
             </a>
         </div>
@@ -42,8 +43,8 @@
     <footer class="standalone-footer">
         <div class="standalone-footer-inner">
             <div class="footer-links">
-                <a href="/news">Dashboard</a>
-                <a href="/settings">Settings</a>
+                <a href="{{ url_for('news.news_view') }}">Dashboard</a>
+                <a href="{{ url_for('settings.settings_view') }}">Settings</a>
             </div>
             <div class="footer-copyright">
                 <span>&copy; {{ current_year }} Broke</span>

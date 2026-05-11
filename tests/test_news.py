@@ -56,6 +56,9 @@ def _(c=client):
     """Test root redirect"""
     from app.utils.models import GlobalSetting
 
+    with c.session_transaction() as sess:
+        sess.clear()
+
     GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
     response = c.get("/", follow_redirects=False)
     assert response.status_code == 302
@@ -66,6 +69,9 @@ def _(c=client):
 def _(c=client):
     from app.utils.models import GlobalSetting
     import json
+
+    with c.session_transaction() as sess:
+        sess.clear()
 
     GlobalSetting.delete().where(GlobalSetting.key == "public_site_settings").execute()
     try:

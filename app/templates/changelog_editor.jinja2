@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block path %}
-<span><i class="ph ph-house"></i> Home</span> <i class="ph ph-caret-right"></i> <span onclick="window.location.href='/changelog/manage'" style="cursor:pointer;"><i class="ph ph-scroll"></i> Changelog</span> <i class="ph ph-caret-right"></i> <span>{% if release %}Edit{% else %}New Release{% endif %}</span>
+<span><i class="ph ph-house"></i> Home</span> <i class="ph ph-caret-right"></i> <span onclick="window.location.href = '{{ request.script_root }}/changelog/manage'" style="cursor:pointer;"><i class="ph ph-scroll"></i> Changelog</span> <i class="ph ph-caret-right"></i> <span>{% if release %}Edit{% else %}New Release{% endif %}</span>
 {% endblock %}
 
 {% block content %}
@@ -311,7 +311,7 @@
         listDiv.style.opacity = '0.5';
 
         try {
-            const res = await fetch(`/api/changelog/tickets?all=${showAll}`, {
+            const res = await fetch(brokeAppUrl('/api/changelog/tickets?all=' + showAll), {
                 method: 'GET',
             });
             const data = await res.json();
@@ -388,7 +388,7 @@
         btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i>';
 
         try {
-            const res = await fetch(`/api/changelog/work-cycles/${cycleId}/done-tickets`, { method: 'GET' });
+            const res = await fetch(brokeAppUrl('/api/changelog/work-cycles/' + cycleId + '/done-tickets'), { method: 'GET' });
             const data = await res.json();
 
             if (!res.ok || !data.success) {
@@ -513,7 +513,7 @@
         });
 
         try {
-            const res = await fetch('/api/changelog/generate', {
+            const res = await fetch(brokeAppUrl('/api/changelog/generate'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tickets })
@@ -597,7 +597,7 @@
         publishBtn.disabled = true;
         draftBtn.disabled = true;
 
-        const endpoint = isEdit ? `/api/changelog/releases/${releaseId}` : '/api/changelog/releases';
+        const endpoint = isEdit ? brokeAppUrl('/api/changelog/releases/' + releaseId) : brokeAppUrl('/api/changelog/releases');
         const method = isEdit ? 'PUT' : 'POST';
 
         try {
@@ -608,7 +608,7 @@
             });
             const data = await res.json();
             if (res.ok && data.success) {
-                window.location.href = '/changelog/manage';
+                window.location.href = '{{ request.script_root }}/changelog/manage';
             } else {
                 showToast(data.error || 'Failed to save', 'error');
                 publishBtn.disabled = false;

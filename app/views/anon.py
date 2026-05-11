@@ -1,6 +1,6 @@
 from werkzeug import Response
 from ..utils.models import GlobalSetting, Project, Ticket, TicketUpdateMessage
-from flask import Blueprint, render_template, request, redirect, jsonify
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 import time
 import json
 import secrets
@@ -20,6 +20,17 @@ def _build_external_base_url() -> str:
     if configured:
         return configured
     return request.host_url.rstrip("/")
+
+
+def _external_app_root_url() -> str:
+    """Public origin plus optional BROKE_APPLICATION_PREFIX (for outbound email links)."""
+    base = _build_external_base_url()
+    pref = (
+        str(current_app.config.get("BROKE_APPLICATION_PREFIX") or "")
+        .strip()
+        .rstrip("/")
+    )
+    return f"{base}{pref}" if pref else base
 
 
 def _find_avatar_file(avatar_dir: str, username: str) -> str | None:
@@ -65,7 +76,7 @@ def anon_index() -> tuple[str, Literal[403]] | tuple[str, Literal[500]] | Respon
 @anon_bp.route("/anon/<project_id>")
 def anon_wizard(project_id: str):
     # Legacy compatibility: route all project-specific anon URLs to unified form.
-    return redirect("/anon")
+    return redirect(url_for("anon.anon_index"))
 
 
 @anon_bp.route("/api/anon/submit", methods=["POST"])
@@ -181,18 +192,17 @@ def forgot_password():
         if user:
             token = secrets.token_urlsafe(32)
             PasswordResetToken.create(token=token, user=user.username, created_at=int(time.time()))
-            base_url = _build_external_base_url()
             bus.emit(
                 EventTypes.USER_PASSWORD_RESET,
                 async_dispatch=False,
                 recipient_email=user.email,
                 username=user.username,
                 token=token,
-                reset_url=f"{base_url}/reset-password/{token}",
+                reset_url=f"{_external_app_root_url()}/reset-password/{token}",
             )
         # Always show success to prevent email enumeration
         flash("If your email is registered, you will receive a password reset link.", "success")
-        return redirect("/login")
+        return redirect(url_for("auth.login"))
     return render_template("forgot_password.jinja2")
 
 
@@ -201,13 +211,13 @@ def reset_password(token: str):
     reset_token = PasswordResetToken.get_or_none(PasswordResetToken.token == token)
     if not reset_token:
         flash("Invalid or expired password reset token.", "error")
-        return redirect("/login")
+        return redirect(url_for("auth.login"))
 
     # Check expiration (e.g. 24 hours = 86400 seconds)
     if int(time.time()) - reset_token.created_at > 86400:
         reset_token.delete_instance()
         flash("Password reset token has expired.", "error")
-        return redirect("/login")
+        return redirect(url_for("auth.login"))
 
     if request.method == "POST":
         password = request.form.get("password", "").strip()
@@ -221,10 +231,10 @@ def reset_password(token: str):
             user.save()
             reset_token.delete_instance()
             flash("Password reset successful. Please log in.", "success")
-            return redirect("/login")
+            return redirect(url_for("auth.login"))
 
         flash("User not found.", "error")
-        return redirect("/login")
+        return redirect(url_for("auth.login"))
 
     return render_template("reset_password.jinja2", token=token)
 

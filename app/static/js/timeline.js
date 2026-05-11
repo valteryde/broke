@@ -366,7 +366,7 @@ function initLoadMore() {
         }
 
         try {
-            const response = await fetch(`/api/timeline/events?${params.toString()}`);
+            const response = await fetch(brokeAppUrl('/api/timeline/events?' + params.toString()));
             const data = await response.json();
 
             if (data.events && data.events.length > 0) {

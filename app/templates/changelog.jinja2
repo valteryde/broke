@@ -17,11 +17,11 @@
         <div class="changelog-header-area">
             <div class="changelog-container">
                 <div class="header-top">
-                    <a href="/" class="back-link">
+                    <a href="{{ request.script_root }}/" class="back-link">
                         <i class="ph ph-arrow-left"></i> Back to start
                     </a>
                 </div>
-                
+
                 <h1 class="changelog-title">What's New</h1>
                 <p class="changelog-subtitle">Stay up to date with the latest improvements, fixes, and features.</p>
             </div>
@@ -32,13 +32,13 @@
             {% if releases %}
                 {% for release in releases %}
                 <div class="release-block" id="release-{{ release.id }}">
-                    
+
                     <div class="release-meta">
                         {% if release.version %}
                         <div class="release-version">{{ release.version }}</div>
                         {% endif %}
                         <div class="release-date">
-                            <i class="ph ph-calendar-blank"></i> 
+                            <i class="ph ph-calendar-blank"></i>
                             {{ release.created_at | timestamp_to_date }}
                         </div>
                     </div>

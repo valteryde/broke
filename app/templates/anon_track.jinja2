@@ -2,7 +2,8 @@
 
 {% block head %}
     <meta name="description" content="Track your ticket status.">
-    <link rel="stylesheet" href="/static/css/anon.css">
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/anon.css') }}">
 {% endblock %}
 
 {% block title %}Track Ticket #{{ ticket.id.split('-')[-1] }} - {{ site_name }}{% endblock %}
@@ -11,7 +12,7 @@
 <div class="anon-container">
     <div class="anon-card">
         <div class="anon-header">
-             <a href="/anon" class="anon-back"><i class="ph ph-house"></i> Home</a>
+             <a href="{{ request.script_root }}/anon" class="anon-back"><i class="ph ph-house"></i> Home</a>
         </div>
 
         <div class="anon-track-header">
@@ -23,7 +24,7 @@
                 {{ ticket.status|replace('-', ' ')|title }}
             </div>
         </div>
-        
+
         <div class="anon-meta">
             {% if project %}
             <span>
@@ -34,11 +35,11 @@
             <span><i class="ph ph-clock"></i> {{ ticket.created_at|timestamp_to_date }}</span>
              <span class="priority-{{ ticket.priority }}"><i class="ph ph-warning"></i> {{ ticket.priority|title }} Priority</span>
         </div>
-        
+
         <div class="anon-description">
             {{ ticket.description|safe }}
         </div>
-        
+
         <h3 class="anon-section-title" style="margin-top: 3rem;">Activity Timeline</h3>
         <div class="anon-timeline">
             {% for update in ticket.updates %}
@@ -53,7 +54,7 @@
                 </div>
             {% endfor %}
         </div>
-        
+
         <div class="anon-footer">
             <p><strong>Keep this page open.</strong> This URL is the only way to track your ticket status.</p>
         </div>

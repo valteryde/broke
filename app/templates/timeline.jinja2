@@ -10,7 +10,7 @@
     <span><i class="ph ph-chart-bar"></i> Reports</span>
     {% if project %}
         <i class="ph ph-caret-right"></i>
-        <a href="/timeline/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+        <a href="{{ request.script_root }}/timeline/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
     {% endif %}
 {% endblock %}
 
@@ -22,7 +22,7 @@
             <h1 style="margin:0;">Reports & Timeline</h1>
             <p style="margin:0.3rem 0 0 0;opacity:0.75;">Operational rollups and activity flow in one place.</p>
         </div>
-        <a class="btn btn-secondary" href="/reports/export.csv"><i class="ph ph-download-simple"></i> Export CSV</a>
+        <a class="btn btn-secondary" href="{{ request.script_root }}/reports/export.csv"><i class="ph ph-download-simple"></i> Export CSV</a>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.75rem;margin-bottom:1rem;">
@@ -68,11 +68,11 @@
 
     <!-- Project Tabs -->
     <div class="project-tabs" id="project-tabs">
-        <button class="project-tab {% if not project %}active{% endif %}" onclick="window.location.href = '/timeline{{ query_suffix }}'">
+        <button class="project-tab {% if not project %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/timeline{{ query_suffix }}'">
             <i class="ph ph-squares-four"></i> All Projects
         </button>
         {% for proj in projects %}
-        <button class="project-tab {% if project and proj.id == project.id %}active{% endif %}" onclick="window.location.href = '/timeline/{{ proj.id }}{{ query_suffix }}'">
+        <button class="project-tab {% if project and proj.id == project.id %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/timeline/{{ proj.id }}{{ query_suffix }}'">
             <i class="{{ proj.icon }}"></i> {{ proj.name }}
         </button>
         {% endfor %}
@@ -300,7 +300,7 @@
                         <span class="date-full">{{ event.date_full }}</span>
                     </div>
                 {% endif %}
-                
+
                 <div class="timeline-event {{ event.type }}" data-type="{{ event.type }}" data-timestamp="{{ event.timestamp }}">
                     <div class="event-connector">
                         <div class="connector-line"></div>
@@ -315,7 +315,7 @@
                         </div>
                         <div class="event-content">
                             <h4 class="event-title">{{ event.title }}</h4>
-                            
+
                             {% if event.type == 'update_group' %}
                                 <details class="timeline-group-details">
                                     <summary class="timeline-group-summary">

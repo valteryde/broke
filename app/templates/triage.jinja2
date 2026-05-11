@@ -59,7 +59,7 @@
                     </div>
                     <div class="triage-inbox-row-actions">
                         <div class="triage-inbox-toolbar">
-                            <a class="btn btn-secondary triage-view-ticket-btn" href="/tickets/{{ ticket.project }}/{{ ticket.id }}"><i class="ph ph-eye"></i> View</a>
+                            <a class="btn btn-secondary triage-view-ticket-btn" href="{{ request.script_root }}/tickets/{{ ticket.project }}/{{ ticket.id }}"><i class="ph ph-eye"></i> View</a>
                             <button type="button" class="btn btn-secondary triage-discard-btn" data-triage-ticket-id="{{ ticket.id }}" title="Remove from intake"><i class="ph ph-trash"></i> Discard</button>
                         </div>
                         <div class="triage-route-buttons" role="group" aria-label="Route {{ ticket.id }} to project">
@@ -80,10 +80,10 @@
 {% endblock %}
 
 {% block path %}
-    <a href="/intake"><i class="ph ph-tray"></i> Intake</a>
+    <a href="{{ request.script_root }}/intake"><i class="ph ph-tray"></i> Intake</a>
     {% if project %}
     <i class="ph ph-caret-right"></i>
-    <a href="/intake/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
+    <a href="{{ request.script_root }}/intake/{{ project.id }}"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
     {% endif %}
 {% endblock %}
 

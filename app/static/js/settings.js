@@ -56,7 +56,7 @@ function initForms() {
             }
 
             try {
-                const response = await fetch('/api/settings/security/password', {
+                const response = await fetch(brokeAppUrl('/api/settings/security/password'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -186,7 +186,7 @@ function initNotificationEngine() {
 
         saveButton.disabled = true;
         try {
-            const response = await fetch('/api/settings/notifications/engine', {
+            const response = await fetch(brokeAppUrl('/api/settings/notifications/engine'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ channels, event_channels: eventChannels })
@@ -243,7 +243,7 @@ function initCopyButtons() {
  */
 async function submitSettings(type, data) {
     try {
-        const response = await fetch(`/api/settings/${type}`, {
+        const response = await fetch(brokeAppUrl('/api/settings/' + type), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -272,7 +272,7 @@ async function savePreference(name, value) {
 
     // Also send to server
     try {
-        await fetch('/api/settings/preference', {
+        await fetch(brokeAppUrl('/api/settings/preference'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -450,7 +450,7 @@ window.showCreateProjectModal = (data = {}) => {
     const initialIcon = normalizeStoredProjectIcon(data.icon) || defaultIcon;
 
     Modal.show(data.id ? 'Update Project' : 'Create Project', `
-        <form id="create-project-form" action="${data.id ? '/api/settings/projects/update/' + data.id : '/api/settings/projects'}" method="POST" autocomplete="off">
+        <form id="create-project-form" action="${data.id ? brokeAppUrl('/api/settings/projects/update/' + data.id) : brokeAppUrl('/api/settings/projects')}" method="POST" autocomplete="off">
             ${csrfHiddenInputHtml()}
             <div class="form-group">
                 <label for="project-name">Project Name</label>
@@ -503,7 +503,7 @@ window.showInviteModal = () => {
 
 window.showCreateLabelModal = () => {
     Modal.show('Create Label', `
-        <form id="create-label-form" action="/api/settings/labels" method="POST" autocomplete="off">
+        <form id="create-label-form" action="${brokeAppUrl('/api/settings/labels')}" method="POST" autocomplete="off">
             ${csrfHiddenInputHtml()}
             <div class="form-group">
                 <label for="label-name">Label Name</label>
@@ -532,7 +532,7 @@ window.regenerateSecret = async (type) => {
     }
 
     try {
-        const response = await fetch(`/api/settings/webhooks/regenerate-secret`, {
+        const response = await fetch(brokeAppUrl('/api/settings/webhooks/regenerate-secret'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type })
@@ -576,7 +576,7 @@ window.disconnectGithub = async () => {
     }
 
     try {
-        const response = await fetch(`/api/settings/webhooks/github/disconnect`, {
+        const response = await fetch(brokeAppUrl('/api/settings/webhooks/github/disconnect'), {
             method: 'POST'
         });
 
@@ -641,7 +641,7 @@ window.showAddWebhookModal = () => {
         const events = Array.from(document.querySelectorAll('input[name="events"]:checked')).map(cb => cb.value);
 
         try {
-            const response = await fetch('/api/settings/webhooks/outgoing', {
+            const response = await fetch(brokeAppUrl('/api/settings/webhooks/outgoing'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url, secret, events })
@@ -664,7 +664,7 @@ window.testWebhook = async (webhookId) => {
     showToast('Sending test event...', 'info');
 
     try {
-        const response = await fetch(`/api/settings/webhooks/${webhookId}/test`, {
+        const response = await fetch(brokeAppUrl('/api/settings/webhooks/' + webhookId + '/test'), {
             method: 'POST'
         });
 
@@ -694,7 +694,7 @@ window.deleteWebhook = async (webhookId) => {
     }
 
     try {
-        const response = await fetch(`/api/settings/webhooks/${webhookId}`, {
+        const response = await fetch(brokeAppUrl('/api/settings/webhooks/' + webhookId), {
             method: 'DELETE'
         });
 
@@ -711,7 +711,7 @@ loadPreferences();
 
 
 function generateNewToken() {
-    fetch('/api/settings/tokens', {
+    fetch(brokeAppUrl('/api/settings/tokens'), {
         method: 'POST'
     })
         .then(response => response.json())
@@ -741,7 +741,7 @@ function deleteToken(tokenId) {
         return;
     }
 
-    fetch(`/api/settings/tokens/${tokenId}`, {
+    fetch(brokeAppUrl('/api/settings/tokens/' + tokenId), {
         method: 'DELETE'
     })
         .then(response => {
@@ -765,7 +765,7 @@ function generateAgentToken() {
     if (window.BROKE_CSRF_TOKEN) {
         headers['X-CSRF-Token'] = window.BROKE_CSRF_TOKEN;
     }
-    fetch('/api/settings/agent-tokens', {
+    fetch(brokeAppUrl('/api/settings/agent-tokens'), {
         method: 'POST',
         headers,
         body: JSON.stringify({}),
@@ -803,7 +803,7 @@ function deleteAgentToken(tokenId) {
     if (window.BROKE_CSRF_TOKEN) {
         headers['X-CSRF-Token'] = window.BROKE_CSRF_TOKEN;
     }
-    fetch(`/api/settings/agent-tokens/${tokenId}`, {
+    fetch(brokeAppUrl('/api/settings/agent-tokens/' + tokenId), {
         method: 'DELETE',
         headers,
     })
@@ -822,7 +822,7 @@ function deleteAgentToken(tokenId) {
 // ============ DSN Token Functions ============
 
 function generateDSNToken() {
-    fetch('/api/settings/dsn-token', {
+    fetch(brokeAppUrl('/api/settings/dsn-token'), {
         method: 'POST'
     })
         .then(response => response.json())
@@ -850,7 +850,7 @@ function revokeDSNToken() {
         return;
     }
 
-    fetch('/api/settings/dsn-token', {
+    fetch(brokeAppUrl('/api/settings/dsn-token'), {
         method: 'DELETE'
     })
         .then(response => {
@@ -870,7 +870,7 @@ function revokeDSNToken() {
 
 async function restoreTicket(ticketId) {
     try {
-        const response = await fetch(`/api/tickets/${ticketId}/restore`, {
+        const response = await fetch(brokeAppUrl('/api/tickets/' + ticketId + '/restore'), {
             method: 'POST'
         });
 
@@ -891,7 +891,7 @@ async function hardDeleteTicket(ticketId) {
     }
 
     try {
-        const response = await fetch(`/api/tickets/${ticketId}/hard`, {
+        const response = await fetch(brokeAppUrl('/api/tickets/' + ticketId + '/hard'), {
             method: 'DELETE'
         });
 
@@ -917,7 +917,7 @@ async function checkForUpdate() {
     }
 
     try {
-        const response = await fetch('/api/settings/updates/check', {
+        const response = await fetch(brokeAppUrl('/api/settings/updates/check'), {
             method: 'POST'
         });
         const data = await response.json();
@@ -954,7 +954,7 @@ async function applyUpdate() {
     showToast('Pulling latest image and restarting...', 'info');
 
     try {
-        const response = await fetch('/api/settings/updates/apply', {
+        const response = await fetch(brokeAppUrl('/api/settings/updates/apply'), {
             method: 'POST'
         });
 
@@ -984,7 +984,7 @@ function waitForRestart() {
     const interval = setInterval(async () => {
         attempts++;
         try {
-            const response = await fetch('/settings/updates', { method: 'HEAD' });
+            const response = await fetch(brokeAppUrl('/settings/updates'), { method: 'HEAD' });
             if (response.ok) {
                 clearInterval(interval);
                 showToast('Server is back! Reloading...', 'success');
@@ -1003,7 +1003,7 @@ function waitForRestart() {
 
 async function toggleAutoCheck(enabled) {
     try {
-        const response = await fetch('/api/settings/updates/toggle', {
+        const response = await fetch(brokeAppUrl('/api/settings/updates/toggle'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled })

@@ -79,7 +79,7 @@
                 <div class="card-body">
                     {% if my_tickets %}
                         {% for ticket in my_tickets[:5] %}
-                        <a href="/tickets/{{ ticket.project }}/{{ ticket.id }}" class="ticket-item">
+                        <a href="{{ request.script_root }}/tickets/{{ ticket.project }}/{{ ticket.id }}" class="ticket-item">
                             <div class="ticket-priority priority-{{ ticket.priority }}">
                                 <i class="ph ph-circle-fill"></i>
                             </div>
@@ -122,12 +122,12 @@
             <div class="news-card">
                 <div class="card-header">
                     <h2><i class="ph ph-bug-beetle"></i> Recent Errors</h2>
-                    <a href="/errors" class="view-all-link">View all <i class="ph ph-arrow-right"></i></a>
+                    <a href="{{ request.script_root }}/errors" class="view-all-link">View all <i class="ph ph-arrow-right"></i></a>
                 </div>
                 <div class="card-body">
                     {% if recent_errors %}
                         {% for error in recent_errors[:5] %}
-                        <a href="/errors/{{ error.part.project.id }}/{{ error.part.id }}/{{ error.id }}" class="error-item">
+                        <a href="{{ request.script_root }}/errors/{{ error.part.project.id }}/{{ error.part.id }}/{{ error.id }}" class="error-item">
                             <div class="error-icon">
                                 <i class="ph ph-warning"></i>
                             </div>
@@ -193,7 +193,7 @@
                 <div class="card-body projects-list">
                     {% if projects %}
                         {% for project in projects %}
-                        <a href="/tickets/{{ project.id }}" class="project-item">
+                        <a href="{{ request.script_root }}/tickets/{{ project.id }}" class="project-item">
                             <div class="project-icon" style="background: {{ project.color or 'var(--logo-blue)' }}">
                                 <i class="{{ project.icon }}"></i>
                             </div>
