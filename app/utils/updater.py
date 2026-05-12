@@ -14,6 +14,7 @@ import time
 import requests
 from packaging.version import Version, InvalidVersion
 
+from .features import FEATURE_UPDATER, is_feature_enabled
 from .models import GlobalSetting
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,9 @@ def check_for_update():
     Stores result in GlobalSetting under key 'update_info'.
     Returns the update info dict.
     """
+    if not is_feature_enabled(FEATURE_UPDATER):
+        return None
+
     current_version_str = _get_current_version()
 
     try:
@@ -132,6 +136,8 @@ def get_update_info():
 
 def is_auto_check_enabled():
     """Check if automatic update checking is enabled."""
+    if not is_feature_enabled(FEATURE_UPDATER):
+        return False
     try:
         setting = GlobalSetting.get(GlobalSetting.key == "update_auto_check")
         return json.loads(setting.value).get("enabled", True)
@@ -141,6 +147,8 @@ def is_auto_check_enabled():
 
 def set_auto_check_enabled(enabled):
     """Enable or disable automatic update checking."""
+    if not is_feature_enabled(FEATURE_UPDATER):
+        return
     value = json.dumps({"enabled": enabled})
     try:
         setting = GlobalSetting.get(GlobalSetting.key == "update_auto_check")
@@ -155,6 +163,9 @@ def apply_update():
     Call the updater sidecar to pull the latest image and restart the server.
     Returns a dict with the result.
     """
+    if not is_feature_enabled(FEATURE_UPDATER):
+        return {"error": "Updater is disabled on this instance"}
+
     try:
         resp = requests.post(
             f"{UPDATER_URL}/restart",
@@ -171,6 +182,9 @@ def apply_update():
 
 def get_sidecar_status():
     """Check if the updater sidecar is reachable."""
+    if not is_feature_enabled(FEATURE_UPDATER):
+        return {"ok": False, "error": "Updater is disabled on this instance"}
+
     try:
         resp = requests.get(f"{UPDATER_URL}/status", timeout=5)
         return resp.json()
@@ -193,7 +207,7 @@ def _background_checker():
     """Background thread that periodically checks for updates."""
     time.sleep(INITIAL_DELAY)
     while True:
-        if is_auto_check_enabled():
+        if is_feature_enabled(FEATURE_UPDATER) and is_auto_check_enabled():
             try:
                 check_for_update()
             except Exception as e:

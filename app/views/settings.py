@@ -16,6 +16,8 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from peewee import DoesNotExist
 
 from ..utils import mail
+from ..utils.mail import EMAIL_TRANSPORT_SETTINGS_KEY, effective_relay_base_url, effective_relay_token
+from ..utils.mail_relay import relay_base_url_from_environment, relay_token_from_environment
 from ..utils.email_branding import render_email
 from ..utils.agent_auth import DEFAULT_AGENT_TTL_SECONDS
 from ..utils.ai_changelog import get_ai_config
@@ -43,6 +45,7 @@ from ..utils.notifications import (
     save_notification_engine_settings,
 )
 from ..utils.reltime import time_ago
+from ..utils.features import FEATURE_UPDATER, is_feature_enabled
 from ..utils.security import protected
 
 # Create blueprint
@@ -104,6 +107,10 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         flash("Unauthorized. Admins only.", "error")
         return redirect(url_for("settings.settings_section_view", section="profile"))
 
+    if section == "updates" and not is_feature_enabled(FEATURE_UPDATER):
+        flash("Updates are disabled on this instance.", "error")
+        return redirect(url_for("settings.settings_section_view", section="profile"))
+
     # Map sections to their display titles
     section_titles = {
         "profile": "Profile",
@@ -153,6 +160,12 @@ def settings_section_view(user: User, section: str):  # noqa: C901
 
     elif section == "email":
         context["smtp_password_configured"] = False
+        transport_saved = mail.load_email_transport_settings()
+        context["email_transport"] = transport_saved.get("transport", "smtp")
+        context["relay_base_url_saved"] = transport_saved.get("relay_base_url") or ""
+        context["relay_token_configured_saved"] = bool(str(transport_saved.get("relay_token") or "").strip())
+        context["relay_token_from_env"] = bool(relay_token_from_environment())
+        context["relay_base_url_env_configured"] = bool(relay_base_url_from_environment())
         try:
             setting = GlobalSetting.get(GlobalSetting.key == "smtp_settings")
             raw = json.loads(setting.value)
@@ -565,49 +578,100 @@ def api_update_ai(user: User):
 @settings_bp.route("/api/settings/email", methods=["POST"])
 @protected
 def api_update_email_settings(user: User):
-    """Update SMTP email settings (admin only)."""
+    """Update SMTP and/or HTTPS relay email delivery (admin only)."""
     if user.admin != 1:
         return json.dumps({"error": "Unauthorized. Admins only."}), 403
 
     data = request.get_json(silent=True) or {}
-    host = str(data.get("host", "")).strip()
-    if not host:
-        return json.dumps({"error": "SMTP host is required"}), 400
+    transport = str(data.get("transport", "smtp")).strip().lower()
+    if transport not in ("smtp", "relay"):
+        transport = "smtp"
 
-    try:
-        port = int(data.get("port", 587))
-    except (TypeError, ValueError):
-        return json.dumps({"error": "SMTP port must be a number"}), 400
-
-    if port <= 0 or port > 65535:
-        return json.dumps({"error": "SMTP port is out of range"}), 400
-
-    existing_record = GlobalSetting.get_or_none(GlobalSetting.key == "smtp_settings")
-    existing_settings = {}
-    if existing_record and existing_record.value:
+    transport_existing = GlobalSetting.get_or_none(GlobalSetting.key == EMAIL_TRANSPORT_SETTINGS_KEY)
+    existing_transport: dict = {}
+    if transport_existing and transport_existing.value:
         try:
-            existing_settings = json.loads(existing_record.value)
+            parsed = json.loads(transport_existing.value)
+            if isinstance(parsed, dict):
+                existing_transport = parsed
         except json.JSONDecodeError:
-            existing_settings = {}
+            existing_transport = {}
 
-    password = str(data.get("password", "")).strip()
-    if not password and existing_settings.get("password"):
-        password = str(existing_settings.get("password", "")).strip()
+    raw_relay_base = data.get("relay_base_url")
+    if raw_relay_base is None:
+        relay_base_url_input = str(existing_transport.get("relay_base_url") or "").strip().rstrip("/")
+    else:
+        relay_base_url_input = str(raw_relay_base).strip().rstrip("/")
 
-    settings = {
-        "host": host,
-        "port": port,
-        "username": str(data.get("username", "")).strip(),
-        "password": password,
-        "from": str(data.get("from", "")).strip(),
-        "use_tls": bool(data.get("use_tls", True)),
+    relay_password = str(data.get("relay_token", "")).strip()
+    relay_token_final = relay_password or str(existing_transport.get("relay_token") or "").strip()
+
+    tentative_transport = {
+        "transport": transport,
+        "relay_base_url": relay_base_url_input,
+        "relay_token": relay_token_final,
     }
 
-    if existing_record:
-        existing_record.value = json.dumps(settings)
-        existing_record.save()
+    if transport == "relay":
+        if not effective_relay_base_url(tentative_transport):
+            return json.dumps({"error": "Relay base URL is required (saved value or BROKE_MAIL_RELAY_BASE_URL)."}), 400
+        if not effective_relay_token(tentative_transport):
+            return json.dumps({"error": "Relay token is required (saved value or BROKE_MAIL_RELAY_TOKEN)."}), 400
     else:
-        GlobalSetting.create(key="smtp_settings", value=json.dumps(settings))
+        host = str(data.get("host", "")).strip()
+        if not host:
+            return json.dumps({"error": "SMTP host is required when using SMTP"}), 400
+
+        try:
+            port = int(data.get("port", 587))
+        except (TypeError, ValueError):
+            return json.dumps({"error": "SMTP port must be a number"}), 400
+
+        if port <= 0 or port > 65535:
+            return json.dumps({"error": "SMTP port is out of range"}), 400
+
+    transport_payload = {
+        "transport": transport,
+        "relay_base_url": relay_base_url_input,
+        "relay_token": relay_token_final if relay_token_final else "",
+    }
+
+    if transport_existing:
+        transport_existing.value = json.dumps(transport_payload)
+        transport_existing.save()
+    else:
+        GlobalSetting.create(key=EMAIL_TRANSPORT_SETTINGS_KEY, value=json.dumps(transport_payload))
+
+    if transport == "smtp":
+        existing_record = GlobalSetting.get_or_none(GlobalSetting.key == "smtp_settings")
+        existing_settings = {}
+        if existing_record and existing_record.value:
+            try:
+                existing_settings = json.loads(existing_record.value)
+            except json.JSONDecodeError:
+                existing_settings = {}
+
+        password = str(data.get("password", "")).strip()
+        if not password and existing_settings.get("password"):
+            password = str(existing_settings.get("password", "")).strip()
+
+        host = str(data.get("host", "")).strip()
+        port = int(data.get("port", 587))
+
+        settings = {
+            "host": host,
+            "port": port,
+            "username": str(data.get("username", "")).strip(),
+            "password": password,
+            "from": str(data.get("from", "")).strip(),
+            "use_tls": bool(data.get("use_tls", True)),
+        }
+
+        if existing_record:
+            existing_record.value = json.dumps(settings)
+            existing_record.save()
+        else:
+            GlobalSetting.create(key="smtp_settings", value=json.dumps(settings))
 
     return json.dumps({"success": True}), 200
 
@@ -615,7 +679,7 @@ def api_update_email_settings(user: User):
 @settings_bp.route("/api/settings/email/test", methods=["POST"])
 @protected
 def api_send_test_email(user: User):
-    """Send a test email using current SMTP configuration (admin only)."""
+    """Send a test email using the configured delivery method (admin only)."""
     if user.admin != 1:
         return json.dumps({"error": "Unauthorized. Admins only."}), 403
 
@@ -627,12 +691,12 @@ def api_send_test_email(user: User):
     html = render_email("email/smtp_test.jinja2", username=user.username)
     text = render_email("email/smtp_test.txt.jinja2", username=user.username)
 
-    if not mail.send_email(recipient, "Broke SMTP Test Email", html, text_content=text):
+    if not mail.send_email(recipient, "Broke email test", html, text_content=text):
         return (
             json.dumps(
                 {
-                    "error": "Could not send email. Verify SMTP host, credentials, TLS, and port; "
-                    "check server logs for details.",
+                    "error": "Could not send email. For SMTP, verify host, credentials, TLS, and port; "
+                    "for relay, verify BROKE_MAIL_RELAY_* env vars or saved relay URL/token. Check server logs.",
                 }
             ),
             500,
@@ -1388,6 +1452,12 @@ def log_webhook_delivery(webhook: "Webhook", event: str, response_code: int, sta
 @protected
 def api_check_update(user: User):
     """Manually trigger an update check"""
+    if not is_feature_enabled(FEATURE_UPDATER):
+        return (
+            json.dumps({"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}),
+            403,
+        )
+
     from ..utils.updater import check_for_update
 
     info = check_for_update()
@@ -1398,6 +1468,12 @@ def api_check_update(user: User):
 @protected
 def api_apply_update(user: User):
     """Trigger the updater sidecar to pull and restart"""
+    if not is_feature_enabled(FEATURE_UPDATER):
+        return (
+            json.dumps({"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}),
+            403,
+        )
+
     from ..utils.updater import apply_update
 
     result = apply_update()
@@ -1410,6 +1486,12 @@ def api_apply_update(user: User):
 @protected
 def api_toggle_auto_check(user: User):
     """Toggle automatic update checking"""
+    if not is_feature_enabled(FEATURE_UPDATER):
+        return (
+            json.dumps({"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}),
+            403,
+        )
+
     from ..utils.updater import is_auto_check_enabled, set_auto_check_enabled
 
     data = request.get_json()

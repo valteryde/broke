@@ -148,3 +148,83 @@ def _():
                     if p.get_content_type() in ("text/plain", "text/html")
                 ]
                 assert types == ["text/plain", "text/html"]
+
+
+@test("send_email uses HTTPS relay when transport mode is relay")
+def _():
+    from app.utils import mail
+
+    transport = {
+        "transport": "relay",
+        "relay_base_url": "https://panel.example.com",
+        "relay_token": "secret-relay-token",
+    }
+    smtp_for_from = {
+        "host": "",
+        "port": 587,
+        "username": "",
+        "password": "",
+        "from": "noreply@example.com",
+        "use_tls": True,
+    }
+    with patch.object(mail, "load_email_transport_settings", return_value=transport):
+        with patch.object(mail, "_load_smtp_settings", return_value=smtp_for_from):
+            with patch.object(mail, "send_via_relay", return_value=True) as relay_fn:
+                ok = mail.send_email("dest@example.com", "Subject", "<p>x</p>", text_content="plain")
+                assert ok is True
+                relay_fn.assert_called_once_with(
+                    "https://panel.example.com",
+                    "secret-relay-token",
+                    "dest@example.com",
+                    "Subject",
+                    "<p>x</p>",
+                    "plain",
+                    "noreply@example.com",
+                )
+
+
+@test("send_via_relay returns False when subject contains newline")
+def _():
+    from app.utils.mail_relay import send_via_relay
+
+    assert (
+        send_via_relay(
+            "https://x.example/",
+            "t",
+            "a@b.com",
+            "bad\nsubject",
+            "<p>h</p>",
+            "txt",
+            None,
+        )
+        is False
+    )
+
+
+@test("send_via_relay posts JSON on 200 ok response")
+def _():
+    from unittest.mock import MagicMock
+
+    import app.utils.mail_relay as relay
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"ok": True, "tenant": "acme", "recipients": 1}
+
+    with patch("app.utils.mail_relay.requests.post", return_value=mock_resp) as post:
+        assert (
+            relay.send_via_relay(
+                "https://app.example/",
+                "tok",
+                "u@example.com",
+                "Hi",
+                "<p>x</p>",
+                "plain",
+                None,
+            )
+            is True
+        )
+
+    kwargs = post.call_args.kwargs
+    assert kwargs["json"]["to"] == ["u@example.com"]
+    assert kwargs["headers"]["Authorization"] == "Bearer tok"

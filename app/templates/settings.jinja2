@@ -105,6 +105,7 @@
 
         <div class="settings-nav-section">
             <h3 class="nav-section-title">Maintenance</h3>
+            {% if feature_updater_enabled %}
             <a href="{{ request.script_root }}/settings/updates" class="settings-nav-item {% if section == 'updates' %}active{% endif %}">
                 <i class="ph ph-arrows-clockwise"></i>
                 <span>Updates</span>
@@ -112,6 +113,7 @@
                 <span class="update-dot"></span>
                 {% endif %}
             </a>
+            {% endif %}
             <a href="{{ request.script_root }}/settings/trash" class="settings-nav-item {% if section == 'trash' %}active{% endif %}">
                 <i class="ph ph-trash"></i>
                 <span>Trash</span>
@@ -439,13 +441,13 @@
         <div class="settings-section">
             <div class="section-header">
                 <h1>Email Service</h1>
-                <p class="section-description">Configure SMTP so Broke can send password reset emails</p>
+                <p class="section-description">Send password resets and outbound mail via your own SMTP or an HTTPS relay (such as hosted Broke)</p>
             </div>
 
             <div class="settings-card">
                 <div class="card-section">
-                    <h3>SMTP Configuration</h3>
-                    <p class="card-description">These settings are used when sending transactional emails.</p>
+                    <h3>Delivery method</h3>
+                    <p class="card-description">Choose SMTP or a bearer-token relay compatible with broke-saas <code>POST …/relay/v1/send/</code>.</p>
 
                     {% if user.admin != 1 %}
                     <div class="empty-state small">
@@ -455,59 +457,114 @@
 
                     <form id="email-form" class="settings-form">
                         <div class="form-group">
-                            <label for="smtp-host">SMTP Host</label>
-                            <input type="text" id="smtp-host" name="host" class="form-input" value="{{ smtp_settings.get('host', '') }}" placeholder="smtp.example.com" {% if user.admin != 1 %}disabled{% endif %}>
+                            <span class="preference-label">How should Broke send mail?</span>
+                            <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+                                <label for="transport-smtp" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                                    <input type="radio" id="transport-smtp" name="email_transport" value="smtp" data-skip-pref="1" {% if email_transport != 'relay' %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %} style="margin-top: 4px;">
+                                    <span>
+                                        <strong>Custom SMTP</strong>
+                                        <span class="form-hint" style="display: block; margin-top: 2px;">Connect directly to your mail provider</span>
+                                    </span>
+                                </label>
+                                <label for="transport-relay" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                                    <input type="radio" id="transport-relay" name="email_transport" value="relay" data-skip-pref="1" {% if email_transport == 'relay' %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %} style="margin-top: 4px;">
+                                    <span>
+                                        <strong>Email relay</strong>
+                                        <span class="form-hint" style="display: block; margin-top: 2px;">HTTPS relay with bearer token (<code>BROKE_MAIL_RELAY_*</code> optional defaults).</span>
+                                    </span>
+                                </label>
+                            </div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="smtp-port">SMTP Port</label>
-                            <input type="number" id="smtp-port" name="port" class="form-input" value="{{ smtp_settings.get('port', 587) }}" min="1" max="65535" {% if user.admin != 1 %}disabled{% endif %}>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="smtp-username">SMTP Username</label>
-                            <input type="text" id="smtp-username" name="username" class="form-input" value="{{ smtp_settings.get('username', '') }}" {% if user.admin != 1 %}disabled{% endif %}>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="smtp-password">SMTP Password</label>
-                            <input type="password" id="smtp-password" name="password" class="form-input" value="" autocomplete="new-password" {% if user.admin != 1 %}disabled{% endif %}>
-                            {% if smtp_password_configured %}
-                            <span class="form-hint">A password is already configured. Enter a new one only to rotate it.</span>
+                        <div id="relay-config" class="relay-config-panel" {% if email_transport != 'relay' %}style="display:none"{% endif %}>
+                            {% if relay_base_url_env_configured %}
+                            <div class="settings-source-note">
+                                <i class="ph ph-info"></i>
+                                <span>Default relay URL is set in the server environment (<code>BROKE_MAIL_RELAY_BASE_URL</code>). You can override it below.</span>
+                            </div>
                             {% endif %}
+                            <div class="form-group">
+                                <label for="relay-base-url">Relay base URL</label>
+                                <input type="url" id="relay-base-url" name="relay_base_url" class="form-input"
+                                    value="{{ relay_base_url_saved }}"
+                                    placeholder="{% if relay_base_url_env_configured %}Override env default or leave blank to use env{% else %}https://panel.example.com{% endif %}"
+                                    {% if user.admin != 1 %}disabled{% endif %}>
+                                <span class="form-hint">Absolute base URL without a trailing slash. Requests go to <code>/relay/v1/send/</code>.</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="relay-token">Relay bearer token</label>
+                                <input type="password" id="relay-token" name="relay_token" class="form-input" value="" autocomplete="new-password"
+                                    {% if user.admin != 1 %}disabled{% endif %}>
+                                {% if relay_token_from_env %}
+                                <span class="form-hint">Token is set in <code>BROKE_MAIL_RELAY_TOKEN</code> on the server. It is not shown here.</span>
+                                {% elif relay_token_configured_saved %}
+                                <span class="form-hint">A relay token is already saved. Enter a new token only to rotate it.</span>
+                                {% endif %}
+                            </div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="smtp-from">From Address</label>
-                            <input type="email" id="smtp-from" name="from" class="form-input" value="{{ smtp_settings.get('from', '') }}" placeholder="noreply@example.com" {% if user.admin != 1 %}disabled{% endif %}>
-                        </div>
+                        <hr class="settings-divider" style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color, #ddd);">
 
-                        <div class="preference-group">
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <span class="preference-label">Use TLS</span>
-                                    <span class="preference-description">Enable STARTTLS when connecting to SMTP</span>
-                                </div>
-                                <div class="preference-control">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="smtp-use-tls" name="use_tls" {% if smtp_settings.get('use_tls', True) %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
-                                        <span class="toggle-slider"></span>
-                                    </label>
+                        <div id="smtp-config" class="smtp-config-panel">
+                            <h4 style="margin: 0 0 12px;">SMTP configuration</h4>
+                            <p class="card-description" style="margin-bottom: 1rem;">Used when delivery is set to SMTP, and for optional <strong>From</strong> header when using the relay.</p>
+
+                            <div class="form-group">
+                                <label for="smtp-host">SMTP Host</label>
+                                <input type="text" id="smtp-host" name="host" class="form-input" value="{{ smtp_settings.get('host', '') }}" placeholder="smtp.example.com" {% if user.admin != 1 %}disabled{% endif %}>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="smtp-port">SMTP Port</label>
+                                <input type="number" id="smtp-port" name="port" class="form-input" value="{{ smtp_settings.get('port', 587) }}" min="1" max="65535" {% if user.admin != 1 %}disabled{% endif %}>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="smtp-username">SMTP Username</label>
+                                <input type="text" id="smtp-username" name="username" class="form-input" value="{{ smtp_settings.get('username', '') }}" {% if user.admin != 1 %}disabled{% endif %}>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="smtp-password">SMTP Password</label>
+                                <input type="password" id="smtp-password" name="password" class="form-input" value="" autocomplete="new-password" {% if user.admin != 1 %}disabled{% endif %}>
+                                {% if smtp_password_configured %}
+                                <span class="form-hint">A password is already configured. Enter a new one only to rotate it.</span>
+                                {% endif %}
+                            </div>
+
+                            <div class="form-group">
+                                <label for="smtp-from">From Address</label>
+                                <input type="email" id="smtp-from" name="from" class="form-input" value="{{ smtp_settings.get('from', '') }}" placeholder="noreply@example.com" {% if user.admin != 1 %}disabled{% endif %}>
+                                <span class="form-hint">Also used as <code>from</code> for relay sends when provided (optional field in relay payload).</span>
+                            </div>
+
+                            <div class="preference-group">
+                                <div class="preference-item">
+                                    <div class="preference-info">
+                                        <span class="preference-label">Use TLS</span>
+                                        <span class="preference-description">Enable STARTTLS when connecting to SMTP</span>
+                                    </div>
+                                    <div class="preference-control">
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="smtp-use-tls" name="use_tls" {% if smtp_settings.get('use_tls', True) %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         {% if user.admin == 1 %}
-                        <div class="form-group">
-                            <label for="smtp-test-recipient">Test Recipient</label>
+                        <div class="form-group" style="margin-top: 1.25rem;">
+                            <label for="smtp-test-recipient">Test recipient</label>
                             <input type="email" id="smtp-test-recipient" class="form-input" value="{{ user.email }}" placeholder="you@example.com">
                             <span class="form-hint">Optional: defaults to your account email</span>
                         </div>
 
                         <div class="form-actions">
-                            <button type="submit" class="btn btn-primary">Save SMTP Settings</button>
+                            <button type="submit" class="btn btn-primary">Save email settings</button>
                             <button type="button" id="smtp-test-btn" class="btn btn-secondary">
-                                <i class="ph ph-paper-plane-tilt"></i> Send Test Email
+                                <i class="ph ph-paper-plane-tilt"></i> Send test email
                             </button>
                         </div>
                         {% endif %}
@@ -520,10 +577,41 @@
                 const emailForm = document.getElementById('email-form');
                 if (!emailForm) return;
 
+                const relayPanel = document.getElementById('relay-config');
+                const smtpPanel = document.getElementById('smtp-config');
+                const transportSmtp = document.getElementById('transport-smtp');
+                const transportRelay = document.getElementById('transport-relay');
+
+                function syncTransportPanels() {
+                    const relay = transportRelay && transportRelay.checked;
+                    if (relayPanel) relayPanel.style.display = relay ? 'block' : 'none';
+                    if (smtpPanel) {
+                        smtpPanel.style.opacity = relay ? '0.75' : '1';
+                        const lockIds = new Set(['smtp-host', 'smtp-port', 'smtp-username', 'smtp-password', 'smtp-use-tls']);
+                        smtpPanel.querySelectorAll('input').forEach((el) => {
+                            if (!lockIds.has(el.id)) return;
+                            if (transportSmtp.disabled && transportRelay.disabled) return;
+                            el.toggleAttribute('disabled', relay);
+                        });
+                    }
+                }
+
+                if (transportSmtp) transportSmtp.addEventListener('change', syncTransportPanels);
+                if (transportRelay) transportRelay.addEventListener('change', syncTransportPanels);
+                syncTransportPanels();
+
                 emailForm.addEventListener('submit', async (event) => {
                     event.preventDefault();
 
+                    const useRelay = transportRelay && transportRelay.checked;
                     const payload = {
+                        transport: useRelay ? 'relay' : 'smtp',
+                        relay_base_url: document.getElementById('relay-base-url')
+                            ? document.getElementById('relay-base-url').value.trim()
+                            : '',
+                        relay_token: document.getElementById('relay-token')
+                            ? document.getElementById('relay-token').value
+                            : '',
                         host: document.getElementById('smtp-host').value,
                         port: Number(document.getElementById('smtp-port').value || 587),
                         username: document.getElementById('smtp-username').value,
@@ -544,12 +632,12 @@
 
                         const result = await response.json();
                         if (!response.ok) {
-                            showToast(result.error || 'Failed to save SMTP settings', 'error');
+                            showToast(result.error || 'Failed to save email settings', 'error');
                         } else {
-                            showToast('SMTP settings saved', 'success');
+                            showToast('Email settings saved', 'success');
                         }
                     } catch (error) {
-                        showToast('Failed to save SMTP settings', 'error');
+                        showToast('Failed to save email settings', 'error');
                     } finally {
                         if (saveButton) saveButton.disabled = false;
                     }
@@ -572,7 +660,7 @@
                             if (!response.ok) {
                                 showToast(result.error || 'Failed to send test email', 'error');
                             } else {
-                                showToast('Test email request sent', 'success');
+                                showToast('Test email sent', 'success');
                             }
                         } catch (error) {
                             showToast('Failed to send test email', 'error');

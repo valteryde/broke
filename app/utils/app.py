@@ -408,15 +408,24 @@ def create_app():  # noqa: C901
 
     initialize_notification_engine()
 
-    # Start background update checker
+    @app.context_processor
+    def inject_updates_and_feature_flags():
+        from .features import FEATURE_UPDATER, is_feature_enabled
+
+        updater_on = is_feature_enabled(FEATURE_UPDATER)
+        ctx = {"feature_updater_enabled": updater_on, "update_info": None}
+        if updater_on and os.environ.get("FLASK_ENV") != "testing":
+            from .updater import get_update_info
+
+            ctx["update_info"] = get_update_info()
+        return ctx
+
     if os.environ.get("FLASK_ENV") != "testing":
-        from .updater import get_update_info, start_update_checker
+        from .features import FEATURE_UPDATER, is_feature_enabled
+        from .updater import start_update_checker
 
-        start_update_checker()
-
-        @app.context_processor
-        def inject_update_info():
-            return {"update_info": get_update_info()}
+        if is_feature_enabled(FEATURE_UPDATER):
+            start_update_checker()
 
     # Register core routes
     @app.route("/favicon.ico")

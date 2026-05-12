@@ -7,6 +7,7 @@ import io
 import time
 
 from app.utils.models import User, create_user, UserSettings, GlobalSetting, DSNToken
+from app.utils.mail import EMAIL_TRANSPORT_SETTINGS_KEY
 from app.utils.path import data_path
 import pyargon2
 from unittest.mock import patch
@@ -456,6 +457,111 @@ def _(c=client, f=fake):
     assert saved.get("username") == "smtp-user"
     assert saved.get("from") == "noreply@example.com"
 
+    tr = GlobalSetting.get_or_none(GlobalSetting.key == EMAIL_TRANSPORT_SETTINGS_KEY)
+    assert tr is not None
+    assert json.loads(tr.value).get("transport") == "smtp"
+
+
+@test("Admin can save HTTPS relay delivery without SMTP host")
+def _(c=client, f=fake):
+    admin_username = f"admin_relay_{f.uuid4()[:8]}"
+    admin_email = f"admin_relay_{int(time.time() * 1000000)}@example.com"
+    create_user(admin_username, "password123", admin_email, admin=1)
+
+    assert c.post(
+        "/callback",
+        data={"username": admin_username, "password": "password123"},
+        follow_redirects=False,
+    ).status_code == 302
+
+    payload = {
+        "transport": "relay",
+        "relay_base_url": "https://relay.example.com",
+        "relay_token": "saved-relay-token-secret",
+    }
+    response = c.post(
+        "/api/settings/email",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+
+    tr = GlobalSetting.get_or_none(GlobalSetting.key == EMAIL_TRANSPORT_SETTINGS_KEY)
+    assert tr is not None
+    body = json.loads(tr.value)
+    assert body.get("transport") == "relay"
+    assert body.get("relay_base_url") == "https://relay.example.com"
+    assert body.get("relay_token") == "saved-relay-token-secret"
+
+
+@test("Relay delivery save fails when URL and token are missing and env unset")
+def _(c=client, f=fake):
+    import os
+
+    admin_username = f"admin_relay_bad_{f.uuid4()[:8]}"
+    admin_email = f"admin_relay_bad_{int(time.time() * 1000000)}@example.com"
+    create_user(admin_username, "password123", admin_email, admin=1)
+
+    assert c.post(
+        "/callback",
+        data={"username": admin_username, "password": "password123"},
+        follow_redirects=False,
+    ).status_code == 302
+
+    with patch.dict(
+        os.environ,
+        {"BROKE_MAIL_RELAY_BASE_URL": "", "BROKE_MAIL_RELAY_TOKEN": ""},
+        clear=False,
+    ):
+        response = c.post(
+            "/api/settings/email",
+            data=json.dumps(
+                {"transport": "relay", "relay_base_url": "", "relay_token": ""}
+            ),
+            content_type="application/json",
+        )
+    assert response.status_code == 400
+
+
+@test("Relay delivery can use only BROKE_MAIL_RELAY env credentials")
+def _(c=client, f=fake):
+    import os
+
+    GlobalSetting.delete().where(GlobalSetting.key == EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+
+    admin_username = f"admin_relay_env_{f.uuid4()[:8]}"
+    admin_email = f"admin_relay_env_{int(time.time() * 1000000)}@example.com"
+    create_user(admin_username, "password123", admin_email, admin=1)
+
+    assert c.post(
+        "/callback",
+        data={"username": admin_username, "password": "password123"},
+        follow_redirects=False,
+    ).status_code == 302
+
+    with patch.dict(
+        os.environ,
+        {
+            "BROKE_MAIL_RELAY_BASE_URL": "https://panel.example.com",
+            "BROKE_MAIL_RELAY_TOKEN": "env-only-relay-token",
+        },
+        clear=False,
+    ):
+        response = c.post(
+            "/api/settings/email",
+            data=json.dumps(
+                {"transport": "relay", "relay_base_url": "", "relay_token": ""}
+            ),
+            content_type="application/json",
+        )
+    assert response.status_code == 200
+    tr = GlobalSetting.get_or_none(GlobalSetting.key == EMAIL_TRANSPORT_SETTINGS_KEY)
+    assert tr is not None
+    body = json.loads(tr.value)
+    assert body.get("transport") == "relay"
+    assert body.get("relay_base_url") == ""
+    assert body.get("relay_token") == ""
+
 
 @test("Non-admin cannot send test email")
 def _(c=auth_client):
@@ -675,6 +781,44 @@ def _(c=client, f=fake):
     response = c.get("/settings/email")
     assert response.status_code == 200
     assert secret_password.encode() not in response.data
+
+
+@test("Email settings HTML does not include relay bearer secrets")
+def _(c=client, f=fake):
+    import os
+
+    admin_username = f"admin_sec_rel_{f.uuid4()[:8]}"
+    admin_email = f"admin_sec_rel_{int(time.time() * 1000000)}@example.com"
+    admin_user = create_user(admin_username, "password123", admin_email, admin=1)
+
+    login_response = c.post(
+        "/callback",
+        data={"username": admin_user.username, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 302
+
+    relay_secret_saved = "saved-relay-bearer-ultra-secret-999"
+    tr = GlobalSetting.get_or_none(GlobalSetting.key == EMAIL_TRANSPORT_SETTINGS_KEY)
+    payload = {
+        "transport": "relay",
+        "relay_base_url": "https://relay.example.test",
+        "relay_token": relay_secret_saved,
+    }
+    value = json.dumps(payload)
+    if tr:
+        tr.value = value
+        tr.save()
+    else:
+        GlobalSetting.create(key=EMAIL_TRANSPORT_SETTINGS_KEY, value=value)
+
+    env_secret = "env-relay-token-must-never-render-888"
+    with patch.dict(os.environ, {"BROKE_MAIL_RELAY_TOKEN": env_secret}, clear=False):
+        response = c.get("/settings/email")
+
+    assert response.status_code == 200
+    assert relay_secret_saved.encode() not in response.data
+    assert env_secret.encode() not in response.data
 
 
 @test("Settings pages do not render raw AI API key")
