@@ -126,7 +126,9 @@ def create_app():  # noqa: C901
     public_base_url = (os.environ.get("BROKE_PUBLIC_BASE_URL") or "").strip().rstrip("/")
 
     application_prefix = normalize_application_prefix(os.environ.get("BROKE_APPLICATION_PREFIX", ""))
-    session_cookie_path = f"{application_prefix}/" if application_prefix else "/"
+    # Path must match RFC6265 prefix rules: ``/prefix/`` does not cover the URL ``/prefix``
+    # (no trailing slash), so the session cookie would be missing and users look logged out.
+    session_cookie_path = application_prefix if application_prefix else "/"
 
     app.config.update(
         SESSION_COOKIE_HTTPONLY=True,

@@ -24,7 +24,7 @@ def _():
     try:
         app = create_app()
         assert app.config["BROKE_APPLICATION_PREFIX"] == "/broke"
-        assert app.config["SESSION_COOKIE_PATH"] == "/broke/"
+        assert app.config["SESSION_COOKIE_PATH"] == "/broke"
     finally:
         _reset_prefix_env(prev)
         if prev_env is None:
