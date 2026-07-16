@@ -691,12 +691,12 @@ def api_send_test_email(user: User):
     html = render_email("email/smtp_test.jinja2", username=user.username)
     text = render_email("email/smtp_test.txt.jinja2", username=user.username)
 
-    if not mail.send_email(recipient, "Broke SMTP Test Email", html, text_content=text):
+    if not mail.send_email(recipient, "Broke email test", html, text_content=text):
         return (
             json.dumps(
                 {
-                    "error": "Could not send email. Verify SMTP host, credentials, TLS, and port; "
-                    "check server logs for details.",
+                    "error": "Could not send email. For SMTP, verify host, credentials, TLS, and port; "
+                    "for relay, verify BROKE_MAIL_RELAY_* env vars or saved relay URL/token. Check server logs.",
                 }
             ),
             500,

@@ -603,9 +603,11 @@
                     const relay = transportRelay && transportRelay.checked;
                     if (relayPanel) relayPanel.style.display = relay ? 'block' : 'none';
                     if (smtpPanel) {
-                        smtpPanel.style.opacity = relay ? '0.65' : '1';
-                        smtpPanel.querySelectorAll('input, button').forEach((el) => {
-                            if (el.id === 'smtp-test-recipient' || el.id === 'smtp-test-btn') return;
+                        smtpPanel.style.opacity = relay ? '0.75' : '1';
+                        const lockIds = new Set(['smtp-host', 'smtp-port', 'smtp-username', 'smtp-password', 'smtp-use-tls']);
+                        smtpPanel.querySelectorAll('input').forEach((el) => {
+                            if (!lockIds.has(el.id)) return;
+                            if (transportSmtp.disabled && transportRelay.disabled) return;
                             el.toggleAttribute('disabled', relay);
                         });
                     }
