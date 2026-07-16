@@ -1,9 +1,12 @@
 """Tests for auto-update checker functionality"""
 
-from ward import test
-from tests.fixtures import client, auth_client, auth_user, app
-from unittest.mock import patch, MagicMock
 import json
+import os
+from unittest.mock import patch, MagicMock
+
+from ward import test
+
+from tests.fixtures import auth_client
 
 from app.utils.updater import check_for_update, get_update_info, is_auto_check_enabled, set_auto_check_enabled
 from app.utils.models import GlobalSetting
@@ -117,3 +120,33 @@ def _(c=auth_client):
     data = json.loads(response.data)
     assert data["success"] is True
     assert data["enabled"] is False
+
+
+@test("check_for_update returns None when updater feature disabled")
+def _():
+    """Updater code path short-circuits when BROKE_DISABLED_FEATURES includes updater"""
+    with patch.dict(os.environ, {"BROKE_DISABLED_FEATURES": "updater"}):
+        info = check_for_update()
+    assert info is None
+
+
+@test("updates API endpoints return 403 when updater feature disabled")
+def _(c=auth_client):
+    with patch.dict(os.environ, {"BROKE_DISABLED_FEATURES": "updater"}):
+        check_r = c.post("/api/settings/updates/check")
+        apply_r = c.post("/api/settings/updates/apply")
+        toggle_r = c.post(
+            "/api/settings/updates/toggle",
+            data=json.dumps({"enabled": False}),
+            content_type="application/json",
+        )
+    assert check_r.status_code == 403
+    assert apply_r.status_code == 403
+    assert toggle_r.status_code == 403
+
+
+@test("/settings/updates redirects when updater feature disabled")
+def _(c=auth_client):
+    with patch.dict(os.environ, {"BROKE_DISABLED_FEATURES": "updater"}):
+        response = c.get("/settings/updates", follow_redirects=False)
+    assert response.status_code == 302

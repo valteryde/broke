@@ -1,8 +1,8 @@
 """Extended tests for settings and configuration"""
 
 from ward import test, fixture
-from tests.fixtures import app, client, auth_client, auth_user, create_test_project
-from app.utils.models import User, Project, Label, APIToken, DSNToken, GlobalSetting, create_user
+from tests.fixtures import client, auth_client, auth_user, create_test_project
+from app.utils.models import User, Project, Label, APIToken, DSNToken, GlobalSetting, UserSettings, create_user
 import json
 import time
 
@@ -12,10 +12,24 @@ def _(c=auth_client, user=auth_user):
     """Test updating user profile"""
     response = c.post(
         "/api/settings/profile",
-        data=json.dumps({"display_name": "New Name"}),
+        data=json.dumps({"display_name": "Display Name Alpha"}),
         content_type="application/json",
     )
-    assert response.status_code in [200, 302]
+    assert response.status_code == 200
+    payload = json.loads(response.data.decode())
+    assert payload.get("success") is True
+
+    settings = UserSettings.get(UserSettings.user == user.username)
+    assert settings.display_name == "Display Name Alpha"
+
+    clear = c.post(
+        "/api/settings/profile",
+        data=json.dumps({"display_name": "   "}),
+        content_type="application/json",
+    )
+    assert clear.status_code == 200
+    settings = UserSettings.get(UserSettings.user == user.username)
+    assert settings.display_name == ""
 
 
 @test("/api/settings/preferences POST updates preferences")

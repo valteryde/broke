@@ -293,7 +293,7 @@ class TicketEditor {
         return this.ticket.assignees.map(a => `
             <span class="ticket-assignee-tag">
                 <svg width="16" height="16" data-jdenticon-value="${this.escapeHtml(a.username)}"></svg>
-                ${this.escapeHtml(a.username)}
+                ${this.escapeHtml(a.name || a.username)}
             </span> <br>
         `).join('');
     }
@@ -670,7 +670,7 @@ class TicketEditor {
         if (assigneesBtn && this.options.availableUsers) {
             this.dropdowns.assignees = new Dropdown(assigneesBtn, {
                 items: this.options.availableUsers.map(u => ({
-                    label: u.username,
+                    label: u.name || u.username,
                     avatar: '<svg width="16" height="16" data-jdenticon-value="' + this.escapeHtml(u.username) + '"></svg>',
                     selected: this.ticket.assignees?.some(a => a.id === u.id),
                     onClick: () => this.toggleAssignee(u)
@@ -932,7 +932,7 @@ class TicketEditor {
             new ListModal({
                 title: 'Assign Member',
                 items: this.options.availableUsers.map(u => ({
-                    label: u.username,
+                    label: u.name || u.username,
                     value: u,
                     avatar: `<svg width="16" height="16" data-jdenticon-value="${this.escapeHtml(u.username)}"></svg>`,
                     selected: this.ticket.assignees?.some(a => a.id === u.id)

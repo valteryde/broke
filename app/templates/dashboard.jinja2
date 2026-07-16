@@ -114,7 +114,7 @@
                 <svg width="40" height="40" data-jdenticon-value="{{ user.username }}"></svg>
                 <img src="{{ request.script_root }}/avatar/{{ user.username }}" alt="{{ user.username }} avatar" width="40" height="40" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
             </span>
-            <span>{{ user.username }}</span>
+            <span>{{ user_label(user.username) }}</span>
             {% if is_desktop_client %}
             <a href="#" class="sb-logout" title="Switch instance" onclick="if (window.brokeDesktop && window.brokeDesktop.switchInstance) { window.brokeDesktop.switchInstance(); } return false;">
                 <i class="ph ph-arrows-left-right"></i>

@@ -20,6 +20,7 @@ import time
 import csv
 import io
 from ..utils.path import data_path, path
+from ..utils.user_display import build_display_name_map_for
 
 # Create blueprint
 news_bp = Blueprint("news", __name__)
@@ -103,14 +104,21 @@ def news_view(user: User):
     activities = []
 
     # Add recent comments
-    recent_comments = Comment.select().order_by(Comment.created_at.desc()).limit(15)
+    recent_comments = list(Comment.select().order_by(Comment.created_at.desc()).limit(15))
+    comment_author_usernames = [
+        c.user.username for c in recent_comments if not bool(getattr(c, "via_agent", 0) or 0)
+    ]
+    comment_display_names = build_display_name_map_for(comment_author_usernames)
+
     for comment in recent_comments:
         agent_comment = bool(getattr(comment, "via_agent", 0) or 0)
         activities.append(
             {
                 "type": "comment",
                 "icon": "ph-chat-circle",
-                "user": "Agent" if agent_comment else comment.user.username,
+                "user": "Agent"
+                if agent_comment
+                else comment_display_names.get(comment.user.username, comment.user.username),
                 "action": f"commented on {comment.ticket}",
                 "text": comment.body,
                 "time_ago": time_ago(comment.created_at),

@@ -20,6 +20,8 @@ services:
       - DATA_PATH=/data
       - REDIS_URL=redis://redis:6379
       - UPDATER_URL=http://broke-updater:9999
+      # Optional: disable in-app updater UI/API/background checks (comma-separated ids):
+      # - BROKE_DISABLED_FEATURES=updater
     depends_on:
       - redis
 
