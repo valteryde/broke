@@ -58,7 +58,7 @@
 </table>
 {% if ticket_url %}
 <p style="margin:20px 0 0;font-family: {{ brand.body_font }};font-size: 15px;">
-  <a href="{{ ticket_url }}" style="color: {{ brand.logo_blue }};font-weight: 600;text-decoration: none;">Open ticket →</a>
+  <a href="{{ ticket_url }}" style="color: {{ brand.logo_blue }};font-weight: 600;text-decoration: none;">{{ cta_label or 'Open ticket →' }}</a>
 </p>
 {% endif %}
 {% endblock %}

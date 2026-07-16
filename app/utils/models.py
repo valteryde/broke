@@ -407,6 +407,40 @@ class ChangelogRelease(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
 
 
+class Monitor(BaseModel):
+    """HTTP(S) uptime check owned by a project."""
+
+    id = AutoField(primary_key=True)
+    project = ForeignKeyField(Project, backref="monitors")
+    name = CharField()
+    url = CharField()
+    interval_seconds = IntegerField(default=60)
+    timeout_seconds = IntegerField(default=10)
+    expected_status = IntegerField(default=200)
+    enabled = IntegerField(default=1)
+    status = CharField(default="unknown")  # unknown, up, down
+    last_checked_at = IntegerField(null=True)
+    last_status_change_at = IntegerField(null=True)
+    last_error = TextField(null=True)
+    last_response_ms = IntegerField(null=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
+class MonitorCheck(BaseModel):
+    """Individual HTTP check result for heartbeat / uptime history."""
+
+    id = AutoField(primary_key=True)
+    monitor = ForeignKeyField(Monitor, backref="checks", on_delete="CASCADE")
+    checked_at = IntegerField(index=True)
+    ok = IntegerField(default=0)  # 1 = success
+    status_code = IntegerField(null=True)
+    response_ms = IntegerField(null=True)
+    error = TextField(null=True)
+
+    class Meta:  # type: ignore
+        indexes = ((("monitor", "checked_at"), False),)
+
+
 MODELS = [
     User,
     WorkCycle,
@@ -439,6 +473,8 @@ MODELS = [
     PasswordResetToken,
     DesktopHandshakeToken,
     DeviceToken,
+    Monitor,
+    MonitorCheck,
 ]
 
 
@@ -454,6 +490,7 @@ def initialize_db():
     _ensure_project_settings_column()
     _ensure_project_archived_column()
     _ensure_errorgroup_escalation_spike_column()
+    _ensure_monitor_last_response_ms_column()
     database.close()
 
 
@@ -526,6 +563,12 @@ def _ensure_errorgroup_escalation_spike_column() -> None:
         database.execute_sql(
             "ALTER TABLE errorgroup ADD COLUMN last_escalation_spike_email_at INTEGER;"
         )
+
+
+def _ensure_monitor_last_response_ms_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(monitor);").fetchall()]
+    if columns and "last_response_ms" not in columns:
+        database.execute_sql("ALTER TABLE monitor ADD COLUMN last_response_ms INTEGER;")
 
 
 def setup_test_data():  # noqa: C901

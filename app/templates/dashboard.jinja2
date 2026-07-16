@@ -84,6 +84,13 @@
                 <span>Sprints</span>
             </div>
 
+            {% if feature_monitors_enabled %}
+            <div class="sb-element {% if page == 'monitors' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/monitors'">
+                <i class="ph ph-heartbeat"></i>
+                <span>Monitors</span>
+            </div>
+            {% endif %}
+
             <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="openUrlWithArgs('/errors')">
                 <i class="ph ph-bug-beetle"></i>
                 <span>Errors</span>

@@ -36,6 +36,23 @@ services:
       - TARGET_SERVICE=broke-server
       - TARGET_IMAGE=ghcr.io/valteryde/broke:latest
 
+  broke-monitor:
+    restart: always
+    image: ghcr.io/valteryde/broke:latest
+    # To build from source instead, comment out 'image' and uncomment 'build':
+    # build: .
+    command: ["python", "-m", "app.monitor_worker"]
+    volumes:
+      - data:/data
+    environment:
+      - DATA_PATH=/data
+      # Optional: disable monitors (comma-separated ids):
+      # - BROKE_DISABLED_FEATURES=monitors
+      # - MONITOR_POLL_SECONDS=10
+      # - APP_BASE_URL=https://broke.example.com
+    depends_on:
+      - broke-server
+
 volumes:
   data:
   redis_data:

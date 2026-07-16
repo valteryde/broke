@@ -28,6 +28,8 @@ DEFAULT_ENGINE_SETTINGS = {
         EventTypes.ERROR_NEW: ["email"],
         EventTypes.ERROR_REGRESSION: ["email"],
         EventTypes.ERROR_ESCALATING: ["email"],
+        EventTypes.MONITOR_DOWN: ["email"],
+        EventTypes.MONITOR_UP: ["email"],
     },
 }
 
@@ -40,6 +42,8 @@ EVENT_SUBJECTS = {
     EventTypes.ERROR_NEW: "New error group",
     EventTypes.ERROR_REGRESSION: "Error regressed",
     EventTypes.ERROR_ESCALATING: "Error escalating",
+    EventTypes.MONITOR_DOWN: "Monitor down",
+    EventTypes.MONITOR_UP: "Monitor recovered",
 }
 
 
@@ -156,8 +160,11 @@ def _build_event_text(event: dict) -> str:
         lines.append(f"Status: {status}")
     if details:
         lines.append(f"Details: {details}")
+    monitor_url = event.get("monitor_url")
     if error_url:
         lines.append(f"Link: {error_url}")
+    elif monitor_url:
+        lines.append(f"Link: {monitor_url}")
     lines.append(f"Actor: {actor}")
 
     return "\n".join(lines)
@@ -172,11 +179,22 @@ def _ticket_link(event: dict) -> str | None:
     return f"{base}/tickets/{proj}/{tid}"
 
 
+def _cta_link(event: dict) -> tuple[str | None, str | None]:
+    """Return (url, label) for the email CTA."""
+    ticket_url = _ticket_link(event)
+    if ticket_url:
+        return ticket_url, "Open ticket →"
+    monitor_url = event.get("monitor_url")
+    if monitor_url:
+        return str(monitor_url), "Open monitor →"
+    return None, None
+
+
 def _dispatch_email(event: dict, recipients: Iterable[str]):
     subject = EVENT_SUBJECTS.get(event.get("event_type"), event.get("event_type", "Broke notification"))
     headline = subject
     accent = event_accent_hex(event.get("event_type"))
-    ticket_url = _ticket_link(event)
+    ticket_url, cta_label = _cta_link(event)
 
     html = render_email(
         "email/notification_event.jinja2",
@@ -184,12 +202,14 @@ def _dispatch_email(event: dict, recipients: Iterable[str]):
         headline=headline,
         accent=accent,
         ticket_url=ticket_url,
+        cta_label=cta_label,
     )
     text = render_email(
         "email/notification_event.txt.jinja2",
         event=event,
         headline=headline,
         ticket_url=ticket_url,
+        cta_label=cta_label,
     )
 
     for email in recipients:
@@ -283,6 +303,8 @@ def initialize_notification_engine():
         EventTypes.ERROR_NEW,
         EventTypes.ERROR_REGRESSION,
         EventTypes.ERROR_ESCALATING,
+        EventTypes.MONITOR_DOWN,
+        EventTypes.MONITOR_UP,
     ]:
         bus.subscribe(event_type, handle_notification_event)
 

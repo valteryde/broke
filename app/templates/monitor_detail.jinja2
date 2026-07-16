@@ -1,0 +1,167 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}{{ monitor.name }} | Monitors | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/monitors.css') }}">
+{% endblock %}
+
+{% block path %}
+    <a href="{{ request.script_root }}/monitors"><i class="ph ph-heartbeat"></i> Monitors</a>
+    <i class="ph ph-caret-right"></i>
+    <span>{{ monitor.name }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="mon-detail-hero">
+    <div class="mon-detail-top">
+        <span class="mon-status mon-status-{{ monitor.status if monitor.status in ('up','down') else 'unknown' }}">
+            {% if monitor.status == 'up' %}Up{% elif monitor.status == 'down' %}Down{% else %}Pending{% endif %}
+        </span>
+        <h1>{{ monitor.name }}</h1>
+        {% if not monitor.enabled %}
+        <span class="mon-meta">Paused</span>
+        {% endif %}
+    </div>
+    <p class="mon-meta" style="margin:0 0 12px;">{{ monitor.url }}</p>
+    <div class="mon-heart mon-heart-tall" aria-label="24 hour heartbeat">
+        {% for seg in heartbeat %}
+        <span class="mon-seg mon-seg-{{ seg.state }}" title="{{ seg.t0 }}–{{ seg.t1 }}: {{ seg.state }}"></span>
+        {% endfor %}
+    </div>
+    <div class="mon-detail-metrics">
+        <div class="mon-metric">
+            <label>24h uptime</label>
+            <strong>{% if uptime_24h is not none %}{{ '%.2f'|format(uptime_24h) }}%{% else %}—{% endif %}</strong>
+        </div>
+        <div class="mon-metric">
+            <label>Last ping</label>
+            <strong>{% if monitor.last_response_ms is not none %}{{ monitor.last_response_ms }}ms{% else %}—{% endif %}</strong>
+        </div>
+        <div class="mon-metric">
+            <label>Avg (24h)</label>
+            <strong>{% if avg_response_ms is not none %}{{ avg_response_ms }}ms{% else %}—{% endif %}</strong>
+        </div>
+        <div class="mon-metric">
+            <label>Last checked</label>
+            <strong>{% if last_checked_display %}{{ last_checked_display }}{% else %}Never{% endif %}</strong>
+        </div>
+        <div class="mon-metric">
+            <label>Interval</label>
+            <strong>{{ monitor.interval_seconds }}s</strong>
+        </div>
+    </div>
+    {% if monitor.last_error %}
+    <p class="mon-error-line">{{ monitor.last_error }}</p>
+    {% endif %}
+</div>
+
+<div class="settings-card">
+    <div class="card-section">
+        <h3 style="margin-top:0;">Edit monitor</h3>
+        <form id="monitor-edit-form" class="settings-form">
+            <div class="form-group">
+                <label for="mon-project">Project</label>
+                <select id="mon-project" class="form-input" required>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}" {% if p.id == monitor.project_id %}selected{% endif %}>{{ p.name }}{% if p.archived %} (archived){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="mon-name">Name</label>
+                <input type="text" id="mon-name" class="form-input" required value="{{ monitor.name }}">
+            </div>
+            <div class="form-group">
+                <label for="mon-url">URL</label>
+                <input type="url" id="mon-url" class="form-input" required value="{{ monitor.url }}">
+            </div>
+            <div class="form-group">
+                <label for="mon-interval">Interval (seconds)</label>
+                <input type="number" id="mon-interval" class="form-input" min="60" value="{{ monitor.interval_seconds }}">
+            </div>
+            <div class="form-group">
+                <label for="mon-expected">Expected status</label>
+                <input type="number" id="mon-expected" class="form-input" min="100" max="599" value="{{ monitor.expected_status }}">
+            </div>
+            <div class="form-group">
+                <label for="mon-timeout">Timeout (seconds)</label>
+                <input type="number" id="mon-timeout" class="form-input" min="1" max="60" value="{{ monitor.timeout_seconds }}">
+            </div>
+            <div class="form-group">
+                <div style="display:inline-flex;align-items:center;gap:12px;">
+                    <label class="toggle-switch" for="mon-enabled" aria-label="Enabled">
+                        <input type="checkbox" id="mon-enabled" {% if monitor.enabled %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Enabled</span>
+                </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Save</button>
+                <button type="button" class="btn btn-secondary" id="mon-delete"><i class="ph ph-trash"></i> Delete</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const MONITOR_ID = {{ monitor.id }};
+
+document.getElementById('monitor-edit-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {
+        project: document.getElementById('mon-project').value,
+        name: document.getElementById('mon-name').value.trim(),
+        url: document.getElementById('mon-url').value.trim(),
+        interval_seconds: parseInt(document.getElementById('mon-interval').value, 10) || 60,
+        expected_status: parseInt(document.getElementById('mon-expected').value, 10) || 200,
+        timeout_seconds: parseInt(document.getElementById('mon-timeout').value, 10) || 10,
+        enabled: document.getElementById('mon-enabled').checked
+    };
+    try {
+        const r = await fetch(brokeAppUrl('/api/monitors/' + MONITOR_ID), {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-Token': window.BROKE_CSRF_TOKEN || ''
+            },
+            body: JSON.stringify(body)
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+            alert(data.error || ('Request failed (' + r.status + ')'));
+            return;
+        }
+        window.location.reload();
+    } catch (err) {
+        alert('Network error while saving monitor.');
+    }
+});
+
+document.getElementById('mon-delete')?.addEventListener('click', async () => {
+    if (!confirm('Delete this monitor?')) return;
+    try {
+        const r = await fetch(brokeAppUrl('/api/monitors/' + MONITOR_ID), {
+            method: 'DELETE',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-Token': window.BROKE_CSRF_TOKEN || ''
+            }
+        });
+        if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            alert(data.error || ('Delete failed (' + r.status + ')'));
+            return;
+        }
+        window.location.href = '{{ request.script_root }}/monitors';
+    } catch (err) {
+        alert('Network error while deleting monitor.');
+    }
+});
+</script>
+{% endblock %}

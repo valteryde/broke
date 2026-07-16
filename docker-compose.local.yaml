@@ -1,0 +1,18 @@
+# Local override: build from source so monitors are included.
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.local.yaml up -d --build
+services:
+  broke-server:
+    image: broke:local
+    build: .
+    environment:
+      - APP_BASE_URL=http://127.0.0.1:8080
+
+  broke-monitor:
+    image: broke:local
+    # Reuse image built by broke-server (do not build again — parallel bake races on the tag)
+    pull_policy: never
+    environment:
+      - APP_BASE_URL=http://127.0.0.1:8080
+      - MONITOR_POLL_SECONDS=10
+    depends_on:
+      - broke-server

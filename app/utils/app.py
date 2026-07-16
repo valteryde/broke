@@ -399,6 +399,7 @@ def create_app():  # noqa: C901
         bug_bp,
         changelog_bp,
         desktop_bp,
+        monitors_bp,
         news_bp,
         settings_bp,
         tickets_bp,
@@ -409,6 +410,7 @@ def create_app():  # noqa: C901
     app.register_blueprint(auth_bp)
     app.register_blueprint(tickets_bp)
     app.register_blueprint(work_cycles_bp)
+    app.register_blueprint(monitors_bp)
     app.register_blueprint(agent_bp)
     app.register_blueprint(bug_bp)
     app.register_blueprint(settings_bp)
@@ -426,10 +428,15 @@ def create_app():  # noqa: C901
 
     @app.context_processor
     def inject_updates_and_feature_flags():
-        from .features import FEATURE_UPDATER, is_feature_enabled
+        from .features import FEATURE_MONITORS, FEATURE_UPDATER, is_feature_enabled
 
         updater_on = is_feature_enabled(FEATURE_UPDATER)
-        ctx = {"feature_updater_enabled": updater_on, "update_info": None}
+        monitors_on = is_feature_enabled(FEATURE_MONITORS)
+        ctx = {
+            "feature_updater_enabled": updater_on,
+            "feature_monitors_enabled": monitors_on,
+            "update_info": None,
+        }
         if updater_on and os.environ.get("FLASK_ENV") != "testing":
             from .updater import get_update_info
 

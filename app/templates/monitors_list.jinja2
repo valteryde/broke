@@ -1,0 +1,201 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}Monitors | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/monitors.css') }}">
+{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-heartbeat"></i> Monitors</span>
+{% endblock %}
+
+{% block content %}
+<div class="mon-page-header">
+    <div>
+        <h1>Monitors</h1>
+    </div>
+</div>
+
+<details class="mon-add-details" id="mon-add-panel">
+    <summary><i class="ph ph-plus"></i> Add monitor</summary>
+    <div class="mon-add-body">
+        <form id="monitor-create-form" class="mon-add-form settings-form">
+            <div class="form-group">
+                <label for="mon-project">Project</label>
+                <select id="mon-project" class="form-input" required>
+                    <option value="">Select…</option>
+                    {% for p in projects %}
+                    <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="mon-name">Name</label>
+                <input type="text" id="mon-name" class="form-input" required placeholder="Production homepage">
+            </div>
+            <div class="form-group">
+                <label for="mon-url">URL</label>
+                <input type="url" id="mon-url" class="form-input" required placeholder="https://example.com/health">
+            </div>
+            <div class="form-group">
+                <label for="mon-interval">Interval (s)</label>
+                <input type="number" id="mon-interval" class="form-input" min="60" value="60">
+            </div>
+            <div class="form-group">
+                <label for="mon-expected">Expected status</label>
+                <input type="number" id="mon-expected" class="form-input" min="100" max="599" value="200">
+            </div>
+            <div class="form-group">
+                <label for="mon-timeout">Timeout (s)</label>
+                <input type="number" id="mon-timeout" class="form-input" min="1" max="60" value="10">
+            </div>
+            <div class="mon-add-actions">
+                <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Create</button>
+            </div>
+        </form>
+    </div>
+</details>
+
+{% if not board_rows %}
+<div class="mon-empty">No monitors yet. Add one above — the worker will start checking within a minute.</div>
+{% else %}
+<div class="mon-board" id="mon-board">
+    {% for row in board_rows %}
+    {% set m = row.monitor %}
+    <a class="mon-row {% if not m.enabled %}is-disabled{% endif %}" href="{{ request.script_root }}/monitors/{{ m.id }}" data-monitor-id="{{ m.id }}">
+        <span class="mon-status mon-status-{{ m.status if m.status in ('up','down') else 'unknown' }}" data-field="status">
+            {% if m.status == 'up' %}Up{% elif m.status == 'down' %}Down{% else %}Pending{% endif %}
+        </span>
+        <div class="mon-identity">
+            <span class="mon-name">{{ m.name }}</span>
+            <div class="mon-meta">{{ m.url }} · {{ row.project_name }} · every {{ m.interval_seconds }}s{% if not m.enabled %} · paused{% endif %}</div>
+        </div>
+        <div class="mon-heart-wrap">
+            <div class="mon-heart" data-field="heartbeat" aria-label="24 hour heartbeat">
+                {% for seg in row.heartbeat %}
+                <span class="mon-seg mon-seg-{{ seg.state }}" title="{{ seg.t0 }}–{{ seg.t1 }}: {{ seg.state }}"></span>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="mon-stats">
+            <span class="mon-stats-primary" data-field="uptime">
+                {% if row.uptime_24h is not none %}{{ '%.2f'|format(row.uptime_24h) }}%{% else %}—{% endif %}
+            </span>
+            <span class="mon-stats-secondary" data-field="latency">
+                {% if m.last_response_ms is not none %}{{ m.last_response_ms }}ms{% elif row.avg_response_ms is not none %}~{{ row.avg_response_ms }}ms{% else %}—{% endif %}
+                <span style="color:#999;"> · 24h</span>
+            </span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+(function () {
+    function fmtUptime(v) {
+        if (v == null || v === undefined) return '—';
+        return Number(v).toFixed(2) + '%';
+    }
+
+    function fmtLatency(m) {
+        if (m.last_response_ms != null) return m.last_response_ms + 'ms';
+        if (m.avg_response_ms != null) return '~' + m.avg_response_ms + 'ms';
+        return '—';
+    }
+
+    function statusLabel(s) {
+        if (s === 'up') return 'Up';
+        if (s === 'down') return 'Down';
+        return 'Pending';
+    }
+
+    function renderHeartbeat(el, heartbeat) {
+        if (!el || !Array.isArray(heartbeat)) return;
+        el.innerHTML = heartbeat.map(function (seg) {
+            var title = seg.t0 + '–' + seg.t1 + ': ' + seg.state;
+            return '<span class="mon-seg mon-seg-' + seg.state + '" title="' + title + '"></span>';
+        }).join('');
+    }
+
+    function applyBoard(monitors) {
+        var byId = {};
+        monitors.forEach(function (m) { byId[m.id] = m; });
+        document.querySelectorAll('#mon-board .mon-row').forEach(function (row) {
+            var id = parseInt(row.getAttribute('data-monitor-id'), 10);
+            var m = byId[id];
+            if (!m) return;
+            var statusEl = row.querySelector('[data-field="status"]');
+            if (statusEl) {
+                statusEl.className = 'mon-status mon-status-' + (m.status === 'up' || m.status === 'down' ? m.status : 'unknown');
+                statusEl.textContent = statusLabel(m.status);
+            }
+            renderHeartbeat(row.querySelector('[data-field="heartbeat"]'), m.heartbeat);
+            var upEl = row.querySelector('[data-field="uptime"]');
+            if (upEl) upEl.textContent = fmtUptime(m.uptime_24h);
+            var latEl = row.querySelector('[data-field="latency"]');
+            if (latEl) latEl.innerHTML = fmtLatency(m) + ' <span style="color:#999;"> · 24h</span>';
+            row.classList.toggle('is-disabled', !m.enabled);
+        });
+    }
+
+    async function pollBoard() {
+        try {
+            const r = await fetch(brokeAppUrl('/api/monitors'), {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!r.ok) return;
+            const data = await r.json();
+            if (data.monitors) applyBoard(data.monitors);
+        } catch (_) { /* ignore */ }
+    }
+
+    if (document.getElementById('mon-board')) {
+        setInterval(pollBoard, 30000);
+    }
+
+    document.getElementById('monitor-create-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = {
+            project: document.getElementById('mon-project').value,
+            name: document.getElementById('mon-name').value.trim(),
+            url: document.getElementById('mon-url').value.trim(),
+            interval_seconds: parseInt(document.getElementById('mon-interval').value, 10) || 60,
+            expected_status: parseInt(document.getElementById('mon-expected').value, 10) || 200,
+            timeout_seconds: parseInt(document.getElementById('mon-timeout').value, 10) || 10,
+            enabled: true
+        };
+        try {
+            const r = await fetch(brokeAppUrl('/api/monitors'), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-Token': window.BROKE_CSRF_TOKEN || ''
+                },
+                body: JSON.stringify(body)
+            });
+            const raw = await r.text();
+            let data = {};
+            try { if (raw) data = JSON.parse(raw); } catch (_) {}
+            if (!r.ok) {
+                alert(data.error || ('Request failed (' + r.status + ')'));
+                return;
+            }
+            const id = data.monitor && data.monitor.id;
+            if (id == null) {
+                alert('Unexpected response from server.');
+                return;
+            }
+            window.location.href = '{{ request.script_root }}/monitors/' + id;
+        } catch (err) {
+            alert('Network error while creating monitor.');
+        }
+    });
+})();
+</script>
+{% endblock %}

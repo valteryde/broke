@@ -24,6 +24,8 @@ EVENT_ACCENT_HEX: dict[str, str] = {
     "TICKET_STATUS_CHANGED": "#3b82f6",
     "TICKET_COMMENTED": "#106ecc",
     "ANON_TICKET_SUBMITTED": "#22c55e",
+    "MONITOR_DOWN": "#ef4444",
+    "MONITOR_UP": "#22c55e",
 }
 
 
