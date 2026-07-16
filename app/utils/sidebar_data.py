@@ -23,7 +23,7 @@ def get_sidebar_data(user):
             error_link = "/errors"
             if latest_error and latest_error.part:
                 try:
-                    error_link = f"/errors/{latest_error.part.project.id}/{latest_error.part.id}/{latest_error.id}"
+                    error_link = f"/errors/{latest_error.part.id}/{latest_error.id}"
                 except Exception:
                     pass
 

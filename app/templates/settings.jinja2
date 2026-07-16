@@ -1605,14 +1605,14 @@
                     {% elif not project_parts %}
                     <div class="empty-state">
                         <i class="ph ph-plug"></i>
-                        <p>No project parts configured. Create a project part to get a DSN.</p>
+                        <p>No parts configured. Create a part on the Errors page to get a DSN.</p>
                     </div>
                     {% else %}
                     <div class="dsn-list">
                         {% for part in project_parts %}
                         <div class="dsn-item">
                             <div class="dsn-info">
-                                <span class="dsn-project">{{ part.project.name }} / {{ part.name }}</span>
+                                <span class="dsn-project">{{ part.name }}</span>
                                 <div class="dsn-url-wrapper">
                                     <code class="dsn-url">https://YOUR_DSN_TOKEN@{{ base_url | replace('http://', '') | replace('https://', '') }}/ingest/{{ part.id }}</code>
                                     <button class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="https://YOUR_DSN_TOKEN@{{ base_url | replace('http://', '') | replace('https://', '') }}/ingest/{{ part.id }}">

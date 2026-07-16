@@ -26,24 +26,20 @@ def error_project(app=app):
 
 
 @fixture(scope=Scope.Test)
-def error_project_part(app=app, project=error_project):
-    """Create a project part for error tracking"""
+def error_project_part(app=app):
+    """Create a workspace-level part for error tracking"""
     part = ProjectPart.create(
-        project=project.id,
-        name="backend",
-        description="Backend service"
+        name=f"backend-{int(time.time() * 1000000)}",
+        description="Backend service",
     )
     yield part
     part.delete_instance()
 
 
 @fixture(scope=Scope.Test)
-def dsn_token_fixture(app=app, project=error_project):
+def dsn_token_fixture(app=app):
     """Create a DSN token for testing"""
-    token = DSNToken.create(
-        token="test-dsn-token-12345",
-        project=project.id
-    )
+    token = DSNToken.create(token="test-dsn-token-12345")
     yield token
     token.delete_instance()
 
@@ -248,19 +244,18 @@ def _():
     assert "handler" in culprit
 
 
-@test("/bugs/<project_id> GET shows project errors")
-def _(c=auth_client, project=error_project):
-    """Test viewing errors for a project"""
-    response = c.get(f'/bugs/{project.id}')
-    # May return 200 if project exists, or 404 if no errors/project not found
-    assert response.status_code in [200, 404]
+@test("/errors GET lists parts")
+def _(c=auth_client):
+    """Test viewing all parts"""
+    response = c.get("/errors")
+    assert response.status_code == 200
 
 
-@test("/bugs/<project_id>/<part_name> GET shows part errors")
-def _(c=auth_client, project=error_project, part=error_project_part):
-    """Test viewing errors for a specific project part"""
-    response = c.get(f'/bugs/{project.id}/{part.name}')
-    assert response.status_code in [200, 404]
+@test("/errors/<part_id> GET shows part errors")
+def _(c=auth_client, part=error_project_part):
+    """Test viewing errors for a specific part"""
+    response = c.get(f"/errors/{part.id}")
+    assert response.status_code == 200
 
 
 @test("/api/bugs/dsn/<token> POST receives error event")
@@ -599,28 +594,62 @@ def _(c=auth_client, error_group=error_group_fixture):
 
 @test("/api/errors/<id>/create_ticket requires authentication")
 def _(c=client, error_group=error_group_fixture):
-    response = c.get(
+    response = c.post(
         f"/api/errors/{error_group.id}/create_ticket",
+        data=json.dumps({"project_id": "any"}),
+        content_type="application/json",
         follow_redirects=False,
     )
     assert response.status_code in [302, 401]
 
 
-@test("DELETE /api/projects/<project_id>/parts/<part_id>/errors requires authentication")
-def _(c=client, project=error_project, part=error_project_part):
+@test("/api/errors/<id>/create_ticket requires project_id")
+def _(c=auth_client, error_group=error_group_fixture):
+    response = c.post(
+        f"/api/errors/{error_group.id}/create_ticket",
+        data=json.dumps({}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    data = json.loads(response.data.decode("utf-8"))
+    assert "Project is required" in data.get("error", "")
+
+
+@test("/api/errors/<id>/create_ticket creates ticket in chosen project")
+def _(c=auth_client, error_group=error_group_fixture, project=error_project):
+    from app.utils.models import Ticket
+
+    response = c.post(
+        f"/api/errors/{error_group.id}/create_ticket",
+        data=json.dumps({"project_id": project.id}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data.decode("utf-8"))
+    assert data.get("success") is True
+    assert data.get("redirect") == f"/tickets/{project.id}/{data['ticket_id']}"
+
+    ticket = Ticket.get(Ticket.id == data["ticket_id"])
+    assert ticket.project == project.id
+    assert ticket.error_id == error_group.id
+    ticket.delete_instance()
+
+
+@test("DELETE /api/parts/<part_id>/errors requires authentication")
+def _(c=client, part=error_project_part):
     with c.session_transaction() as sess:
         sess.pop("user_id", None)
         sess.pop("_csrf_token", None)
 
     response = c.delete(
-        f"/api/projects/{project.id}/parts/{part.id}/errors",
+        f"/api/parts/{part.id}/errors",
         follow_redirects=False,
     )
     assert response.status_code in [302, 401]
 
 
-@test("DELETE /api/projects/<project_id>/parts/<part_id>/errors deletes all error groups")
-def _(c=auth_client, project=error_project, part=error_project_part):
+@test("DELETE /api/parts/<part_id>/errors deletes all error groups")
+def _(c=auth_client, part=error_project_part):
     e1 = ErrorGroup.create(
         part=part,
         fingerprint=f"fp-bulk-1-{int(time.time() * 1000000)}",
@@ -639,7 +668,7 @@ def _(c=auth_client, project=error_project, part=error_project_part):
     )
     try:
         response = c.delete(
-            f"/api/projects/{project.id}/parts/{part.id}/errors",
+            f"/api/parts/{part.id}/errors",
             follow_redirects=False,
         )
         assert response.status_code == 200
@@ -659,19 +688,19 @@ def _(c=auth_client, project=error_project, part=error_project_part):
                 eg.delete_instance()
 
 
-@test("DELETE /api/projects/<project_id>/parts/<part_id>/errors returns 404 when part not in project")
-def _(c=auth_client, part=error_project_part):
+@test("DELETE /api/parts/<part_id>/errors returns 404 when part missing")
+def _(c=auth_client):
     response = c.delete(
-        f"/api/projects/wrong-project-id/parts/{part.id}/errors",
+        "/api/parts/999999999/errors",
         follow_redirects=False,
     )
     assert response.status_code == 404
 
 
-@test("DELETE /api/projects/<project_id>/parts/<part_id>/errors succeeds when part has no errors")
-def _(c=auth_client, project=error_project, part=error_project_part):
+@test("DELETE /api/parts/<part_id>/errors succeeds when part has no errors")
+def _(c=auth_client, part=error_project_part):
     response = c.delete(
-        f"/api/projects/{project.id}/parts/{part.id}/errors",
+        f"/api/parts/{part.id}/errors",
         follow_redirects=False,
     )
     assert response.status_code == 200
@@ -680,8 +709,8 @@ def _(c=auth_client, project=error_project, part=error_project_part):
     assert data.get("deleted") == 0
 
 
-@test("/errors/<project_id>/<part_id> renders environment and release fields for filtering")
-def _(c=auth_client, project=error_project, part=error_project_part):
+@test("/errors/<part_id> renders environment and release fields for filtering")
+def _(c=auth_client, part=error_project_part):
     error = ErrorGroup.create(
         part=part,
         fingerprint=f"fp-filter-{int(time.time() * 1000000)}",
@@ -695,7 +724,7 @@ def _(c=auth_client, project=error_project, part=error_project_part):
     )
 
     try:
-        response = c.get(f"/errors/{project.id}/{part.id}")
+        response = c.get(f"/errors/{part.id}")
         assert response.status_code == 200
         body = response.data.decode("utf-8")
         assert 'environment: "production"' in body
@@ -705,8 +734,8 @@ def _(c=auth_client, project=error_project, part=error_project_part):
         error.delete_instance()
 
 
-@test("/errors/<project_id>/<part_id> renders null environment and release when missing")
-def _(c=auth_client, project=error_project, part=error_project_part):
+@test("/errors/<part_id> renders null environment and release when missing")
+def _(c=auth_client, part=error_project_part):
     error = ErrorGroup.create(
         part=part,
         fingerprint=f"fp-filter-none-{int(time.time() * 1000000)}",
@@ -720,7 +749,7 @@ def _(c=auth_client, project=error_project, part=error_project_part):
     )
 
     try:
-        response = c.get(f"/errors/{project.id}/{part.id}")
+        response = c.get(f"/errors/{part.id}")
         assert response.status_code == 200
         body = response.data.decode("utf-8")
         assert "environment: null" in body
@@ -730,8 +759,8 @@ def _(c=auth_client, project=error_project, part=error_project_part):
         error.delete_instance()
 
 
-@test("/errors/<project_id>/<part_id> renders inline row status actions")
-def _(c=auth_client, project=error_project, part=error_project_part):
+@test("/errors/<part_id> renders inline row status actions")
+def _(c=auth_client, part=error_project_part):
     error = ErrorGroup.create(
         part=part,
         fingerprint=f"fp-inline-actions-{int(time.time() * 1000000)}",
@@ -745,7 +774,7 @@ def _(c=auth_client, project=error_project, part=error_project_part):
     )
 
     try:
-        response = c.get(f"/errors/{project.id}/{part.id}")
+        response = c.get(f"/errors/{part.id}")
         assert response.status_code == 200
         body = response.data.decode("utf-8")
         assert "error-inline-action" in body

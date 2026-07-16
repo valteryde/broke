@@ -96,13 +96,11 @@ def active_projects_ordered():
 
 
 class ProjectPart(BaseModel):
-    id = AutoField(primary_key=True)
-    project = ForeignKeyField(Project, backref="parts")
-    name = CharField()
-    description = CharField()
+    """Workspace-level ingest target (service/component). Not tied to ticket projects."""
 
-    class Meta:  # type: ignore
-        indexes = ((("project", "name"), True),)
+    id = AutoField(primary_key=True)
+    name = CharField(unique=True)
+    description = CharField()
 
 
 class ErrorGroup(BaseModel):
@@ -683,30 +681,14 @@ def setup_test_data():  # noqa: C901
             except Exception:
                 pass
 
-    # Create project parts
-    for project_id in project_ids:
-        for _ in range(random.randint(0, 4)):
-            part_name = fake.word().capitalize() + " Service"
-            try:
-                ProjectPart.create(
-                    project=project_id,
-                    name=part_name,
-                    description=fake.sentence(nb_words=10),
-                )
-            except Exception as e:
-                print(e)
-                continue
-
-            # Create errors for the part
-            # sentry_sdk.init(
-            #     dsn=f"",
-            #     # Add request headers and IP for users,
-            #     # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-            #     send_default_pii=True,
-            # )
-
-            # for _ in range(random.randint(5, 20)):
-            #     try:
-            #         1 / 0  # Intentional error to generate a Sentry event
-            #     except:
-            #         sentry_sdk.capture_exception()
+    # Create workspace-level parts (not tied to ticket projects)
+    for _ in range(random.randint(2, 6)):
+        part_name = fake.word().capitalize() + " Service"
+        try:
+            ProjectPart.create(
+                name=part_name,
+                description=fake.sentence(nb_words=10),
+            )
+        except Exception as e:
+            print(e)
+            continue

@@ -1,6 +1,6 @@
 import os
 
-from ..utils.security import protected, redirect_with_script_root
+from ..utils.security import protected
 from ..utils.events import EventTypes, bus
 from ..utils.models import (
     User,
@@ -15,7 +15,7 @@ from ..utils.models import (
     DSNToken,
     active_projects_ordered,
 )
-from flask import Blueprint, redirect, render_template, request
+from flask import Blueprint, render_template, request
 from peewee import DoesNotExist
 import gzip
 import json
@@ -51,7 +51,6 @@ def _format_error_core_details(error_group: ErrorGroup) -> str:
 def _error_event_kwargs(part: ProjectPart, error_group: ErrorGroup, details: str) -> dict:
     base_url = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
     kwargs: dict = {
-        "project": str(part.project_id),
         "part_name": part.name,
         "error_group_id": error_group.id,
         "actor": "ingest",
@@ -61,7 +60,7 @@ def _error_event_kwargs(part: ProjectPart, error_group: ErrorGroup, details: str
         "release": error_group.release,
     }
     if base_url:
-        kwargs["error_url"] = f"{base_url}/errors/{part.project_id}/{part.id}/{error_group.id}"
+        kwargs["error_url"] = f"{base_url}/errors/{part.id}/{error_group.id}"
     return kwargs
 
 
@@ -423,32 +422,11 @@ def handle_attachment_item(
 @bug_bp.route("/errors")
 @protected
 def parts_view(user: User):
-
-    # Project parts
-    project_parts = ProjectPart.select()
+    project_parts = ProjectPart.select().order_by(ProjectPart.name)
 
     return render_template(
         "parts.jinja2",
         user=user,
-        project=None,
-        projects=active_projects_ordered(),
-        project_parts=project_parts,
-        page="errors",
-    )
-
-
-@bug_bp.route("/errors/<project_id>")
-@protected
-def parts_specific_view(user: User, project_id: str):
-
-    # Project parts
-    project_parts = ProjectPart.select().where(ProjectPart.project == project_id)
-
-    return render_template(
-        "parts.jinja2",
-        user=user,
-        project=Project.get(Project.id == project_id),
-        projects=active_projects_ordered(),
         project_parts=project_parts,
         page="errors",
     )
@@ -460,38 +438,20 @@ def parts_specific_view(user: User, project_id: str):
 @bug_bp.route("/api/parts", methods=["POST"])
 @protected
 def api_create_part(user: User):
-    """Create a new project part (service)"""
-    import json
+    """Create a new part (service / ingest target)"""
+    data = request.get_json() or {}
 
-    data = request.get_json()
-
-    project_id = data.get("project_id", "").strip()
-    name = data.get("name", "").strip()
-    description = data.get("description", "").strip()
-
-    if not project_id:
-        return json.dumps({"error": "Project is required"}), 400
+    name = (data.get("name") or "").strip()
+    description = (data.get("description") or "").strip()
 
     if not name:
         return json.dumps({"error": "Name is required"}), 400
 
-    # Verify project exists
-    try:
-        Project.get(Project.id == project_id)
-    except DoesNotExist:
-        return json.dumps({"error": "Project not found"}), 404
-
-    # Check if part already exists for this project
-    existing = (
-        ProjectPart.select()
-        .where((ProjectPart.project == project_id) & (ProjectPart.name == name))
-        .first()
-    )
-
+    existing = ProjectPart.select().where(ProjectPart.name == name).first()
     if existing:
-        return json.dumps({"error": "A part with this name already exists in this project"}), 400
+        return json.dumps({"error": "A part with this name already exists"}), 400
 
-    part = ProjectPart.create(project=project_id, name=name, description=description or "")
+    part = ProjectPart.create(name=name, description=description or "")
 
     return (
         json.dumps(
@@ -499,7 +459,6 @@ def api_create_part(user: User):
                 "success": True,
                 "part": {
                     "id": part.id,
-                    "project_id": project_id,
                     "name": part.name,
                     "description": part.description,
                 },
@@ -509,11 +468,14 @@ def api_create_part(user: User):
     )
 
 
-@bug_bp.route("/errors/<project_id>/<int:part_id>")
+@bug_bp.route("/errors/<int:part_id>")
 @protected
-def part_view(user: User, project_id: str, part_id: int):
+def part_view(user: User, part_id: int):
+    try:
+        part = ProjectPart.get(ProjectPart.id == part_id)
+    except DoesNotExist:
+        return "Part not found", 404
 
-    part = ProjectPart.get((ProjectPart.project == project_id) & (ProjectPart.id == part_id))
     error_groups = (
         ErrorGroup.select()
         .where(ErrorGroup.part == part_id)
@@ -525,7 +487,6 @@ def part_view(user: User, project_id: str, part_id: int):
     return render_template(
         "part.jinja2",
         user=user,
-        project=Project.get(Project.id == project_id),
         part=part,
         error_groups=error_groups,
         part_error_count=part_error_count,
@@ -533,19 +494,20 @@ def part_view(user: User, project_id: str, part_id: int):
     )
 
 
-@bug_bp.route("/errors/<project_id>/<int:part_id>/<int:error_id>")
+@bug_bp.route("/errors/<int:part_id>/<int:error_id>")
 @protected
-def error_detail_view(user: User, project_id: str, part_id: int, error_id: int):
+def error_detail_view(user: User, part_id: int, error_id: int):
     """Display detailed view of an error group."""
 
-    # Get the error group
     try:
         error = ErrorGroup.get((ErrorGroup.id == error_id) & (ErrorGroup.part == part_id))
     except DoesNotExist:
         return "Error not found", 404
 
-    part = ProjectPart.get(ProjectPart.id == part_id)
-    project = Project.get(Project.id == project_id)
+    try:
+        part = ProjectPart.get(ProjectPart.id == part_id)
+    except DoesNotExist:
+        return "Part not found", 404
 
     # Parse stacktrace JSON
     stacktrace_frames = []
@@ -610,7 +572,6 @@ def error_detail_view(user: User, project_id: str, part_id: int, error_id: int):
     return render_template(
         "error.jinja2",
         user=user,
-        project=project,
         part=part,
         error=error,
         stacktrace_frames=stacktrace_frames,
@@ -620,6 +581,7 @@ def error_detail_view(user: User, project_id: str, part_id: int, error_id: int):
         occurrence_chart=occurrence_chart,
         max_occurrences=max_occurrences,
         ticket=ticket,
+        projects=active_projects_ordered(),
         page="errors",
     )
 
@@ -935,29 +897,65 @@ def ingest_envelope_view(part: int):  # noqa: C901
     return f'OK: processed {", ".join(processed_items)}', 200
 
 
-@bug_bp.route("/api/errors/<int:error_id>/create_ticket", methods=["GET"])  # type: ignore
+@bug_bp.route("/api/errors/<int:error_id>/create_ticket", methods=["POST"])
 @protected
 def create_ticket_from_error(user: User, error_id: int):
-    """Create a ticket in an external system from the error."""
+    """Create a ticket from an error; project is chosen by the client picker."""
     try:
         error = ErrorGroup.get(ErrorGroup.id == error_id)
     except DoesNotExist:
-        return "Error not found", 404
+        return json.dumps({"error": "Error not found"}), 404
 
-    # Example: Create a ticket in a hypothetical ticketing system
-    ticket_id = f"{error.part.project.id}-E{error.id}"
+    existing = Ticket.select().where(Ticket.error == error.id).first()
+    if existing:
+        return (
+            json.dumps(
+                {
+                    "success": True,
+                    "ticket_id": existing.id,
+                    "redirect": f"/tickets/{existing.project}/{existing.id}",
+                }
+            ),
+            200,
+        )
+
+    data = request.get_json() or {}
+    project_id = (data.get("project_id") or "").strip()
+    if not project_id:
+        return json.dumps({"error": "Project is required"}), 400
+
+    project = Project.get_or_none(Project.id == project_id)
+    if not project or project.archived == 1:
+        return json.dumps({"error": "Project not found"}), 404
+
+    ticket_id = f"{project.id}-E{error.id}"
+    if Ticket.get_or_none(Ticket.id == ticket_id):
+        ticket_id = f"{project.id}-E{error.id}-{int(time.time())}"
+
     Ticket.create(
         id=ticket_id,
         title=f"Error: {error.exception_value or 'No message'}",
-        description=f"An error occurred:\n\nType: {error.exception_type}\nValue: {error.exception_value}\nCulprit: {error.culprit}",
+        description=(
+            f"An error occurred:\n\nType: {error.exception_type}\n"
+            f"Value: {error.exception_value}\nCulprit: {error.culprit}"
+        ),
         status="open",
         created_at=int(time.time()),
-        project=error.part.project,
+        project=project.id,
         priority="high",
         error=error,
     )
 
-    return redirect_with_script_root(f"/tickets/{error.part.project.id}/{ticket_id}")
+    return (
+        json.dumps(
+            {
+                "success": True,
+                "ticket_id": ticket_id,
+                "redirect": f"/tickets/{project.id}/{ticket_id}",
+            }
+        ),
+        200,
+    )
 
 
 @bug_bp.route("/api/errors/<int:error_id>", methods=["DELETE"])
@@ -979,12 +977,12 @@ def delete_error(user: User, error_id: int):
     return json.dumps({"success": True}), 200
 
 
-@bug_bp.route("/api/projects/<project_id>/parts/<int:part_id>/errors", methods=["DELETE"])
+@bug_bp.route("/api/parts/<int:part_id>/errors", methods=["DELETE"])
 @protected
-def delete_all_part_errors(user: User, project_id: str, part_id: int):
-    """Delete every error group (and related rows) for a project part."""
+def delete_all_part_errors(user: User, part_id: int):
+    """Delete every error group (and related rows) for a part."""
     try:
-        ProjectPart.get((ProjectPart.id == part_id) & (ProjectPart.project == project_id))
+        ProjectPart.get(ProjectPart.id == part_id)
     except DoesNotExist:
         return json.dumps({"error": "Part not found"}), 404
 

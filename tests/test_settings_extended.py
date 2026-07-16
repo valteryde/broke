@@ -143,14 +143,25 @@ def _(c=auth_client):
 
 @test("/api/settings/projects/delete/<id> GET deletes project")
 def _(c=auth_client):
-    """Test deleting a project"""
+    """Test deleting a project leaves workspace parts intact"""
     import time
+    from app.utils.models import Project, ProjectPart
 
     project_id = f"to-delete-{int(time.time() * 1000)}"
     project = create_test_project(project_id, "Delete Me", "Test")
+    part = ProjectPart.create(name=f"orphan-part-{int(time.time() * 1000000)}", description="stays")
 
-    response = c.get(f"/api/settings/projects/delete/{project.id}")
-    assert response.status_code in [200, 302]
+    try:
+        response = c.get(f"/api/settings/projects/delete/{project.id}")
+        assert response.status_code in [200, 302]
+        assert Project.get_or_none(Project.id == project_id) is None
+        assert ProjectPart.get_or_none(ProjectPart.id == part.id) is not None
+    finally:
+        if ProjectPart.get_or_none(ProjectPart.id == part.id):
+            part.delete_instance()
+        leftover = Project.get_or_none(Project.id == project_id)
+        if leftover:
+            leftover.delete_instance()
 
 
 @test("/api/settings/projects/archive/<id> archives project")

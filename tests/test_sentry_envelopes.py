@@ -25,9 +25,12 @@ def sentry_project(app=app):
 
 
 @fixture(scope=Scope.Test)
-def sentry_project_part(app=app, project=sentry_project):
-    """Create a project part for Sentry testing"""
-    part = ProjectPart.create(project=project.id, name="backend", description="Backend service")
+def sentry_project_part(app=app):
+    """Create a workspace-level part for Sentry testing"""
+    part = ProjectPart.create(
+        name=f"backend-{int(time.time() * 1000000)}",
+        description="Backend service",
+    )
     yield part
     # Clean up all error groups and occurrences for this part before deleting
     error_groups = ErrorGroup.select().where(ErrorGroup.part == part.id)
@@ -38,9 +41,9 @@ def sentry_project_part(app=app, project=sentry_project):
 
 
 @fixture(scope=Scope.Test)
-def dsn_token(app=app, part=sentry_project_part):
+def dsn_token(app=app):
     """Create a DSN token for testing"""
-    token = DSNToken.create(token=f"test-dsn-{int(time.time() * 1000000)}", project=part.project)
+    token = DSNToken.create(token=f"test-dsn-{int(time.time() * 1000000)}")
     yield token
     token.delete_instance()
 
@@ -311,10 +314,10 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
 @test("Event with exception information")
 def _(c=client, token=dsn_token):
     """Test event payload with exception/stacktrace information"""
-    # Create isolated project and part for this test
+    # Create isolated part for this test
     timestamp = int(time.time() * 1000000)
     project = create_test_project(f"exc-test-{timestamp}", "Exception Test", "Test")
-    part = ProjectPart.create(project=project.id, name="backend", description="Backend service")
+    part = ProjectPart.create(name=f"backend-{timestamp}", description="Backend service")
 
     event_id = uuid.uuid4().hex
 
@@ -850,10 +853,10 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
 @test("Similar errors are grouped together")
 def _(c=client, token=dsn_token):
     """Test that similar errors are grouped by fingerprint"""
-    # Create isolated project and part for this test
+    # Create isolated part for this test
     timestamp = int(time.time() * 1000000)
     project = create_test_project(f"group-test-{timestamp}", "Grouping Test", "Test")
-    part = ProjectPart.create(project=project.id, name="backend", description="Backend service")
+    part = ProjectPart.create(name=f"backend-{timestamp}", description="Backend service")
 
     # Clear any existing errors for this part (should be none, but just in case)
     ErrorGroup.delete().where(ErrorGroup.part == part.id).execute()
@@ -965,10 +968,10 @@ def _(c=client, token=dsn_token):
 @test("Different errors create separate groups")
 def _(c=client, token=dsn_token):
     """Test that different errors create separate groups"""
-    # Create isolated project and part for this test
+    # Create isolated part for this test
     timestamp = int(time.time() * 1000000)
     project = create_test_project(f"diff-test-{timestamp}", "Different Groups Test", "Test")
-    part = ProjectPart.create(project=project.id, name="backend", description="Backend service")
+    part = ProjectPart.create(name=f"backend-{timestamp}", description="Backend service")
 
     # Clear any existing errors for this part
     ErrorGroup.delete().where(ErrorGroup.part == part.id).execute()

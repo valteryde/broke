@@ -190,12 +190,10 @@
                 priority: '{{ ticket.priority | default("medium", true) }}',
                 error: { {% if ticket.error %}
                     id: '{{ ticket.error.id }}',
-                    part: '{{ ticket.error.part.id }}',
-                    project: '{{ ticket.error.part.project.id }}'
+                    part: '{{ ticket.error.part.id }}'
                 {% else %}
                     id: null,
-                    part: null,
-                    project: null
+                    part: null
                 {% endif %}},
                 labels: [
                     {% for label in ticket.labels %}

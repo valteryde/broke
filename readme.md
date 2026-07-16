@@ -155,7 +155,7 @@ Broke is compatible with the Sentry SDK. To send errors from your application:
 
 1. Go to Settings → Sentry DSN
 2. Generate a DSN token
-3. Create a project part (service)
+3. Create a part (service) on the Errors page — parts are not tied to ticket projects
 4. Use the DSN URL in your Sentry SDK configuration:
 
 ```python

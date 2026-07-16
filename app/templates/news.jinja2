@@ -127,7 +127,7 @@
                 <div class="card-body">
                     {% if recent_errors %}
                         {% for error in recent_errors[:5] %}
-                        <a href="{{ request.script_root }}/errors/{{ error.part.project.id }}/{{ error.part.id }}/{{ error.id }}" class="error-item">
+                        <a href="{{ request.script_root }}/errors/{{ error.part.id }}/{{ error.id }}" class="error-item">
                             <div class="error-icon">
                                 <i class="ph ph-warning"></i>
                             </div>

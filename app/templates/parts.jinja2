@@ -6,30 +6,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dropdown.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lists.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
 {% endblock %}
 
 {% block path %}
-    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a> {% if project %} <i class="ph ph-caret-right"></i> <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a> {% endif %}
+    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a>
 {% endblock %}
 
 {% block content %}
 
-<h1>Project parts error management</h1>
-
-<div class="project-tabs" id="project-tabs">
-    <button class="project-tab {% if not project %}active{% endif %}" data-project="all" onclick="openUrlWithArgs('/errors')">
-        <i class="ph ph-squares-four"></i> All
-    </button>
-    <!-- Project tabs will be populated dynamically -->
-
-    {% for proj in projects %}
-    <button class="project-tab {% if proj.id == project.id %}active{% endif %}" data-project="{{ proj.id }}" onclick="openUrlWithArgs('/errors/{{ proj.id }}')">
-        <i class="{{ proj.icon }}"></i> {{ proj.name }}
-    </button>
-    {% endfor %}
-
-</div>
+<h1>Parts</h1>
+<p class="part-errors-description">Services and components that receive error events. Not tied to ticket projects.</p>
 
 <div id="ticket-list"></div>
 
@@ -37,7 +23,6 @@
 
 {% block scripts %}
 
-    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
@@ -45,30 +30,9 @@
     <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
 
     <script>
-        // Available projects for the modal dropdown
-        const availableProjects = [
-            {% for proj in projects %}
-            { id: '{{ proj.id }}', name: '{{ proj.name }}', icon: '{{ proj.icon }}' },
-            {% endfor %}
-        ];
-
-        // Current project filter (if any)
-        const currentProjectId = '{{ project.id if project else "" }}';
-
         function showCreatePartModal() {
-            const projectOptions = availableProjects.map(p =>
-                `<option value="${p.id}" ${p.id === currentProjectId ? 'selected' : ''}>${p.name}</option>`
-            ).join('');
-
             Modal.show('Create New Part', `
                 <form id="create-part-form">
-                    <div class="form-group">
-                        <label for="part-project">Project</label>
-                        <select id="part-project" name="project_id" required>
-                            <option value="">Select a project...</option>
-                            ${projectOptions}
-                        </select>
-                    </div>
                     <div class="form-group">
                         <label for="part-name">Name</label>
                         <input type="text" id="part-name" name="name" placeholder="e.g. backend, frontend, api" required>
@@ -88,7 +52,6 @@
                     form.addEventListener('submit', async (e) => {
                         e.preventDefault();
 
-                        const projectId = document.getElementById('part-project').value;
                         const name = document.getElementById('part-name').value.trim();
                         const description = document.getElementById('part-description').value.trim();
 
@@ -96,15 +59,14 @@
                             const response = await fetch(brokeAppUrl('/api/parts'), {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ project_id: projectId, name, description })
+                                body: JSON.stringify({ name, description })
                             });
 
                             const data = await response.json();
 
                             if (data.success) {
                                 Modal.close();
-                                // Redirect to the new part or reload
-                                window.location.href = `/errors/${projectId}/${data.part.id}`;
+                                window.location.href = brokeAppUrl(`/errors/${data.part.id}`);
                             } else {
                                 alert(data.error || 'Failed to create part');
                             }
@@ -151,12 +113,11 @@
             const partListItems = [
                 {% for part in project_parts %}
                 {
-                    id: '{{ part.project.id }}',
+                    id: '{{ part.id }}',
                     title: '{{ part.name }}',
                     description: '{{ part.description | default("No description provided.", true) | safe }}',
-                    icon: '{{ part.project.icon }}',
-                    project: '{{ part.project.id }}',
-                    onClick: () => { window.location.href = '{{ request.script_root }}/errors/{{ part.project.id }}/{{ part.id }}'; }
+                    icon: 'ph-puzzle-piece',
+                    onClick: () => { window.location.href = '{{ request.script_root }}/errors/{{ part.id }}'; }
                 },
                 {% endfor %}
             ];

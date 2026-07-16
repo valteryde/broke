@@ -10,8 +10,6 @@
 {% block path %}
     <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a>
     <i class="ph ph-caret-right"></i>
-    <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
-    <i class="ph ph-caret-right"></i>
     <span><i class="ph ph-puzzle-piece"></i> {{ part.name }}</span>
 {% endblock %}
 
@@ -23,7 +21,7 @@
         <p class="part-errors-description">{{ part.description or 'No description provided.' }}</p>
     </div>
     {% if part_error_count > 0 %}
-    <button type="button" class="btn btn-danger" id="delete-all-part-errors-btn" data-project-id="{{ project.id }}" data-part-id="{{ part.id }}" data-total-errors="{{ part_error_count }}" title="Permanently delete all errors in this part">
+    <button type="button" class="btn btn-danger" id="delete-all-part-errors-btn" data-part-id="{{ part.id }}" data-total-errors="{{ part_error_count }}" title="Permanently delete all errors in this part">
         <i class="ph ph-trash"></i> Delete all errors
     </button>
     {% endif %}
@@ -76,7 +74,6 @@
 
                         if (response.ok) {
                             errorList.remove(item.id);
-                            // Also show a toast if available, or just log
                             if (window.showToast) showToast('Error deleted', 'success');
                         } else {
                             if (window.showToast) showToast('Failed to delete error', 'error');
@@ -110,7 +107,7 @@
                     ],
                     createdAt: {{ error.last_seen }} * 1000,
                     meta: '{{ error.event_count }} events',
-                    onClick: () => { window.location.href = '{{ request.script_root }}/errors/{{ project.id }}/{{ part.id }}/{{ error.id }}'; }
+                    onClick: () => { window.location.href = '{{ request.script_root }}/errors/{{ part.id }}/{{ error.id }}'; }
                 },
                 {% endfor %}
             ];
@@ -125,12 +122,11 @@
                     if (!confirm(`Delete all ${label} in this part? This cannot be undone.`)) {
                         return;
                     }
-                    const projectId = deleteAllBtn.getAttribute('data-project-id');
                     const partId = deleteAllBtn.getAttribute('data-part-id');
                     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
                     try {
                         const response = await fetch(
-                            brokeAppUrl('/api/projects/' + projectId + '/parts/' + partId + '/errors'),
+                            brokeAppUrl('/api/parts/' + partId + '/errors'),
                             {
                                 method: 'DELETE',
                                 headers: csrf ? { 'X-CSRF-Token': csrf } : {}

@@ -1228,8 +1228,7 @@ def api_delete_project(user: User, project_id: str):
 
     try:
         project = Project.get(Project.id == project_id)
-        # Delete associated parts first
-        ProjectPart.delete().where(ProjectPart.project == project_id).execute()
+        # Parts are workspace-level and are not deleted with ticket projects
         project.delete_instance()
 
         flash(f'Project "{project.name}" deleted successfully.', "success")

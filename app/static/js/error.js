@@ -266,3 +266,83 @@ function copyToClipboard(text) {
         console.error('Failed to copy:', err);
     });
 }
+
+/**
+ * Open a ticket for this error after picking a ticket project.
+ */
+function showCreateTicketModal() {
+    if (!errorData || !errorData.id) {
+        console.error('Error data not available');
+        return;
+    }
+
+    const projects = typeof availableTicketProjects !== 'undefined' ? availableTicketProjects : [];
+    if (!projects.length) {
+        alert('Create a ticket project first, then open a ticket for this error.');
+        return;
+    }
+
+    const projectOptions = projects.map((p) =>
+        `<option value="${p.id}">${p.name}</option>`
+    ).join('');
+
+    Modal.show('Open Ticket', `
+        <form id="create-error-ticket-form">
+            <div class="form-group">
+                <label for="error-ticket-project">Ticket project</label>
+                <select id="error-ticket-project" name="project_id" required>
+                    <option value="">Select a project...</option>
+                    ${projectOptions}
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Ticket</button>
+            </div>
+        </form>
+    `, {
+        onOpen: (element) => {
+            const form = element.querySelector('#create-error-ticket-form');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const projectId = document.getElementById('error-ticket-project').value;
+                if (!projectId) {
+                    alert('Select a project');
+                    return;
+                }
+
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Creating...';
+                }
+
+                try {
+                    const response = await fetch(brokeAppUrl('/api/errors/' + errorData.id + '/create_ticket'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ project_id: projectId }),
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.success && data.redirect) {
+                        Modal.close();
+                        window.location.href = brokeAppUrl(data.redirect);
+                    } else {
+                        alert(data.error || 'Failed to create ticket');
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Create Ticket';
+                        }
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Failed to create ticket');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Create Ticket';
+                    }
+                }
+            });
+        },
+    });
+}

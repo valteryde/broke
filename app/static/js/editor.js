@@ -106,7 +106,7 @@ class TicketEditor {
         return `
             <div class="ticket-property">
                 <div class="ticket-property-label">Status</div>
-                <button class="ticket-property-btn" onclick="window.location.href='/errors/${this.ticket.error.project}/${this.ticket.error.part}/${this.ticket.error.id}'">
+                <button class="ticket-property-btn" onclick="window.location.href='/errors/${this.ticket.error.part}/${this.ticket.error.id}'">
                     <i class="ph ph-link"></i>
                     <span class="property-value">See Error</span>
                     <i class="ph ph-caret-down"></i>

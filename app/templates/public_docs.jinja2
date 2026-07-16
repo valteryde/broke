@@ -430,10 +430,10 @@ docker compose up -d</code></pre>
                     <li>Click <strong>New Project</strong></li>
                 </ol>
 
-                <h3>Project Parts (Services)</h3>
+                <h3>Parts (Services)</h3>
                 <p>
-                    Within each project, you can create "parts" — these represent different services or components of your application.
-                    Parts are used for error tracking, allowing you to separate errors by service. This can be found in the error page.
+                    Parts are workspace-level services or components used for error tracking.
+                    They are not tied to ticket projects — create them on the Errors page, then point each Sentry SDK at that part's DSN.
                 </p>
             </section>
 
@@ -483,7 +483,7 @@ docker compose up -d</code></pre>
                 <ol>
                     <li>Go to <strong>Settings → Sentry DSN</strong></li>
                     <li>Click <strong>Generate Token</strong> to create a DSN token</li>
-                    <li>Create a <strong>Project Part</strong> for your service (e.g., "Backend API", "Web App")</li>
+                    <li>Create a <strong>Part</strong> on the Errors page for your service (e.g., "Backend API", "Web App")</li>
                     <li>Copy your DSN URL</li>
                 </ol>
 

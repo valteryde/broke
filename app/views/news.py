@@ -363,38 +363,34 @@ def build_timeline_events(  # noqa: C901
             }
         )
 
-    # 4. Fetch Errors
-    error_query = ErrorGroup.select()
-    if cutoff > 0:
-        error_query = error_query.where(ErrorGroup.last_seen >= cutoff)
+    # 4. Fetch Errors (workspace-level; not scoped to ticket projects)
+    if not project_id:
+        error_query = ErrorGroup.select()
+        if cutoff > 0:
+            error_query = error_query.where(ErrorGroup.last_seen >= cutoff)
 
-    errors_prefetched = prefetch(error_query, ProjectPart.select(), Project.select())
+        errors_prefetched = prefetch(error_query, ProjectPart.select())
 
-    for error in errors_prefetched:
-        if project_id:
-            if not error.part or error.part.project_id != project_id:
-                continue
+        for error in errors_prefetched:
+            date_parts = format_date_parts(error.last_seen)
+            activity_by_day[date_parts["date_key"]] += 1
 
-        date_parts = format_date_parts(error.last_seen)
-        activity_by_day[date_parts["date_key"]] += 1
-
-        events.append(
-            {
-                "type": "error",
-                "type_label": "Error",
-                "icon": "ph-bug-beetle",
-                "title": f'{error.exception_type or "Error"}: {error.exception_value or "Unknown"}',
-                "description": error.culprit,
-                "timestamp": error.last_seen,
-                "link": f"/errors/{error.part.project_id}/{error.part_id}/{error.id}" if error.part else None,
-                "meta": {
-                    "project": error.part.project_id if error.part else None,
-                    "event_count": error.event_count,
-                    "status": error.status,
-                },
-                **date_parts,
-            }
-        )
+            events.append(
+                {
+                    "type": "error",
+                    "type_label": "Error",
+                    "icon": "ph-bug-beetle",
+                    "title": f'{error.exception_type or "Error"}: {error.exception_value or "Unknown"}',
+                    "description": error.culprit,
+                    "timestamp": error.last_seen,
+                    "link": f"/errors/{error.part_id}/{error.id}" if error.part_id else None,
+                    "meta": {
+                        "event_count": error.event_count,
+                        "status": error.status,
+                    },
+                    **date_parts,
+                }
+            )
 
     # Sort all events by timestamp (most recent first)
     events.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -622,19 +618,7 @@ def build_reports_summary(days: int = 30) -> dict:
     closed_counts = get_project_counts(Ticket.status.in_(closed_statuses))
     triage_counts = get_project_counts(Ticket.status.in_(intake_statuses))
 
-    # Error counts per project
-    error_query = (ErrorGroup.select(Project.id.alias('project_id'), ErrorGroup.status, fn.COUNT(ErrorGroup.id).alias('count'))
-                  .join(ProjectPart).join(Project)
-                  .group_by(Project.id, ErrorGroup.status)).dicts()
-
-    unresolved_error_counts = {}
-    resolved_error_counts = {}
-    for r in error_query:
-        if r['status'] == 'unresolved':
-            unresolved_error_counts[str(r['project_id'])] = r['count']
-        else:
-            resolved_error_counts[str(r['project_id'])] = r['count']
-
+    # Errors are not owned by ticket projects; omit per-project error attribution
     project_rows = []
     for project in Project.select().order_by(Project.name):
         pid = str(project.id)
@@ -644,8 +628,6 @@ def build_reports_summary(days: int = 30) -> dict:
             "active_tickets": active_counts.get(pid, 0),
             "closed_tickets": closed_counts.get(pid, 0),
             "triage_tickets": triage_counts.get(pid, 0),
-            "unresolved_errors": unresolved_error_counts.get(pid, 0),
-            "resolved_errors": resolved_error_counts.get(pid, 0),
         })
 
     return {
@@ -768,8 +750,6 @@ def reports_export_csv(user: User):
             "active_tickets",
             "closed_tickets",
             "triage_tickets",
-            "unresolved_errors",
-            "resolved_errors",
         ]
     )
 
@@ -781,8 +761,6 @@ def reports_export_csv(user: User):
                 row["active_tickets"],
                 row["closed_tickets"],
                 row["triage_tickets"],
-                row["unresolved_errors"],
-                row["resolved_errors"],
             ]
         )
 

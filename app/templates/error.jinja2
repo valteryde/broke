@@ -4,6 +4,7 @@
 
 {% block head %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/error.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
     <!-- Highlight.js for syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
 {% endblock %}
@@ -11,9 +12,7 @@
 {% block path %}
     <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a>
     <i class="ph ph-caret-right"></i>
-    <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}'); return false;"><i class="{{ project.icon }}"></i> {{ project.name }}</a>
-    <i class="ph ph-caret-right"></i>
-    <a href="#" onclick="openUrlWithArgs('/errors/{{ project.id }}/{{ part.id }}'); return false;"><i class="ph ph-puzzle-piece"></i> {{ part.name }}</a>
+    <a href="#" onclick="openUrlWithArgs('/errors/{{ part.id }}'); return false;"><i class="ph ph-puzzle-piece"></i> {{ part.name }}</a>
     <i class="ph ph-caret-right"></i>
     <span><i class="ph ph-warning-circle"></i> {{ error.exception_type or 'Error' }}</span>
 {% endblock %}
@@ -163,7 +162,7 @@
                     <i class="ph ph-ticket"></i> See Ticket
                 </button>
                 {% else %}
-                <button class="action-btn btn-primary" onclick="window.location.href = '{{ request.script_root }}/api/errors/{{ error.id }}/create_ticket'" title="Open a ticket for this error">
+                <button class="action-btn btn-primary" onclick="showCreateTicketModal()" title="Open a ticket for this error">
                     <i class="ph ph-ticket"></i> Open Ticket
                 </button>
                 {% endif %}
@@ -321,14 +320,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
 
+<script src="{{ url_for('static', filename='js/config.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/error.js') }}"></script>
 <script>
-    // Pass error data to JS
     const errorData = {
         id: {{ error.id }},
-        projectId: '{{ project.id }}',
         partId: {{ part.id }},
         status: '{{ error.status }}'
     };
+
+    const availableTicketProjects = [
+        {% for proj in projects %}
+        { id: '{{ proj.id }}', name: '{{ proj.name }}', icon: '{{ proj.icon }}' },
+        {% endfor %}
+    ];
 </script>
 {% endblock %}
