@@ -12,6 +12,8 @@
  *     renderer: (element) => HTMLElement | string,
  *     quickActions: { ... },
  *     defaultGroupBy: 'none',
+ *     defaultFilters: { status: ['unresolved'] },
+ *     sortFn: (a, b) => number,
  *     onCreate: () => void,
  *     onUpdate: (item, field, value) => void
  * });
@@ -36,6 +38,8 @@ class List {
         this.groupsConfig = options.groups || {};
         this.renderer = options.renderer || this.defaultRenderer;
         this.quickActions = options.quickActions || {};
+        this.defaultFilters = options.defaultFilters || {};
+        this.sortFn = typeof options.sortFn === 'function' ? options.sortFn : null;
 
         this.activeFilters = {};
         this.activeFilterChips = {};
@@ -105,6 +109,18 @@ class List {
     }
 
     hydrateInitialState() {
+        Object.keys(this.defaultFilters || {}).forEach((filterType) => {
+            if (!this.filtersConfig[filterType]) {
+                return;
+            }
+            const value = this.defaultFilters[filterType];
+            if (value === null || value === undefined || value === '') {
+                return;
+            }
+            this.activeFilters[filterType] = Array.isArray(value) ? [...value] : value;
+            this.updateFilterChipFromValue(filterType, this.activeFilters[filterType]);
+        });
+
         const initialState = this.getInitialState ? this.getInitialState() : null;
         const hasCustomState = Boolean(initialState && typeof initialState === 'object');
 
@@ -711,6 +727,9 @@ class List {
         return sortedKeys.map(key => ({
             key,
             label: groupType.getGroupLabel(key),
+            className: typeof groupType.getGroupClass === 'function'
+                ? (groupType.getGroupClass(key) || '')
+                : '',
             elements: groups.get(key)
         }));
     }
@@ -736,6 +755,10 @@ class List {
                 return true;
             });
         });
+
+        if (this.sortFn) {
+            this.filteredElements.sort(this.sortFn);
+        }
 
         this.render();
 
@@ -827,10 +850,10 @@ class List {
         if (groups) {
             groups.forEach(group => {
                 const groupContainer = document.createElement('div');
-                groupContainer.className = 'list-group';
+                groupContainer.className = ['list-group', group.className].filter(Boolean).join(' ');
 
                 const groupHeader = document.createElement('div');
-                groupHeader.className = 'list-group-header';
+                groupHeader.className = ['list-group-header', group.className].filter(Boolean).join(' ');
                 groupHeader.innerHTML = `
                     <span class="list-group-label">${group.label}</span>
                     <span class="list-group-count">${group.elements.length}</span>
@@ -939,6 +962,7 @@ class List {
                     kind: 'header',
                     key: group.key,
                     label: group.label,
+                    className: group.className || '',
                     count: group.elements.length,
                     height: hHead
                 });
@@ -989,10 +1013,12 @@ class List {
     _createVirtualGroupHeaderRow(meta) {
         const collapsed = this.collapsedGroupKeys.has(meta.key);
         const groupWrap = document.createElement('div');
-        groupWrap.className = 'list-group list-vs-virtual-group';
+        groupWrap.className = ['list-group', 'list-vs-virtual-group', meta.className]
+            .filter(Boolean)
+            .join(' ');
 
         const groupHeader = document.createElement('div');
-        groupHeader.className = 'list-group-header';
+        groupHeader.className = ['list-group-header', meta.className].filter(Boolean).join(' ');
 
         const labelSpan = document.createElement('span');
         labelSpan.className = 'list-group-label';

@@ -87,26 +87,20 @@
             const errorListItems = [
                 {% for error in error_groups %}
                 {
-                    id: '{{ error.id }}',
-                    title: '{{ error.exception_type or "Error" }}',
-                    description: '{{ error.exception_value | default("No message", true) | replace("'", "\\'") | replace("\n", " ") | truncate(200) }}',
+                    id: {{ error.id }},
+                    title: {{ (error.exception_type or 'Error') | tojson }},
+                    description: {{ (error.exception_value or 'No message') | replace('\n', ' ') | truncate(200, True, '') | tojson }},
                     icon: 'ph-warning-circle',
-                    status: '{{ error.status }}',
-                    environment: {{ ('"%s"' % error.environment) if error.environment else 'null' }},
-                    release: {{ ('"%s"' % error.release) if error.release else 'null' }},
-                    labels: [
-                        {% if error.platform %}
-                        { text: '{{ error.platform }}', color: '#3b82f6' },
-                        {% endif %}
-                        {% if error.environment %}
-                        { text: '{{ error.environment }}', color: '#8b5cf6' },
-                        {% endif %}
-                        {% if error.release %}
-                        { text: '{{ error.release }}', color: '#06b6d4' },
-                        {% endif %}
-                    ],
+                    status: {{ error.status | tojson }},
+                    environment: {{ error.environment | tojson }},
+                    release: {{ error.release | tojson }},
+                    platform: {{ error.platform | tojson }},
+                    culprit: {{ (error.culprit or '') | tojson }},
+                    eventCount: {{ error.event_count }},
+                    firstSeen: {{ error.first_seen }},
+                    lastSeen: {{ error.last_seen }},
+                    recentCount: {{ recent_counts.get(error.id, 0) }},
                     createdAt: {{ error.last_seen }} * 1000,
-                    meta: '{{ error.event_count }} events',
                     onClick: () => { window.location.href = '{{ request.script_root }}/errors/{{ part.id }}/{{ error.id }}'; }
                 },
                 {% endfor %}

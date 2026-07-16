@@ -16,7 +16,7 @@ from ..utils.models import (
     active_projects_ordered,
 )
 from flask import Blueprint, render_template, request
-from peewee import DoesNotExist
+from peewee import Case, DoesNotExist, fn
 import gzip
 import json
 import hashlib
@@ -36,6 +36,189 @@ ERROR_ESCALATION_MILESTONES = (10, 50, 100, 500, 1000)
 ERROR_SPIKE_WINDOW_SEC = 600
 ERROR_SPIKE_MIN_OCCURRENCES = 5
 ERROR_SPIKE_EMAIL_COOLDOWN_SEC = 3600
+ERROR_NEW_WINDOW_SEC = 24 * 60 * 60
+ERROR_DASHBOARD_GROUP_LIMIT = 150
+
+
+def _error_status_rank():
+    return Case(
+        ErrorGroup.status,
+        (("unresolved", 0), ("resolved", 1), ("ignored", 2)),
+        3,
+    )
+
+
+def _batch_recent_counts(group_ids: list[int]) -> dict[int, int]:
+    recent_counts: dict[int, int] = {gid: 0 for gid in group_ids}
+    if not group_ids:
+        return recent_counts
+    cutoff = int(time.time()) - ERROR_SPIKE_WINDOW_SEC
+    recent_rows = (
+        ErrorOccurrence.select(
+            ErrorOccurrence.error_group,
+            fn.COUNT(ErrorOccurrence.id).alias("cnt"),
+        )
+        .where(
+            (ErrorOccurrence.error_group.in_(group_ids))
+            & (ErrorOccurrence.timestamp >= cutoff)
+        )
+        .group_by(ErrorOccurrence.error_group)
+    )
+    for row in recent_rows:
+        recent_counts[row.error_group_id] = int(row.cnt)
+    return recent_counts
+
+
+def _error_group_is_new(group: ErrorGroup, now: int) -> bool:
+    return (now - (group.first_seen or now)) <= ERROR_NEW_WINDOW_SEC
+
+
+def _error_group_is_recent(group: ErrorGroup, now: int) -> bool:
+    return (now - (group.last_seen or now)) <= ERROR_NEW_WINDOW_SEC
+
+
+def _error_urgency_band(group: ErrorGroup, recent_count: int, now: int) -> str:
+    """Mirror client hot/warm/cold rules for unresolved groups."""
+    if group.status != "unresolved":
+        return "cold"
+    is_spike = recent_count >= ERROR_SPIKE_MIN_OCCURRENCES
+    is_new = _error_group_is_new(group, now)
+    if is_spike or group.event_count >= 50 or (is_new and group.event_count >= 10):
+        return "hot"
+    if group.event_count >= 10 or (group.event_count >= 3 and _error_group_is_recent(group, now)):
+        return "warm"
+    return "cold"
+
+
+def _error_group_is_hot(group: ErrorGroup, recent_count: int, now: int) -> bool:
+    return _error_urgency_band(group, recent_count, now) == "hot"
+
+
+def _error_importance_score(group: ErrorGroup, recent_count: int, now: int) -> int:
+    new_bonus = 50 if _error_group_is_new(group, now) else 0
+    return recent_count * 100 + group.event_count * 10 + new_bonus
+
+
+def _relative_time_label(timestamp: int, now: int) -> str:
+    diff = max(0, now - (timestamp or now))
+    if diff < 60:
+        return "just now"
+    if diff < 3600:
+        return f"{diff // 60}m ago"
+    if diff < 86400:
+        return f"{diff // 3600}h ago"
+    if diff < 86400 * 7:
+        return f"{diff // 86400}d ago"
+    return time.strftime("%Y-%m-%d", time.localtime(timestamp or now))
+
+
+def _daily_occurrence_counts(start_date, end_date) -> dict[str, int]:
+    """Map YYYY-MM-DD -> occurrence count between start_date and end_date inclusive."""
+    from collections import defaultdict
+    from datetime import datetime
+
+    cutoff = int(datetime.combine(start_date, datetime.min.time()).timestamp())
+    end_ts = int(datetime.combine(end_date, datetime.max.time()).timestamp())
+    day_expr = fn.strftime("%Y-%m-%d", ErrorOccurrence.timestamp, "unixepoch")
+    rows = (
+        ErrorOccurrence.select(day_expr.alias("day"), fn.COUNT(ErrorOccurrence.id).alias("cnt"))
+        .where(
+            (ErrorOccurrence.timestamp >= cutoff)
+            & (ErrorOccurrence.timestamp <= end_ts)
+        )
+        .group_by(day_expr)
+    )
+    counts: dict[str, int] = defaultdict(int)
+    for row in rows:
+        counts[row.day] = int(row.cnt)
+    return counts
+
+
+def _heat_level(count: int, max_count: int) -> int:
+    if count <= 0 or max_count <= 0:
+        return 0
+    ratio = count / max_count
+    if ratio <= 0.15:
+        return 1
+    if ratio <= 0.35:
+        return 2
+    if ratio <= 0.65:
+        return 3
+    return 4
+
+
+def _incident_heatmap(weeks: int = 16) -> dict:
+    """GitHub-style week columns × weekday rows for daily incident volume."""
+    from datetime import datetime, timedelta
+
+    today = datetime.now().date()
+    # Align to Monday so columns are full weeks
+    start = today - timedelta(days=weeks * 7 - 1)
+    start = start - timedelta(days=start.weekday())
+    counts = _daily_occurrence_counts(start, today)
+    max_count = max(counts.values(), default=0)
+
+    weeks_out: list[list[dict]] = []
+    month_labels: list[dict] = []
+    cursor = start
+    week_index = 0
+    last_month = None
+    while cursor <= today:
+        week: list[dict] = []
+        week_month = cursor.strftime("%b")
+        if week_month != last_month:
+            month_labels.append({"label": week_month, "week_index": week_index})
+            last_month = week_month
+        for _ in range(7):
+            if cursor > today:
+                week.append({"empty": True, "count": 0, "level": 0, "label": "", "date": ""})
+            else:
+                key = cursor.isoformat()
+                count = counts.get(key, 0)
+                week.append(
+                    {
+                        "empty": False,
+                        "count": count,
+                        "level": _heat_level(count, max_count),
+                        "label": cursor.strftime("%a %d %b"),
+                        "date": key,
+                    }
+                )
+            cursor += timedelta(days=1)
+        weeks_out.append(week)
+        week_index += 1
+
+    return {
+        "weeks": weeks_out,
+        "month_labels": month_labels,
+        "max_count": max_count,
+        "weekday_labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    }
+
+
+def _dashboard_error_item(
+    group: ErrorGroup, recent_count: int, now: int, *, part_name: str | None = None
+) -> dict:
+    band = _error_urgency_band(group, recent_count, now)
+    message = (group.exception_value or "No message").replace("\n", " ")
+    if len(message) > 160:
+        message = message[:160].rstrip() + "…"
+    return {
+        "id": group.id,
+        "part_id": group.part_id,
+        "part_name": part_name or (group.part.name if group.part_id else ""),
+        "title": group.exception_type or "Error",
+        "message": message,
+        "culprit": group.culprit or "",
+        "event_count": group.event_count,
+        "recent_count": recent_count,
+        "band": band,
+        "is_spike": recent_count >= ERROR_SPIKE_MIN_OCCURRENCES,
+        "is_new": _error_group_is_new(group, now),
+        "last_seen": group.last_seen or 0,
+        "last_seen_label": _relative_time_label(group.last_seen, now),
+        "score": _error_importance_score(group, recent_count, now),
+    }
 
 
 def _format_error_core_details(error_group: ErrorGroup) -> str:
@@ -422,12 +605,66 @@ def handle_attachment_item(
 @bug_bp.route("/errors")
 @protected
 def parts_view(user: User):
-    project_parts = ProjectPart.select().order_by(ProjectPart.name)
+    """Errors overview: featured cards, charts, then triage list."""
+    now = int(time.time())
+    status_rank = _error_status_rank()
+
+    error_groups = list(
+        ErrorGroup.select(ErrorGroup, ProjectPart)
+        .join(ProjectPart)
+        .order_by(status_rank, ErrorGroup.event_count.desc(), ErrorGroup.last_seen.desc())
+        .limit(ERROR_DASHBOARD_GROUP_LIMIT)
+    )
+    recent_counts = _batch_recent_counts([group.id for group in error_groups])
+
+    items = [
+        _dashboard_error_item(
+            group,
+            recent_counts.get(group.id, 0),
+            now,
+            part_name=group.part.name,
+        )
+        for group in error_groups
+        if group.status == "unresolved"
+    ]
+    items.sort(key=lambda item: (-item["score"], -item["last_seen"]))
+
+    featured = [item for item in items if item["band"] == "hot"][:3]
+    if len(featured) < 3:
+        seen = {item["id"] for item in featured}
+        for item in items:
+            if item["id"] in seen:
+                continue
+            featured.append(item)
+            if len(featured) >= 3:
+                break
+
+    unresolved_by_part = {
+        row.part_id: int(row.cnt)
+        for row in (
+            ErrorGroup.select(
+                ErrorGroup.part,
+                fn.COUNT(ErrorGroup.id).alias("cnt"),
+            )
+            .where(ErrorGroup.status == "unresolved")
+            .group_by(ErrorGroup.part)
+        )
+    }
+
+    incident_heatmap = _incident_heatmap(weeks=104)
 
     return render_template(
-        "parts.jinja2",
+        "errors_dashboard.jinja2",
         user=user,
-        project_parts=project_parts,
+        featured=featured,
+        error_groups=error_groups,
+        recent_counts=recent_counts,
+        incident_heatmap=incident_heatmap,
+        stats={
+            "unresolved": sum(unresolved_by_part.values()),
+            "needs_attention": sum(1 for item in items if item["band"] == "hot"),
+            "parts_affected": len(unresolved_by_part),
+        },
         page="errors",
     )
 
@@ -476,19 +713,22 @@ def part_view(user: User, part_id: int):
     except DoesNotExist:
         return "Part not found", 404
 
-    error_groups = (
+    status_rank = _error_status_rank()
+    error_groups = list(
         ErrorGroup.select()
         .where(ErrorGroup.part == part_id)
-        .order_by(ErrorGroup.last_seen.desc())
+        .order_by(status_rank, ErrorGroup.event_count.desc(), ErrorGroup.last_seen.desc())
         .limit(100)
     )
     part_error_count = ErrorGroup.select().where(ErrorGroup.part == part_id).count()
+    recent_counts = _batch_recent_counts([group.id for group in error_groups])
 
     return render_template(
         "part.jinja2",
         user=user,
         part=part,
         error_groups=error_groups,
+        recent_counts=recent_counts,
         part_error_count=part_error_count,
         page="errors",
     )

@@ -1,17 +1,143 @@
 /**
  * Error-specific configuration for the generic List component.
- * Defines filters, groups, item rendering, and quick actions.
+ * Triage-focused: attention groups, urgency bands, importance sort.
  */
 
+const ERROR_SPIKE_MIN_OCCURRENCES = 5;
+const ERROR_NEW_WINDOW_MS = 24 * 60 * 60 * 1000;
+const ERROR_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function errorEventCount(element) {
+    return Number(element.eventCount) || 0;
+}
+
+function errorRecentCount(element) {
+    return Number(element.recentCount) || 0;
+}
+
+function errorLastSeenMs(element) {
+    if (element.lastSeen) {
+        return Number(element.lastSeen) * 1000;
+    }
+    return Number(element.createdAt) || 0;
+}
+
+function errorFirstSeenMs(element) {
+    if (element.firstSeen) {
+        return Number(element.firstSeen) * 1000;
+    }
+    return errorLastSeenMs(element);
+}
+
+function errorIsNew(element) {
+    const firstSeen = errorFirstSeenMs(element);
+    if (!firstSeen) return false;
+    return Date.now() - firstSeen <= ERROR_NEW_WINDOW_MS;
+}
+
+function errorIsSpike(element) {
+    return errorRecentCount(element) >= ERROR_SPIKE_MIN_OCCURRENCES;
+}
+
+function errorIsRecent(element) {
+    const lastSeen = errorLastSeenMs(element);
+    if (!lastSeen) return false;
+    return Date.now() - lastSeen <= ERROR_RECENT_WINDOW_MS;
+}
+
+/**
+ * Urgency band for unresolved groups. Resolved/ignored are always cold.
+ */
+function errorUrgencyBand(element) {
+    if (element.status !== 'unresolved') {
+        return 'cold';
+    }
+
+    const count = errorEventCount(element);
+    const isNew = errorIsNew(element);
+
+    if (errorIsSpike(element) || count >= 50 || (isNew && count >= 10)) {
+        return 'hot';
+    }
+    if (count >= 10 || (count >= 3 && errorIsRecent(element))) {
+        return 'warm';
+    }
+    return 'cold';
+}
+
+function errorAttentionKey(element) {
+    if (element.status === 'resolved' || element.status === 'ignored') {
+        return 'parked';
+    }
+    const band = errorUrgencyBand(element);
+    if (band === 'hot') return 'needs_attention';
+    if (band === 'warm') return 'monitor';
+    return 'quiet';
+}
+
+function errorImportanceScore(element) {
+    const recent = errorRecentCount(element);
+    const count = errorEventCount(element);
+    const newBonus = errorIsNew(element) ? 50 : 0;
+    return recent * 100 + count * 10 + newBonus;
+}
+
+function errorFormatRelativeTime(ms) {
+    if (!ms) return '';
+    const date = new Date(ms);
+    const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+    if (diffSec < 86400 * 7) return `${Math.floor(diffSec / 86400)}d ago`;
+    return date.toLocaleDateString();
+}
+
+function escapeHtml(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 const ErrorListConfig = {
-    // Filter definitions
     filters: {
         search: {
             placeholder: 'Search errors...',
             filter: (element, value) => {
                 if (!value) return true;
-                const searchText = `${element.id} ${element.title} ${element.description}`.toLowerCase();
+                const searchText = `${element.id} ${element.title} ${element.description} ${element.culprit || ''} ${element.partName || ''}`.toLowerCase();
                 return searchText.includes(value.toLowerCase());
+            }
+        },
+        part: {
+            label: 'Part',
+            icon: 'ph-puzzle-piece',
+            filter: (element, values) => {
+                if (!values || values.length === 0) return true;
+                if (element.partId == null) return values.includes('none');
+                return values.includes(String(element.partId));
+            },
+            getOptions: (listInstance) => {
+                const items = Array.isArray(listInstance?.elements) ? listInstance.elements : [];
+                const byId = new Map();
+                items.forEach((item) => {
+                    if (item.partId == null) return;
+                    const key = String(item.partId);
+                    if (!byId.has(key)) {
+                        byId.set(key, item.partName || `Part ${key}`);
+                    }
+                });
+                const options = Array.from(byId.entries())
+                    .sort((a, b) => a[1].localeCompare(b[1]))
+                    .map(([value, label]) => ({
+                        value,
+                        label,
+                        icon: 'ph-puzzle-piece'
+                    }));
+                return options;
             }
         },
         status: {
@@ -51,7 +177,6 @@ const ErrorListConfig = {
                 return values.includes(element.release);
             },
             getOptions: (listInstance) => {
-                // Dynamically generate release options from list data.
                 const items = Array.isArray(listInstance?.elements) ? listInstance.elements : [];
                 const releases = new Set();
                 items.forEach(item => {
@@ -70,8 +195,23 @@ const ErrorListConfig = {
         }
     },
 
-    // Grouping definitions
     groups: {
+        attention: {
+            label: 'Attention',
+            icon: 'ph-fire',
+            getGroupKey: (element) => errorAttentionKey(element),
+            getGroupLabel: (key) => {
+                const labels = {
+                    needs_attention: 'Needs attention',
+                    monitor: 'Monitor',
+                    quiet: 'Quiet',
+                    parked: 'Parked'
+                };
+                return labels[key] || key;
+            },
+            getGroupClass: (key) => `error-attention-group error-attention-${key}`,
+            order: ['needs_attention', 'monitor', 'quiet', 'parked']
+        },
         none: {
             label: 'None',
             icon: 'ph-list',
@@ -87,70 +227,89 @@ const ErrorListConfig = {
         }
     },
 
-    // Default grouping
-    defaultGroupBy: 'none',
+    defaultGroupBy: 'attention',
+    defaultFilters: {
+        status: ['unresolved']
+    },
 
-    // Item renderer
+    sortFn: (a, b) => {
+        const scoreDiff = errorImportanceScore(b) - errorImportanceScore(a);
+        if (scoreDiff !== 0) return scoreDiff;
+        return errorLastSeenMs(b) - errorLastSeenMs(a);
+    },
+
     renderer: (element) => {
         const inner = document.createElement('div');
-        inner.className = 'list-element-inner';
+        const band = errorUrgencyBand(element);
+        const count = errorEventCount(element);
+        const isSpike = errorIsSpike(element);
+        const isNew = errorIsNew(element);
+        const lastSeenLabel = errorFormatRelativeTime(errorLastSeenMs(element));
+        const culprit = (element.culprit || '').trim();
+        const partName = (element.partName || '').trim();
 
-        // Format Date
-        let dateString = '';
-        if (element.createdAt) {
-            // Expecting timestamp in milliseconds (part.jinja2 sends {{ error.last_seen }} * 1000)
-            // or seconds if we want consistency?
-            // part.jinja2: createdAt: {{ error.last_seen }} * 1000
-            const date = new Date(element.createdAt);
-            dateString = date.toLocaleDateString();
-        }
-
-        // Status visuals
         let statusIcon = 'ph-warning-circle';
-        let statusColor = '#ef4444'; // red
+        let statusColor = '#ef4444';
         if (element.status === 'resolved') {
             statusIcon = 'ph-check-circle';
-            statusColor = '#22c55e'; // green
+            statusColor = '#22c55e';
         } else if (element.status === 'ignored') {
             statusIcon = 'ph-eye-slash';
-            statusColor = '#9ca3af'; // gray
+            statusColor = '#9ca3af';
         }
 
-        const statusHtml = `
-            <span class="list-status" style="--status-color: ${statusColor}" title="${element.status}">
+        const badges = [];
+        if (isSpike && element.status === 'unresolved') {
+            badges.push('<span class="error-triage-badge error-triage-badge-spike">Spike</span>');
+        }
+        if (isNew && element.status === 'unresolved') {
+            badges.push('<span class="error-triage-badge error-triage-badge-new">New</span>');
+        }
+
+        const actions = [];
+        if (element.status !== 'resolved') {
+            actions.push(
+                `<button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="resolved" title="Resolve">Resolve</button>`
+            );
+        }
+        if (element.status !== 'ignored') {
+            actions.push(
+                `<button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="ignored" title="Ignore">Ignore</button>`
+            );
+        }
+        if (element.status !== 'unresolved') {
+            actions.push(
+                `<button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="unresolved" title="Reopen">Reopen</button>`
+            );
+        }
+
+        inner.className = 'list-element-inner error-list-row';
+        inner.dataset.urgency = band;
+        inner.dataset.status = element.status || 'unresolved';
+
+        inner.innerHTML = `
+            <span class="error-urgency-rail" aria-hidden="true"></span>
+            <span class="list-element-id">E-${escapeHtml(element.id)}</span>
+            <span class="list-status" style="--status-color: ${statusColor}" title="${escapeHtml(element.status)}">
                 <i class="ph ${statusIcon}"></i>
             </span>
-        `;
-
-        const rowActions = `
-            <span class="list-inline-actions" style="display:inline-flex;gap:0.35rem;align-items:center;">
-                <button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="resolved" title="Resolve" style="padding:0.15rem 0.4rem;font-size:0.75rem;">Resolve</button>
-                <button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="ignored" title="Ignore" style="padding:0.15rem 0.4rem;font-size:0.75rem;">Ignore</button>
-                <button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="unresolved" title="Reopen" style="padding:0.15rem 0.4rem;font-size:0.75rem;">Reopen</button>
+            <span class="list-element-text error-list-text">
+                <h3>${escapeHtml(element.title || 'Error')}</h3>
+                <p class="list-element-description">${escapeHtml(element.description || '')}</p>
+                ${partName ? `<p class="error-list-part">${escapeHtml(partName)}</p>` : ''}
+                ${culprit ? `<p class="error-list-culprit">${escapeHtml(culprit)}</p>` : ''}
             </span>
-        `;
-
-        // Render logic similar to tickets but tailored for errors
-        inner.innerHTML = `
-            <i class="ph ${element.icon || 'ph-bug'} list-element-icon"></i>
-            <span class="list-element-id">E-${element.id}</span>
-            ${statusHtml}
-            <span class="list-element-text">
-                <h3>${element.title}</h3>
-                <p class="list-element-description">${element.description || ''}</p>
+            <span class="error-list-signals">
+                ${badges.join('')}
+                <span class="error-event-count" data-urgency="${band}" title="Event count">${count}</span>
+                <span class="error-event-count-label">events</span>
             </span>
-             
-             <span class="list-labels">
-                 <span class="list-label" title="Events count">
-                    <span class="list-label-circle" style="background-color: #6b7280"></span> ${element.meta} 
-                 </span>
-                ${(element.labels || []).map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}
+            <span class="error-list-meta">
+                ${lastSeenLabel ? `<span class="error-last-seen"><i class="ph ph-clock"></i> ${escapeHtml(lastSeenLabel)}</span>` : ''}
             </span>
-
-            <span class="list-assignees">
-                <span class="list-assignee"> <i class="ph ph-clock"></i>  ${dateString}</span>
+            <span class="list-inline-actions error-inline-actions">
+                ${actions.join('')}
             </span>
-            ${rowActions}
         `;
 
         inner.querySelectorAll('.error-inline-action').forEach((button) => {
@@ -162,7 +321,6 @@ const ErrorListConfig = {
         return inner;
     },
 
-    // Quick actions (shortcuts)
     quickActions: {
         's': {
             name: 'Change Status',
@@ -170,7 +328,7 @@ const ErrorListConfig = {
                 new ListModal({
                     title: 'Set Status',
                     items: [
-                        { value: 'unresolved', label: 'Unresolved', icon: 'ph-warning-circle', colorClass: 'status-duplicate' }, // reusing existing CSS classes if possible, or generic
+                        { value: 'unresolved', label: 'Unresolved', icon: 'ph-warning-circle', colorClass: 'status-duplicate' },
                         { value: 'resolved', label: 'Resolved', icon: 'ph-check-circle', colorClass: 'status-done' },
                         { value: 'ignored', label: 'Ignored', icon: 'ph-eye-slash', colorClass: 'status-closed' }
                     ].map(s => ({ ...s, selected: item.status === s.value })),

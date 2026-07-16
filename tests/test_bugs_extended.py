@@ -244,11 +244,17 @@ def _():
     assert "handler" in culprit
 
 
-@test("/errors GET lists parts")
+@test("/errors GET shows errors dashboard")
 def _(c=auth_client):
-    """Test viewing all parts"""
+    """Test global errors dashboard loads"""
     response = c.get("/errors")
     assert response.status_code == 200
+    body = response.data.decode("utf-8")
+    assert "err-overview" in body
+    assert "err-charts" in body
+    assert "err-heatmap" in body
+    assert 'id="error-list"' in body
+    assert "New Part" in body
 
 
 @test("/errors/<part_id> GET shows part errors")
@@ -729,6 +735,8 @@ def _(c=auth_client, part=error_project_part):
         body = response.data.decode("utf-8")
         assert 'environment: "production"' in body
         assert 'release: "v1.2.3"' in body
+        assert "eventCount: 1" in body
+        assert "recentCount:" in body
     finally:
         ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
         error.delete_instance()
@@ -754,6 +762,7 @@ def _(c=auth_client, part=error_project_part):
         body = response.data.decode("utf-8")
         assert "environment: null" in body
         assert "release: null" in body
+        assert "eventCount: 1" in body
     finally:
         ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
         error.delete_instance()

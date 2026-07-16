@@ -1,0 +1,297 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}Errors | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dropdown.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/lists.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/errors_dashboard.css') }}">
+{% endblock %}
+
+{% block path %}
+    <a href="#" onclick="openUrlWithArgs('/errors'); return false;"><i class="ph ph-bug-beetle"></i> Errors</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="err-overview">
+    <header class="err-overview-header">
+        <div>
+            <h1>Errors</h1>
+            {% if stats.unresolved %}
+            <p class="err-overview-summary">{{ stats.unresolved }} unresolved · {{ stats.parts_affected }} part{% if stats.parts_affected != 1 %}s{% endif %} affected</p>
+            {% else %}
+            <p class="err-overview-summary">All clear</p>
+            {% endif %}
+        </div>
+        <button type="button" class="btn btn-secondary" id="errors-new-part-btn">
+            <i class="ph ph-plus"></i> New Part
+        </button>
+    </header>
+
+    {% if featured %}
+    <section class="err-featured" aria-label="Top issues">
+        {% for error in featured %}
+        <a class="err-featured-card" data-heat="{{ error.band }}" href="{{ request.script_root }}/errors/{{ error.part_id }}/{{ error.id }}">
+            <div class="err-featured-meta">
+                <span class="err-featured-part"><i class="ph ph-puzzle-piece"></i> {{ error.part_name }}</span>
+                <span class="err-featured-when">{{ error.last_seen_label }}</span>
+            </div>
+            <h2 class="err-featured-title">{{ error.title }}</h2>
+            <p class="err-featured-message">{{ error.message }}</p>
+            <div class="err-featured-foot">
+                <span class="err-featured-count">{{ error.event_count }} <span>events</span></span>
+                {% if error.is_spike %}<span class="err-featured-flag">Spike</span>{% endif %}
+                {% if error.is_new %}<span class="err-featured-flag">New</span>{% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="err-charts" aria-label="Error charts">
+        <div class="err-chart-card err-chart-card-wide">
+            <div class="err-chart-card-head">
+                <h2><i class="ph ph-calendar-blank"></i> Incidents</h2>
+                <div class="err-heat-legend" aria-hidden="true">
+                    <span>Less</span>
+                    <span class="err-heat-cell" data-level="0"></span>
+                    <span class="err-heat-cell" data-level="1"></span>
+                    <span class="err-heat-cell" data-level="2"></span>
+                    <span class="err-heat-cell" data-level="3"></span>
+                    <span class="err-heat-cell" data-level="4"></span>
+                    <span>More</span>
+                </div>
+            </div>
+            <div class="err-chart-card-body">
+                <div class="err-heatmap" style="--week-count: {{ incident_heatmap.weeks|length }}">
+                    <div class="err-heatmap-months">
+                        {% for month in incident_heatmap.month_labels %}
+                        <span style="grid-column: {{ month.week_index + 1 }}">{{ month.label }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="err-heatmap-body">
+                        <div class="err-heatmap-weekdays">
+                            {% for label in incident_heatmap.weekday_labels %}
+                            <span{% if loop.index0 % 2 == 1 %} class="is-muted"{% endif %}>{{ label if loop.index0 % 2 == 0 else '' }}</span>
+                            {% endfor %}
+                        </div>
+                        <div class="err-heatmap-weeks">
+                            {% for week in incident_heatmap.weeks %}
+                            {% set ns = namespace(month='') %}
+                            {% for day in week %}
+                                {% if not day.empty and not ns.month %}
+                                    {% set ns.month = day.label.split(' ')[-1] %}
+                                {% endif %}
+                            {% endfor %}
+                            <div class="err-heatmap-week" data-month="{{ ns.month }}">
+                                {% for day in week %}
+                                {% if day.empty %}
+                                <span class="err-heat-cell is-empty"></span>
+                                {% else %}
+                                <span class="err-heat-cell" data-level="{{ day.level }}" title="{{ day.label }}: {{ day.count }} event{% if day.count != 1 %}s{% endif %}"></span>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="err-list-section" aria-label="All errors">
+        <div class="err-list-head">
+            <h2><i class="ph ph-list"></i> Issues</h2>
+        </div>
+        <div id="error-list"></div>
+    </section>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dropdown.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/error_list.js') }}"></script>
+
+    <script>
+        function showCreatePartModal() {
+            Modal.show('Create New Part', `
+                <form id="create-part-form">
+                    <div class="form-group">
+                        <label for="part-name">Name</label>
+                        <input type="text" id="part-name" name="name" placeholder="e.g. backend, frontend, api" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="part-description">Description</label>
+                        <textarea id="part-description" name="description" placeholder="Describe this service or component..." rows="3"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Part</button>
+                    </div>
+                </form>
+            `, {
+                onOpen: (element) => {
+                    element.querySelector('#create-part-form').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const name = document.getElementById('part-name').value.trim();
+                        const description = document.getElementById('part-description').value.trim();
+                        try {
+                            const response = await fetch(brokeAppUrl('/api/parts'), {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                                },
+                                body: JSON.stringify({ name, description })
+                            });
+                            const data = await response.json();
+                            if (data.success) {
+                                Modal.close();
+                                window.location.href = brokeAppUrl(`/errors/${data.part.id}`);
+                            } else {
+                                alert(data.error || 'Failed to create part');
+                            }
+                        } catch (err) {
+                            alert('Failed to create part');
+                        }
+                    });
+                }
+            });
+        }
+
+        function fitIncidentHeatmap() {
+            const root = document.querySelector('.err-heatmap');
+            if (!root) return;
+
+            const weeksEl = root.querySelector('.err-heatmap-weeks');
+            const monthsEl = root.querySelector('.err-heatmap-months');
+            if (!weeksEl || !monthsEl) return;
+
+            const styles = getComputedStyle(root);
+            const cell = parseFloat(styles.getPropertyValue('--heat-cell')) || 12;
+            const gap = parseFloat(styles.getPropertyValue('--heat-gap')) || 3;
+            const label = parseFloat(styles.getPropertyValue('--heat-label')) || 28;
+            const weeks = Array.from(weeksEl.children);
+            const available = root.clientWidth - label;
+            const fit = Math.max(1, Math.min(weeks.length, Math.floor((available + gap) / (cell + gap))));
+            const start = weeks.length - fit;
+
+            weeks.forEach((week, index) => {
+                week.classList.toggle('is-clipped', index < start);
+            });
+
+            root.style.setProperty('--week-count', String(fit));
+            monthsEl.replaceChildren();
+            let lastMonth = '';
+            weeks.slice(start).forEach((week, index) => {
+                const month = week.dataset.month || '';
+                if (!month || month === lastMonth) return;
+                const span = document.createElement('span');
+                span.textContent = month;
+                span.style.gridColumn = String(index + 1);
+                monthsEl.appendChild(span);
+                lastMonth = month;
+            });
+            root.classList.add('is-ready');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('errors-new-part-btn')?.addEventListener('click', showCreatePartModal);
+            fitIncidentHeatmap();
+            window.addEventListener('resize', fitIncidentHeatmap);
+
+            const errorList = new List('error-list', {
+                ...ErrorListConfig,
+                onUpdate: async (item, field, value) => {
+                    if (field === 'status') {
+                        try {
+                            const response = await fetch(brokeAppUrl('/api/errors/' + item.id + '/status'), {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                                },
+                                body: JSON.stringify({ status: value })
+                            });
+
+                            if (response.ok) {
+                                item.status = value;
+                                errorList.render();
+                                if (window.showToast) showToast(`Error marked as ${value}`, 'success');
+                            } else {
+                                if (window.showToast) showToast('Failed to update error status', 'error');
+                            }
+                        } catch (error) {
+                            console.error('Update error:', error);
+                            if (window.showToast) showToast('Failed to update error status', 'error');
+                        }
+                    }
+                },
+                onDelete: async (item) => {
+                    try {
+                        const response = await fetch(brokeAppUrl('/api/errors/' + item.id), {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                            }
+                        });
+
+                        if (response.ok) {
+                            errorList.remove(item.id);
+                            if (window.showToast) showToast('Error deleted', 'success');
+                        } else {
+                            if (window.showToast) showToast('Failed to delete error', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Delete error:', error);
+                    }
+                }
+            });
+
+            const errorListItems = [
+                {% for error in error_groups %}
+                {
+                    id: {{ error.id }},
+                    title: {{ (error.exception_type or 'Error') | tojson }},
+                    description: {{ (error.exception_value or 'No message') | replace('\n', ' ') | truncate(200, True, '') | tojson }},
+                    icon: 'ph-warning-circle',
+                    status: {{ error.status | tojson }},
+                    environment: {{ error.environment | tojson }},
+                    release: {{ error.release | tojson }},
+                    platform: {{ error.platform | tojson }},
+                    culprit: {{ (error.culprit or '') | tojson }},
+                    partId: {{ error.part_id }},
+                    partName: {{ error.part.name | tojson }},
+                    eventCount: {{ error.event_count }},
+                    firstSeen: {{ error.first_seen }},
+                    lastSeen: {{ error.last_seen }},
+                    recentCount: {{ recent_counts.get(error.id, 0) }},
+                    createdAt: {{ error.last_seen }} * 1000,
+                    onClick: () => { window.location.href = '{{ request.script_root }}/errors/{{ error.part_id }}/{{ error.id }}'; }
+                },
+                {% endfor %}
+            ];
+
+            errorListItems.forEach(error => errorList.add(error));
+
+            document.getElementById('error-list')?.addEventListener('click', (event) => {
+                const button = event.target.closest('.error-inline-action');
+                if (!button) return;
+                const errorId = button.getAttribute('data-error-id');
+                const newStatus = button.getAttribute('data-status');
+                if (!errorId || !newStatus) return;
+                const item = errorList.elements.find((row) => String(row.id) === String(errorId));
+                if (!item) return;
+                errorList.handleUpdate(item, 'status', newStatus);
+            });
+        });
+    </script>
+{% endblock %}

@@ -1,0 +1,345 @@
+/* Match Broke: dashed panels, --bg-white, Space Grotesk / Rubik */
+
+.err-overview {
+    width: 100%;
+}
+
+.err-overview-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.err-overview-header h1 {
+    margin: 0 0 8px 0;
+    font-size: 1.8rem;
+    color: #222;
+}
+
+.err-overview-summary {
+    margin: 0;
+    color: #666;
+    font-size: 1rem;
+}
+
+.err-overview-header .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.err-featured {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.err-featured-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 10rem;
+    padding: 20px;
+    background: var(--bg-white);
+    border: 1px dashed #ccc;
+    border-radius: 12px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.err-featured-card[data-heat="hot"] {
+    border-color: #ef4444;
+}
+
+.err-featured-card[data-heat="warm"] {
+    border-color: #f59e0b;
+}
+
+.err-featured-card:hover {
+    background: var(--bg-light-gray);
+}
+
+.err-featured-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.err-featured-part {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #333;
+    font-weight: 500;
+}
+
+.err-featured-part .ph {
+    color: var(--logo-blue);
+    font-size: 1rem;
+}
+
+.err-featured-when {
+    color: #888;
+    white-space: nowrap;
+}
+
+.err-featured-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #222;
+    line-height: 1.25;
+}
+
+.err-featured-card[data-heat="hot"] .err-featured-title {
+    color: #ef4444;
+}
+
+.err-featured-message {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #666;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    flex: 1;
+}
+
+.err-featured-foot {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.err-featured-count {
+    font-family: 'Space Grotesk Variable', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #222;
+    line-height: 1;
+}
+
+.err-featured-card[data-heat="hot"] .err-featured-count {
+    color: #ef4444;
+}
+
+.err-featured-count span {
+    font-family: 'Rubik Variable', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #666;
+    margin-left: 2px;
+}
+
+.err-featured-flag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #ef4444;
+}
+
+.err-charts {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.err-chart-card {
+    background: var(--bg-white);
+    border: 1px dashed #ccc;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.err-chart-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    border-bottom: 1px solid #eee;
+}
+
+.err-chart-card-head h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.err-chart-card-head h2 .ph {
+    color: var(--logo-blue);
+    font-size: 1.15rem;
+}
+
+.err-chart-card-body {
+    padding: 16px 18px 18px;
+}
+
+.err-heat-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.err-heat-legend .err-heat-cell {
+    width: 11px;
+    height: 11px;
+}
+
+.err-heatmap {
+    --heat-cell: 12px;
+    --heat-gap: 3px;
+    --heat-label: 28px;
+    width: 100%;
+    overflow: hidden;
+}
+
+.err-heatmap-months {
+    display: grid;
+    grid-template-columns: repeat(var(--week-count), var(--heat-cell));
+    gap: var(--heat-gap);
+    margin: 0 0 6px var(--heat-label);
+    font-size: 0.72rem;
+    color: #888;
+    opacity: 0;
+}
+
+.err-heatmap.is-ready .err-heatmap-months {
+    opacity: 1;
+}
+
+.err-heatmap.is-ready .err-heatmap-weeks {
+    justify-content: flex-start;
+}
+
+.err-heatmap-months span {
+    grid-row: 1;
+}
+
+.err-heatmap-body {
+    display: flex;
+    gap: 6px;
+}
+
+.err-heatmap-weekdays {
+    display: grid;
+    grid-template-rows: repeat(7, var(--heat-cell));
+    gap: var(--heat-gap);
+    width: 22px;
+    flex: 0 0 22px;
+    font-size: 0.65rem;
+    color: #888;
+    line-height: var(--heat-cell);
+}
+
+.err-heatmap-weekdays .is-muted {
+    visibility: hidden;
+}
+
+.err-heatmap-weeks {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--heat-gap);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.err-heatmap-week {
+    display: grid;
+    grid-template-rows: repeat(7, var(--heat-cell));
+    gap: var(--heat-gap);
+    flex: 0 0 var(--heat-cell);
+}
+
+.err-heatmap-week.is-clipped {
+    display: none;
+}
+
+.err-heat-cell {
+    width: var(--heat-cell, 12px);
+    height: var(--heat-cell, 12px);
+    border-radius: 2px;
+    border: 1px dashed #ccc;
+    background: var(--bg-light-gray);
+    box-sizing: border-box;
+}
+
+.err-heat-cell.is-empty {
+    visibility: hidden;
+    border-color: transparent;
+    background: transparent;
+}
+
+.err-heat-cell[data-level="0"] {
+    background: var(--bg-light-gray);
+}
+
+.err-heat-cell[data-level="1"] {
+    background: #9ec5e8;
+    border-style: solid;
+    border-color: #9ec5e8;
+}
+
+.err-heat-cell[data-level="2"] {
+    background: #5a9fd4;
+    border-style: solid;
+    border-color: #5a9fd4;
+}
+
+.err-heat-cell[data-level="3"] {
+    background: var(--logo-blue);
+    border-style: solid;
+    border-color: var(--logo-blue);
+}
+
+.err-heat-cell[data-level="4"] {
+    background: #0a4f96;
+    border-style: solid;
+    border-color: #0a4f96;
+}
+
+.err-list-section {
+    margin-top: 8px;
+}
+
+.err-list-head {
+    margin-bottom: 10px;
+}
+
+.err-list-head h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.err-list-head h2 .ph {
+    color: var(--logo-blue);
+    font-size: 1.15rem;
+}
+
+@media (max-width: 900px) {
+    .err-featured {
+        grid-template-columns: 1fr;
+    }
+}
