@@ -29,6 +29,7 @@ from ..utils.models import (
 from ..utils.path import data_path
 from ..utils.reltime import time_ago
 from ..utils.security import protected, redirect_with_script_root
+from ..utils.user_display import build_all_display_name_map
 from ..utils.stale_tickets import (
     clamp_inactive_days,
     close_ticket_as_stale,
@@ -205,6 +206,7 @@ def tickets_view(user: User):
 
     available_users = User.select().order_by(User.username)
     available_labels = Label.select().order_by(Label.name)
+    user_display_names = build_all_display_name_map()
 
     return render_template(
         "tickets.jinja2",
@@ -215,6 +217,7 @@ def tickets_view(user: User):
         projects=active_projects_ordered(),
         available_users=available_users,
         available_labels=available_labels,
+        user_display_names=user_display_names,
         available_work_cycles=_work_cycles_for_scope(None),
         ticket_view=ticket_view,
         ticket_view_path=_scoped_public_path("/tickets"),
@@ -287,6 +290,7 @@ def project_tickets_view(user: User, project_id: str):
 
     available_users = User.select().order_by(User.username)
     available_labels = Label.select().order_by(Label.name)
+    user_display_names = build_all_display_name_map()
 
     return render_template(
         "tickets.jinja2",
@@ -297,6 +301,7 @@ def project_tickets_view(user: User, project_id: str):
         projects=active_projects_ordered(),
         available_users=available_users,
         available_labels=available_labels,
+        user_display_names=user_display_names,
         available_work_cycles=_work_cycles_for_scope(project_id),
         ticket_view=ticket_view,
         ticket_view_path=_scoped_public_path(f"/tickets/{project_id}"),
@@ -412,6 +417,7 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         parent_ticket = Ticket.get_or_none(Ticket.id == ticket.parent_ticket_id)
 
     work_cycles = list(WorkCycle.select().order_by(WorkCycle.created_at.desc()))
+    user_display_names = build_all_display_name_map()
 
     return render_template(
         "ticket.jinja2",
@@ -421,6 +427,7 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         page="tickets",
         available_users=available_users,
         available_labels=available_labels,
+        user_display_names=user_display_names,
         available_work_cycles=work_cycles,
         comments=comments,
         updates=updates,

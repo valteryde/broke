@@ -100,6 +100,7 @@
     <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
 
     <script>
+        window.__BROKE_USER_DISPLAY_NAMES__ = {{ user_display_names | tojson }};
 
         var editor;
 
@@ -210,6 +211,7 @@
                     {
                         id: '{{ assignee.username }}',
                         username: '{{ assignee.username }}',
+                        name: {{ user_display_names.get(assignee.username, assignee.username) | tojson }},
                         avatar: null
                     },
                     {% endfor %}
@@ -229,7 +231,7 @@
             const currentUser = {
                 id: '{{ user.username }}',
                 username: '{{ user.username }}',
-                name: '{{ user.username }}',
+                name: {{ user_display_names.get(user.username, user.username) | tojson }},
                 avatar: null
             };
 
@@ -241,7 +243,7 @@
                     author: {
                         id: '{{ comment.user.username }}',
                         username: '{{ comment.user.username }}',
-                        name: '{{ comment.user.username }}',
+                        name: {{ user_display_names.get(comment.user.username, comment.user.username) | tojson }},
                         avatar: "<svg width='40' height='40' data-jdenticon-value='{{ comment.user.username }}'></svg>"
                     },
                     type: 'comment',
@@ -268,6 +270,7 @@
                 {
                     id: '{{ available_user.username }}',
                     username: '{{ available_user.username }}',
+                    name: {{ user_display_names.get(available_user.username, available_user.username) | tojson }},
                 },
                 {% endfor %}
             ]

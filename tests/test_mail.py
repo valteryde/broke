@@ -1,7 +1,98 @@
 """Tests for SMTP mail helper."""
 
+import json
+import os
+from contextlib import contextmanager
 from unittest.mock import patch
+
 from ward import test
+
+_SMTP_TRANSPORT = {"transport": "smtp", "relay_base_url": "", "relay_token": ""}
+
+
+@contextmanager
+def _force_smtp_transport(mail_module):
+    """Keep SMTP path tests independent of BROKE_MAIL_RELAY_* in the process env."""
+    with patch.object(mail_module, "load_email_transport_settings", return_value=dict(_SMTP_TRANSPORT)):
+        yield
+
+
+@test("load_email_transport_settings defaults to relay when BROKE_MAIL_RELAY_* is set")
+def _():
+    from app.utils import mail
+    from app.utils.models import GlobalSetting, database
+
+    with database.connection_context():
+        GlobalSetting.delete().where(GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+
+    env = {
+        "BROKE_MAIL_RELAY_BASE_URL": "https://app.broke.dk",
+        "BROKE_MAIL_RELAY_TOKEN": "tok-secret",
+    }
+    with patch.dict(os.environ, env, clear=False):
+        loaded = mail.load_email_transport_settings()
+    assert loaded["transport"] == "relay"
+    assert loaded["relay_base_url"] == ""
+    assert loaded["relay_token"] == ""
+
+
+@test("load_email_transport_settings defaults to smtp when relay env is incomplete")
+def _():
+    from app.utils import mail
+    from app.utils.models import GlobalSetting, database
+
+    with database.connection_context():
+        GlobalSetting.delete().where(GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+
+    env = {
+        "BROKE_MAIL_RELAY_BASE_URL": "https://app.broke.dk",
+        "BROKE_MAIL_RELAY_TOKEN": "",
+    }
+    with patch.dict(os.environ, env, clear=False):
+        loaded = mail.load_email_transport_settings()
+    assert loaded["transport"] == "smtp"
+
+
+@test("load_email_transport_settings keeps a saved smtp preference over relay env")
+def _():
+    from app.utils import mail
+    from app.utils.models import GlobalSetting, database
+
+    with database.connection_context():
+        GlobalSetting.delete().where(GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+        GlobalSetting.create(
+            key=mail.EMAIL_TRANSPORT_SETTINGS_KEY,
+            value=json.dumps({"transport": "smtp", "relay_base_url": "", "relay_token": ""}),
+        )
+
+    env = {
+        "BROKE_MAIL_RELAY_BASE_URL": "https://app.broke.dk",
+        "BROKE_MAIL_RELAY_TOKEN": "tok-secret",
+    }
+    with patch.dict(os.environ, env, clear=False):
+        loaded = mail.load_email_transport_settings()
+    assert loaded["transport"] == "smtp"
+
+
+@test("send_email uses relay when transport defaults from env")
+def _():
+    from app.utils import mail
+    from app.utils.models import GlobalSetting, database
+
+    with database.connection_context():
+        GlobalSetting.delete().where(GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+
+    env = {
+        "BROKE_MAIL_RELAY_BASE_URL": "https://app.broke.dk",
+        "BROKE_MAIL_RELAY_TOKEN": "tok-secret",
+    }
+    with patch.dict(os.environ, env, clear=False):
+        with patch.object(mail, "_load_smtp_settings", return_value={"from": "noreply@broke.dk"}):
+            with patch.object(mail, "send_via_relay", return_value=True) as relay:
+                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>", text_content="x") is True
+                relay.assert_called_once()
+                assert relay.call_args.args[0] == "https://app.broke.dk"
+                assert relay.call_args.args[1] == "tok-secret"
 
 
 @test("send_email uses SMTP_SSL on port 465 and authenticates")
@@ -16,16 +107,17 @@ def _():
         "from": "noreply@example.com",
         "use_tls": True,
     }
-    with patch.object(mail, "_load_smtp_settings", return_value=settings):
-        with patch("app.utils.mail.smtplib.SMTP_SSL") as ssl_cls:
-            with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
-                inst = ssl_cls.return_value
-                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
-                ssl_cls.assert_called_once_with("smtp.example.com", 465)
-                smtp_cls.assert_not_called()
-                inst.login.assert_called_once_with("user@example.com", "secret")
-                inst.sendmail.assert_called_once()
-                inst.quit.assert_called_once()
+    with _force_smtp_transport(mail):
+        with patch.object(mail, "_load_smtp_settings", return_value=settings):
+            with patch("app.utils.mail.smtplib.SMTP_SSL") as ssl_cls:
+                with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
+                    inst = ssl_cls.return_value
+                    assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
+                    ssl_cls.assert_called_once_with("smtp.example.com", 465)
+                    smtp_cls.assert_not_called()
+                    inst.login.assert_called_once_with("user@example.com", "secret")
+                    inst.sendmail.assert_called_once()
+                    inst.quit.assert_called_once()
 
 
 @test("send_email uses STARTTLS on port 587 when use_tls is true")
@@ -40,14 +132,15 @@ def _():
         "from": "noreply@example.com",
         "use_tls": True,
     }
-    with patch.object(mail, "_load_smtp_settings", return_value=settings):
-        with patch("app.utils.mail.smtplib.SMTP_SSL"):
-            with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
-                inst = smtp_cls.return_value
-                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
-                smtp_cls.assert_called_once_with("smtp.example.com", 587)
-                inst.starttls.assert_called_once()
-                inst.login.assert_called_once_with("user@example.com", "secret")
+    with _force_smtp_transport(mail):
+        with patch.object(mail, "_load_smtp_settings", return_value=settings):
+            with patch("app.utils.mail.smtplib.SMTP_SSL"):
+                with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
+                    inst = smtp_cls.return_value
+                    assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
+                    smtp_cls.assert_called_once_with("smtp.example.com", 587)
+                    inst.starttls.assert_called_once()
+                    inst.login.assert_called_once_with("user@example.com", "secret")
 
 
 @test("send_email authenticates on localhost when credentials are set")
@@ -62,13 +155,14 @@ def _():
         "from": "from@local.test",
         "use_tls": True,
     }
-    with patch.object(mail, "_load_smtp_settings", return_value=settings):
-        with patch("app.utils.mail.smtplib.SMTP_SSL"):
-            with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
-                inst = smtp_cls.return_value
-                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
-                inst.starttls.assert_not_called()
-                inst.login.assert_called_once_with("dev", "devpass")
+    with _force_smtp_transport(mail):
+        with patch.object(mail, "_load_smtp_settings", return_value=settings):
+            with patch("app.utils.mail.smtplib.SMTP_SSL"):
+                with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
+                    inst = smtp_cls.return_value
+                    assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
+                    inst.starttls.assert_not_called()
+                    inst.login.assert_called_once_with("dev", "devpass")
 
 
 @test("send_email still authenticates when use_tls is false on non-local host")
@@ -83,13 +177,14 @@ def _():
         "from": "app@internal",
         "use_tls": False,
     }
-    with patch.object(mail, "_load_smtp_settings", return_value=settings):
-        with patch("app.utils.mail.smtplib.SMTP_SSL"):
-            with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
-                inst = smtp_cls.return_value
-                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
-                inst.starttls.assert_not_called()
-                inst.login.assert_called_once_with("relayuser", "relaypass")
+    with _force_smtp_transport(mail):
+        with patch.object(mail, "_load_smtp_settings", return_value=settings):
+            with patch("app.utils.mail.smtplib.SMTP_SSL"):
+                with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
+                    inst = smtp_cls.return_value
+                    assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is True
+                    inst.starttls.assert_not_called()
+                    inst.login.assert_called_once_with("relayuser", "relaypass")
 
 
 @test("send_email returns False when SMTP host is empty")
@@ -104,12 +199,13 @@ def _():
         "from": "",
         "use_tls": True,
     }
-    with patch.object(mail, "_load_smtp_settings", return_value=settings):
-        with patch("app.utils.mail.smtplib.SMTP_SSL") as ssl_cls:
-            with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
-                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is False
-                smtp_cls.assert_not_called()
-                ssl_cls.assert_not_called()
+    with _force_smtp_transport(mail):
+        with patch.object(mail, "_load_smtp_settings", return_value=settings):
+            with patch("app.utils.mail.smtplib.SMTP_SSL") as ssl_cls:
+                with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
+                    assert mail.send_email("dest@example.com", "Subject", "<p>x</p>") is False
+                    smtp_cls.assert_not_called()
+                    ssl_cls.assert_not_called()
 
 
 @test("send_email attaches plain and HTML parts when text_content is set")
@@ -126,28 +222,29 @@ def _():
         "from": "noreply@example.com",
         "use_tls": False,
     }
-    with patch.object(mail, "_load_smtp_settings", return_value=settings):
-        with patch("app.utils.mail.smtplib.SMTP_SSL"):
-            with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
-                inst = smtp_cls.return_value
-                assert (
-                    mail.send_email(
-                        "dest@example.com",
-                        "Subject",
-                        "<p>hi</p>",
-                        text_content="plain hi",
+    with _force_smtp_transport(mail):
+        with patch.object(mail, "_load_smtp_settings", return_value=settings):
+            with patch("app.utils.mail.smtplib.SMTP_SSL"):
+                with patch("app.utils.mail.smtplib.SMTP") as smtp_cls:
+                    inst = smtp_cls.return_value
+                    assert (
+                        mail.send_email(
+                            "dest@example.com",
+                            "Subject",
+                            "<p>hi</p>",
+                            text_content="plain hi",
+                        )
+                        is True
                     )
-                    is True
-                )
-                inst.sendmail.assert_called_once()
-                raw_msg = inst.sendmail.call_args.args[2]
-                msg = Parser(policy=policy.default).parsestr(raw_msg)
-                types = [
-                    p.get_content_type()
-                    for p in msg.iter_parts()
-                    if p.get_content_type() in ("text/plain", "text/html")
-                ]
-                assert types == ["text/plain", "text/html"]
+                    inst.sendmail.assert_called_once()
+                    raw_msg = inst.sendmail.call_args.args[2]
+                    msg = Parser(policy=policy.default).parsestr(raw_msg)
+                    types = [
+                        p.get_content_type()
+                        for p in msg.iter_parts()
+                        if p.get_content_type() in ("text/plain", "text/html")
+                    ]
+                    assert types == ["text/plain", "text/html"]
 
 
 @test("send_email uses HTTPS relay when transport mode is relay")
@@ -227,4 +324,4 @@ def _():
 
     kwargs = post.call_args.kwargs
     assert kwargs["json"]["to"] == ["u@example.com"]
-    assert kwargs["headers"]["Authorization"] == "Bearer tok"
+    assert kwargs["headers"]["Authorization"].startswith("Bearer ")

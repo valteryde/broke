@@ -40,11 +40,14 @@
         window.location.href = url.toString();
     }
 
+    window.__BROKE_USER_DISPLAY_NAMES__ = {{ user_display_names | tojson }};
+
     window.availableUsers = [
         {% for available_user in available_users %}
         {
             id: '{{ available_user.username }}',
             username: '{{ available_user.username }}',
+            name: {{ user_display_names.get(available_user.username, available_user.username) | tojson }},
         },
         {% endfor %}
     ];
@@ -138,12 +141,15 @@
             {% endfor %}
         ];
 
+        window.__BROKE_USER_DISPLAY_NAMES__ = {{ user_display_names | tojson }};
+
         // Available options for dropdowns (globals for List/Shortcuts to use)
         window.availableUsers = [
             {% for available_user in available_users %}
             {
                 id: '{{ available_user.username }}',
                 username: '{{ available_user.username }}',
+                name: {{ user_display_names.get(available_user.username, available_user.username) | tojson }},
             },
             {% endfor %}
         ];
@@ -346,7 +352,7 @@
                         backendField = 'assignees';
                         backendValue = item.assignees.map(u => {
                             const user = window.availableUsers.find(au => au.username === u);
-                            return user ? { username: user.username, id: user.id } : { username: u };
+                            return user ? { username: user.username, id: user.id, name: user.name || user.username } : { username: u };
                         });
                     }
 

@@ -10,6 +10,18 @@ function isTriageContext() {
     return (window.ticketPageContext || 'tickets') === 'triage';
 }
 
+/** Resolve username -> display label using ticket page bootstrap map when present. */
+function brokeAssigneeDisplay(username) {
+    const map = typeof window !== 'undefined' ? window.__BROKE_USER_DISPLAY_NAMES__ : null;
+    const id = String(username || '');
+    if (!id) return '';
+    if (map && Object.prototype.hasOwnProperty.call(map, id)) {
+        const mapped = map[id];
+        if (mapped != null && String(mapped).trim() !== '') return String(mapped);
+    }
+    return id;
+}
+
 function getStatusKeysForPage() {
     if (isTriageContext()) {
         return ['triage'];
@@ -148,7 +160,10 @@ const TicketListConfig = {
                 if (!values || values.length === 0) return true;
                 return values.every(v => element.assignees.includes(v));
             },
-            getOptions: (listInstance) => listInstance.extractAssignees().map(a => ({ value: a, label: a }))
+            getOptions: (listInstance) => listInstance.extractAssignees().map(a => ({
+                value: a,
+                label: brokeAssigneeDisplay(a),
+            }))
         },
         urgency: {
             label: 'Urgency',
@@ -250,7 +265,7 @@ const TicketListConfig = {
             label: 'Assignee',
             icon: 'ph-users',
             getGroupKey: (element) => element.assignees && element.assignees.length > 0 ? element.assignees[0] : 'unassigned',
-            getGroupLabel: (key) => key === 'unassigned' ? 'Unassigned' : key
+            getGroupLabel: (key) => (key === 'unassigned' ? 'Unassigned' : brokeAssigneeDisplay(key)),
         },
         labels: {
             label: 'Label',
@@ -305,7 +320,7 @@ const TicketListConfig = {
                 ${(element.labels || []).map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}
             </span>
             <span class="list-assignees">
-                ${(element.assignees || []).map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${assignee}</span>`).join('')}
+                ${(element.assignees || []).map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${brokeAssigneeDisplay(assignee)}</span>`).join('')}
             </span>
         `;
 
@@ -364,7 +379,7 @@ const TicketListConfig = {
                     new ListModal({
                         title: 'Assign Member',
                         items: window.availableUsers.map(u => ({
-                            label: u.username,
+                            label: u.name || brokeAssigneeDisplay(u.username),
                             value: u.username,
                             avatar: `<svg width="16" height="16" data-jdenticon-value="${u.username}"></svg>`,
                             selected: item.assignees.includes(u.username)

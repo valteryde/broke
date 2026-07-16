@@ -152,7 +152,8 @@
                             <img src="/avatar/{{ user.username }}" alt="{{ user.username }} avatar" class="avatar-preview" width="80" height="80" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
                         </span>
                         <div class="avatar-info">
-                            <span class="avatar-username">{{ user.username }}</span>
+                            <span class="avatar-username">{{ user_label(user.username) }}</span>
+                            <span class="form-hint" style="display: block;">{{ user.username }}</span>
                             <div style="margin-top: 5px; display: flex; gap: 8px; flex-wrap: wrap;">
                                 <input type="file" id="avatar-upload" accept="image/*" style="display: none;" onchange="uploadAvatar(this)">
                                 <button type="button" class="btn btn-secondary" onclick="document.getElementById('avatar-upload').click()">Upload Custom Avatar</button>
@@ -214,6 +215,12 @@
                             <label for="username">Username</label>
                             <input type="text" id="username" name="username" value="{{ user.username }}" disabled class="form-input disabled">
                             <span class="form-hint">Username cannot be changed</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="display_name">Display name</label>
+                            <input type="text" id="display_name" name="display_name" value="{{ user_settings.display_name or '' }}" class="form-input" maxlength="120" autocomplete="name">
+                            <span class="form-hint">Shown across tickets, comments, and the sidebar</span>
                         </div>
 
                         <div class="form-group">
@@ -457,22 +464,32 @@
 
                     <form id="email-form" class="settings-form">
                         <div class="form-group">
-                            <span class="preference-label">How should Broke send mail?</span>
-                            <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 10px;">
-                                <label for="transport-smtp" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
-                                    <input type="radio" id="transport-smtp" name="email_transport" value="smtp" data-skip-pref="1" {% if email_transport != 'relay' %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %} style="margin-top: 4px;">
-                                    <span>
-                                        <strong>Custom SMTP</strong>
-                                        <span class="form-hint" style="display: block; margin-top: 2px;">Connect directly to your mail provider</span>
-                                    </span>
-                                </label>
-                                <label for="transport-relay" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
-                                    <input type="radio" id="transport-relay" name="email_transport" value="relay" data-skip-pref="1" {% if email_transport == 'relay' %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %} style="margin-top: 4px;">
-                                    <span>
-                                        <strong>Email relay</strong>
-                                        <span class="form-hint" style="display: block; margin-top: 2px;">HTTPS relay with bearer token (<code>BROKE_MAIL_RELAY_*</code> optional defaults).</span>
-                                    </span>
-                                </label>
+                            <label class="preference-label">How should Broke send mail?</label>
+                            <div class="preference-group" style="margin-top: 12px;">
+                                <div class="preference-item">
+                                    <div class="preference-info">
+                                        <span class="preference-label">Custom SMTP</span>
+                                        <span class="preference-description">Connect directly to your mail provider</span>
+                                    </div>
+                                    <div class="preference-control">
+                                        <label class="toggle-switch">
+                                            <input type="radio" id="transport-smtp" name="email_transport" value="smtp" data-skip-pref="1" {% if email_transport != 'relay' %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
+                                            <span class="toggle-slider radio-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="preference-item">
+                                    <div class="preference-info">
+                                        <span class="preference-label">Email relay</span>
+                                        <span class="preference-description">HTTPS relay with bearer token (selected by default when <code>BROKE_MAIL_RELAY_*</code> is set)</span>
+                                    </div>
+                                    <div class="preference-control">
+                                        <label class="toggle-switch">
+                                            <input type="radio" id="transport-relay" name="email_transport" value="relay" data-skip-pref="1" {% if email_transport == 'relay' %}checked{% endif %} {% if user.admin != 1 %}disabled{% endif %}>
+                                            <span class="toggle-slider radio-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -851,12 +868,12 @@
                                 </span>
                                 <div class="member-details">
                                     <span class="member-name">
-                                        {{ member.username }}
+                                        {{ user_label(member.username) }}
                                         {% if member.admin == 1 %}
                                         <span class="member-role-badge">Admin</span>
                                         {% endif %}
                                     </span>
-                                    <span class="member-email">{{ member.email }}</span>
+                                    <span class="member-email">{{ member.username }} · {{ member.email }}</span>
                                 </div>
                             </div>
                             {# <div class="member-role">

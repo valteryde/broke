@@ -186,12 +186,18 @@ const TicketBoard = {
         const priorityLabel = priorityKey === 'none' ? 'No priority' : priorityKey;
         const priorityClass = `ticket-priority-${priorityKey.replace(/[^a-z-]/g, '')}`;
         const assignees = Array.isArray(ticket.assignees) ? ticket.assignees : [];
+        const displayMap = typeof window !== 'undefined' ? window.__BROKE_USER_DISPLAY_NAMES__ : null;
         const assigneeHtml = assignees.slice(0, 3).map((username) => {
-            const safeUsername = this.escapeHtml(String(username || 'unknown'));
+            const id = String(username || 'unknown');
+            const labelRaw = displayMap && Object.prototype.hasOwnProperty.call(displayMap, id)
+                ? displayMap[id]
+                : id;
+            const label = this.escapeHtml(String(labelRaw || id));
+            const safeUsername = this.escapeHtml(id);
             return `
-                <span class="ticket-board-assignee-chip" title="${safeUsername}" aria-label="${safeUsername}">
+                <span class="ticket-board-assignee-chip" title="${label}" aria-label="${label}">
                     <svg width="18" height="18" data-jdenticon-value="${safeUsername}"></svg>
-                    <img src="/avatar/${encodeURIComponent(String(username || 'unknown'))}" alt="${safeUsername}" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
+                    <img src="/avatar/${encodeURIComponent(id)}" alt="${label}" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
                 </span>
             `;
         }).join('');

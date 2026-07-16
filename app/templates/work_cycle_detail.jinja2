@@ -85,7 +85,7 @@
                             {% if t.assignees %}
                             <span class="wc-diagram-assignees">
                                 {% for a in t.assignees %}
-                                <span title="{{ a.username }}">
+                                <span title="{{ user_label(a.username) }}">
                                     <svg width="22" height="22" data-jdenticon-value="{{ a.username }}"></svg>
                                 </span>
                                 {% endfor %}

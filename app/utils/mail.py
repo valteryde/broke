@@ -63,6 +63,15 @@ def _load_smtp_settings() -> dict:
 
 
 def _default_email_transport_settings() -> dict:
+    """Default transport when nothing is saved in GlobalSetting.
+
+    SaaS-managed instances inject ``BROKE_MAIL_RELAY_BASE_URL`` +
+    ``BROKE_MAIL_RELAY_TOKEN``; prefer the HTTPS relay in that case so outbound
+    mail works without an admin visiting Settings. Self-hosted installs without
+    those env vars keep the SMTP default.
+    """
+    if relay_base_url_from_environment() and relay_token_from_environment():
+        return {"transport": "relay", "relay_base_url": "", "relay_token": ""}
     return {"transport": "smtp", "relay_base_url": "", "relay_token": ""}
 
 
@@ -74,6 +83,7 @@ def load_email_transport_settings() -> dict:
             if record and record.value:
                 stored = json.loads(record.value)
                 if isinstance(stored, dict):
+                    # A saved preference always wins over the env-based default.
                     transport = str(stored.get("transport") or "smtp").strip().lower()
                     out["transport"] = transport if transport in ("smtp", "relay") else "smtp"
                     out["relay_base_url"] = str(stored.get("relay_base_url") or "").strip().rstrip("/")

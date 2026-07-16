@@ -375,6 +375,22 @@ def create_app():  # noqa: C901
             "instance_logo_alt": alt,
         }
 
+    @app.template_global()
+    def user_label(username):  # noqa: ANN001
+        """Human-facing name: UserSettings.display_name when set, else username."""
+        from flask import g
+
+        from .user_display import build_all_display_name_map
+
+        if username is None:
+            return ""
+        un = str(username).strip()
+        if not un:
+            return ""
+        if getattr(g, "_broke_display_name_map", None) is None:
+            g._broke_display_name_map = build_all_display_name_map()
+        return g._broke_display_name_map.get(un, un)
+
     # Register blueprints
     from ..views import (
         agent_bp,
