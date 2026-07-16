@@ -905,39 +905,16 @@
 }
 
 .error-list-row {
-    position: relative;
     gap: 14px;
     margin-bottom: 0;
-    padding-left: 10px;
     align-items: center;
-}
-
-.error-urgency-rail {
-    position: absolute;
-    left: 0;
-    top: 4px;
-    bottom: 4px;
-    width: 3px;
-    border-radius: 2px;
-    background: var(--error-urgency-cold);
-}
-
-.error-list-row[data-urgency="hot"] .error-urgency-rail {
-    width: 4px;
-    background: var(--error-urgency-hot);
-}
-
-.error-list-row[data-urgency="warm"] .error-urgency-rail {
-    background: var(--error-urgency-warm);
-}
-
-.error-list-row[data-urgency="cold"] .error-urgency-rail {
-    background: var(--error-urgency-cold);
 }
 
 .error-list-text {
     min-width: 0;
     flex: 1 1 auto;
+    text-wrap: wrap;
+    white-space: normal;
 }
 
 .error-list-text h3 {
@@ -945,10 +922,27 @@
     font-size: 0.95rem;
     font-weight: 600;
     line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .error-list-row[data-urgency="hot"] .error-list-text h3 {
     font-weight: 700;
+}
+
+.error-list-text .list-element-description {
+    position: static;
+    top: auto;
+    max-width: 36rem;
+    height: auto;
+    margin: 2px 0 0;
+    font-size: 0.85rem;
+    line-height: 1.3;
+    color: #334155;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .error-list-culprit {
@@ -1036,18 +1030,6 @@
     font-size: 0.8rem;
 }
 
-.error-inline-actions {
-    display: inline-flex;
-    gap: 0.35rem;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.error-inline-actions .error-inline-action {
-    padding: 0.15rem 0.4rem;
-    font-size: 0.75rem;
-}
-
 .list-group-header.error-attention-group {
     border-left: 3px solid var(--error-attention-quiet);
     padding-left: 10px;
@@ -1082,7 +1064,6 @@
     .error-list-row {
         flex-wrap: wrap;
         gap: 8px 12px;
-        padding-left: 12px;
     }
 
     .error-list-signals {
@@ -1094,13 +1075,15 @@
         order: 4;
     }
 
-    .error-inline-actions {
-        order: 5;
-        width: 100%;
-    }
-
     .error-list-text {
         flex: 1 1 100%;
         order: 2;
+    }
+
+    .error-list-text .list-element-description {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
     }
 }

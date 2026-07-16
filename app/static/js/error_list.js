@@ -266,37 +266,19 @@ const ErrorListConfig = {
             badges.push('<span class="error-triage-badge error-triage-badge-new">New</span>');
         }
 
-        const actions = [];
-        if (element.status !== 'resolved') {
-            actions.push(
-                `<button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="resolved" title="Resolve">Resolve</button>`
-            );
-        }
-        if (element.status !== 'ignored') {
-            actions.push(
-                `<button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="ignored" title="Ignore">Ignore</button>`
-            );
-        }
-        if (element.status !== 'unresolved') {
-            actions.push(
-                `<button class="btn btn-secondary error-inline-action" data-error-id="${element.id}" data-status="unresolved" title="Reopen">Reopen</button>`
-            );
-        }
-
         inner.className = 'list-element-inner error-list-row';
         inner.dataset.urgency = band;
         inner.dataset.status = element.status || 'unresolved';
 
         inner.innerHTML = `
-            <span class="error-urgency-rail" aria-hidden="true"></span>
             <span class="list-element-id">E-${escapeHtml(element.id)}</span>
             <span class="list-status" style="--status-color: ${statusColor}" title="${escapeHtml(element.status)}">
                 <i class="ph ${statusIcon}"></i>
             </span>
             <span class="list-element-text error-list-text">
                 <h3>${escapeHtml(element.title || 'Error')}</h3>
-                <p class="list-element-description">${escapeHtml(element.description || '')}</p>
                 ${partName ? `<p class="error-list-part">${escapeHtml(partName)}</p>` : ''}
+                <p class="list-element-description">${escapeHtml(element.description || '')}</p>
                 ${culprit ? `<p class="error-list-culprit">${escapeHtml(culprit)}</p>` : ''}
             </span>
             <span class="error-list-signals">
@@ -307,17 +289,8 @@ const ErrorListConfig = {
             <span class="error-list-meta">
                 ${lastSeenLabel ? `<span class="error-last-seen"><i class="ph ph-clock"></i> ${escapeHtml(lastSeenLabel)}</span>` : ''}
             </span>
-            <span class="list-inline-actions error-inline-actions">
-                ${actions.join('')}
-            </span>
         `;
 
-        inner.querySelectorAll('.error-inline-action').forEach((button) => {
-            button.addEventListener('click', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-            });
-        });
         return inner;
     },
 

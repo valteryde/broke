@@ -3,6 +3,11 @@
  * Modern error viewer with stacktrace and metadata
  */
 
+:root {
+    --error-accent: #dc2626;
+    --error-accent-soft: #ef4444;
+}
+
 /* ================================
    PAGE LAYOUT
    ================================ */
@@ -89,7 +94,7 @@
 }
 
 .error-culprit i {
-    color: var(--logo-blue);
+    color: var(--error-accent);
 }
 
 .error-culprit code {
@@ -208,7 +213,7 @@
 }
 
 .frame-lineno {
-    color: var(--logo-blue);
+    color: var(--error-accent);
     font-weight: 500;
 }
 
@@ -374,7 +379,7 @@
 
 .chart-bar {
     flex: 1;
-    background: var(--logo-blue);
+    background: var(--error-accent-soft);
     border-radius: 3px 3px 0 0;
     height: var(--bar-height, 0%);
     min-height: 4px;
@@ -512,8 +517,8 @@
 }
 
 .action-btn.active {
-    background: var(--logo-blue);
-    border-color: var(--logo-blue);
+    background: var(--error-accent);
+    border-color: var(--error-accent);
     color: white;
 }
 
@@ -669,14 +674,14 @@
     .error-page {
         flex-direction: column;
     }
-    
+
     .error-sidebar {
         width: 100%;
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 16px;
     }
-    
+
     .sidebar-section {
         margin-bottom: 0;
     }
@@ -686,15 +691,15 @@
     .error-page {
         padding: 12px;
     }
-    
+
     .error-sidebar {
         grid-template-columns: 1fr;
     }
-    
+
     .stat-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .stat-grid .stat-item:first-child {
         grid-column: span 1;
     }
