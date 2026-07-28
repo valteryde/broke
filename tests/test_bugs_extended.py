@@ -768,7 +768,7 @@ def _(c=auth_client, part=error_project_part):
         error.delete_instance()
 
 
-@test("/errors/<part_id> renders inline row status actions")
+@test("/errors/<part_id> wires status updates through list onUpdate")
 def _(c=auth_client, part=error_project_part):
     error = ErrorGroup.create(
         part=part,
@@ -786,8 +786,13 @@ def _(c=auth_client, part=error_project_part):
         response = c.get(f"/errors/{part.id}")
         assert response.status_code == 200
         body = response.data.decode("utf-8")
-        assert "error-inline-action" in body
-        assert "errorList.handleUpdate(item, 'status', newStatus)" in body
+        assert "js/error_list.js" in body
+        assert "status: \"unresolved\"" in body
+        assert "errorList.handleUpdate" in body or "onUpdate:" in body
+        js = c.get("/static/js/error_list.js")
+        assert js.status_code == 200
+        js_body = js.data.decode("utf-8")
+        assert "handleUpdate(item, 'status'" in js_body
     finally:
         ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
         error.delete_instance()

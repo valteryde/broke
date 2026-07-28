@@ -109,10 +109,10 @@ def _extract_tar_to_data_dir(tf: tarfile.TarFile, dest: Path) -> int:
     members = tf.getmembers()
     for m in members:
         _restore_member_destination(m.name, dest)
-    extract_kw = {}
-    if sys.version_info >= (3, 12):
-        extract_kw["filter"] = "data"
-    tf.extractall(path=dest, **extract_kw)
+        extract_kw = {}
+        if sys.version_info >= (3, 12):
+            extract_kw["filter"] = "data"
+        tf.extract(m, path=dest, **extract_kw)
     return len(members)
 
 
