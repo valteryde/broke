@@ -1,7 +1,10 @@
 /**
  * Error Detail Page JavaScript
- * Handles stacktrace expansion, syntax highlighting, and time formatting
+ * Handles stacktrace expansion, syntax highlighting, vars tree, and time formatting
  */
+
+const VARS_MAX_CHILDREN = 50;
+const VARS_AUTO_EXPAND_DEPTH = 2;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Format all timestamps
@@ -11,7 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const firstInAppFrame = document.querySelector('.stacktrace-frame.in-app');
     if (firstInAppFrame) {
         firstInAppFrame.setAttribute('data-expanded', 'true');
-        setTimeout(() => highlightFrameCode(firstInAppFrame), 0);
+        setTimeout(() => {
+            highlightFrameCode(firstInAppFrame);
+            initFrameVarsViewer(firstInAppFrame);
+        }, 0);
     }
 });
 
@@ -134,9 +140,12 @@ function toggleFrame(headerElement) {
     const isExpanded = frame.getAttribute('data-expanded') === 'true';
     frame.setAttribute('data-expanded', !isExpanded);
 
-    // Highlight code when expanding
+    // Highlight code and init vars when expanding
     if (!isExpanded) {
-        setTimeout(() => highlightFrameCode(frame), 0);
+        setTimeout(() => {
+            highlightFrameCode(frame);
+            initFrameVarsViewer(frame);
+        }, 0);
     }
 }
 
@@ -150,7 +159,10 @@ function toggleAllFrames() {
     frames.forEach(frame => {
         frame.setAttribute('data-expanded', !allExpanded);
         if (!allExpanded) {
-            setTimeout(() => highlightFrameCode(frame), 0);
+            setTimeout(() => {
+                highlightFrameCode(frame);
+                initFrameVarsViewer(frame);
+            }, 0);
         }
     });
 
@@ -163,6 +175,366 @@ function toggleAllFrames() {
             btn.innerHTML = '<i class="ph ph-arrows-in-simple"></i> Collapse All';
         }
     }
+}
+
+/**
+ * Lazy-init interactive local-variables viewer for a stack frame.
+ */
+function initFrameVarsViewer(frame) {
+    const root = frame.querySelector('.frame-vars');
+    if (!root || root.dataset.varsReady === 'true') {
+        return;
+    }
+
+    let varsData;
+    let truncations;
+    try {
+        varsData = JSON.parse(root.getAttribute('data-vars') || '{}');
+        truncations = JSON.parse(root.getAttribute('data-truncations') || '{}');
+    } catch (err) {
+        console.error('Failed to parse frame vars JSON', err);
+        return;
+    }
+
+    if (!varsData || typeof varsData !== 'object' || Array.isArray(varsData)) {
+        varsData = {};
+    }
+    if (!truncations || typeof truncations !== 'object') {
+        truncations = {};
+    }
+
+    const mount = root.querySelector('.frame-vars-mount');
+    if (!mount) {
+        return;
+    }
+
+    const state = {
+        vars: varsData,
+        truncations,
+        mode: 'tree',
+        mount,
+        root,
+    };
+
+    root._varsState = state;
+    root.dataset.varsReady = 'true';
+
+    root.querySelectorAll('[data-vars-action]').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            handleVarsAction(root, btn.getAttribute('data-vars-action'));
+        });
+    });
+
+    mount.hidden = false;
+    renderVarsMount(state);
+}
+
+function handleVarsAction(root, action) {
+    const state = root._varsState;
+    if (!state) {
+        return;
+    }
+
+    if (action === 'mode-tree') {
+        state.mode = 'tree';
+        setVarsModeButtons(root, 'tree');
+        renderVarsMount(state);
+        return;
+    }
+    if (action === 'mode-raw') {
+        state.mode = 'raw';
+        setVarsModeButtons(root, 'raw');
+        renderVarsMount(state);
+        return;
+    }
+    if (action === 'expand-all') {
+        state.mount.querySelectorAll('.vars-node[data-expandable="true"]').forEach((node) => {
+            setVarsNodeExpanded(node, true);
+        });
+        return;
+    }
+    if (action === 'collapse-all') {
+        state.mount.querySelectorAll('.vars-node[data-expandable="true"]').forEach((node) => {
+            setVarsNodeExpanded(node, false);
+        });
+    }
+}
+
+function setVarsModeButtons(root, mode) {
+    const treeBtn = root.querySelector('[data-vars-action="mode-tree"]');
+    const rawBtn = root.querySelector('[data-vars-action="mode-raw"]');
+    if (treeBtn) {
+        treeBtn.classList.toggle('is-active', mode === 'tree');
+    }
+    if (rawBtn) {
+        rawBtn.classList.toggle('is-active', mode === 'raw');
+    }
+}
+
+function renderVarsMount(state) {
+    const { mount, mode, vars, truncations } = state;
+    while (mount.firstChild) {
+        mount.removeChild(mount.firstChild);
+    }
+
+    if (mode === 'raw') {
+        const pre = document.createElement('pre');
+        pre.className = 'frame-vars-raw';
+        const code = document.createElement('code');
+        code.className = 'language-json';
+        code.textContent = JSON.stringify(vars, null, 2);
+        pre.appendChild(code);
+        mount.appendChild(pre);
+        if (typeof hljs !== 'undefined') {
+            hljs.highlightElement(code);
+        }
+        return;
+    }
+
+    const tree = document.createElement('div');
+    tree.className = 'frame-vars-tree';
+
+    Object.keys(vars).forEach((name) => {
+        tree.appendChild(buildVarsRootRow(name, vars[name], truncations[name]));
+    });
+
+    mount.appendChild(tree);
+}
+
+function buildVarsRootRow(name, value, truncation) {
+    const row = document.createElement('div');
+    row.className = 'vars-root';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'vars-root-name';
+    nameEl.textContent = name;
+    row.appendChild(nameEl);
+
+    const body = document.createElement('div');
+    body.className = 'vars-root-body';
+    body.appendChild(buildVarsNode(null, normalizeVarValue(value), 0, true));
+
+    if (truncation && truncation.label) {
+        const trunc = document.createElement('span');
+        trunc.className = 'var-truncated';
+        trunc.title = truncation.label;
+        trunc.textContent = truncation.label;
+        body.appendChild(trunc);
+    }
+    row.appendChild(body);
+
+    const actions = document.createElement('div');
+    actions.className = 'vars-root-actions';
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'vars-copy-btn';
+    copyBtn.title = 'Copy value';
+    copyBtn.innerHTML = '<i class="ph ph-copy"></i>';
+    copyBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        copyVarValue(value);
+    });
+    actions.appendChild(copyBtn);
+    row.appendChild(actions);
+
+    return row;
+}
+
+function normalizeVarValue(value) {
+    if (typeof value !== 'string') {
+        return value;
+    }
+    const trimmed = value.trim();
+    if (
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    ) {
+        try {
+            return JSON.parse(trimmed);
+        } catch (_err) {
+            return value;
+        }
+    }
+    return value;
+}
+
+function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function buildVarsNode(key, value, depth, isRoot) {
+    const node = document.createElement('div');
+    node.className = 'vars-node';
+    node.setAttribute('data-depth', String(depth));
+
+    const row = document.createElement('div');
+    row.className = 'vars-node-row';
+
+    const expandable = Array.isArray(value) || isPlainObject(value);
+    node.setAttribute('data-expandable', expandable ? 'true' : 'false');
+
+    if (expandable) {
+        const expanded = depth < VARS_AUTO_EXPAND_DEPTH;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'vars-toggle';
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        toggle.innerHTML = expanded
+            ? '<i class="ph ph-caret-down"></i>'
+            : '<i class="ph ph-caret-right"></i>';
+        toggle.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const next = toggle.getAttribute('aria-expanded') !== 'true';
+            setVarsNodeExpanded(node, next);
+        });
+        row.appendChild(toggle);
+
+        if (key !== null && key !== undefined) {
+            const keyEl = document.createElement('span');
+            keyEl.className = 'vars-key';
+            keyEl.textContent = String(key);
+            row.appendChild(keyEl);
+            const colon = document.createElement('span');
+            colon.className = 'vars-colon';
+            colon.textContent = ':';
+            row.appendChild(colon);
+        }
+
+        const preview = document.createElement('span');
+        preview.className = 'vars-preview';
+        preview.textContent = collectionPreview(value);
+        row.appendChild(preview);
+        node.appendChild(row);
+
+        const children = document.createElement('div');
+        children.className = 'vars-children';
+        children.hidden = !expanded;
+        appendCollectionChildren(children, value, depth + 1);
+        node.appendChild(children);
+        node._varsToggle = toggle;
+        node._varsChildren = children;
+        node._varsPreview = preview;
+        return node;
+    }
+
+    if (!isRoot) {
+        const spacer = document.createElement('span');
+        spacer.className = 'vars-toggle-spacer';
+        row.appendChild(spacer);
+    }
+
+    if (key !== null && key !== undefined) {
+        const keyEl = document.createElement('span');
+        keyEl.className = 'vars-key';
+        keyEl.textContent = String(key);
+        row.appendChild(keyEl);
+        const colon = document.createElement('span');
+        colon.className = 'vars-colon';
+        colon.textContent = ':';
+        row.appendChild(colon);
+    }
+
+    row.appendChild(renderScalar(value));
+    node.appendChild(row);
+    return node;
+}
+
+function collectionPreview(value) {
+    if (Array.isArray(value)) {
+        return `Array(${value.length})`;
+    }
+    const count = Object.keys(value).length;
+    return `Object(${count} ${count === 1 ? 'key' : 'keys'})`;
+}
+
+function appendCollectionChildren(container, value, depth) {
+    if (Array.isArray(value)) {
+        const shown = value.slice(0, VARS_MAX_CHILDREN);
+        shown.forEach((item, index) => {
+            container.appendChild(buildVarsNode(index, normalizeVarValue(item), depth, false));
+        });
+        if (value.length > VARS_MAX_CHILDREN) {
+            const more = document.createElement('div');
+            more.className = 'vars-more';
+            more.textContent = `… ${value.length - VARS_MAX_CHILDREN} more`;
+            container.appendChild(more);
+        }
+        return;
+    }
+
+    const keys = Object.keys(value);
+    const shownKeys = keys.slice(0, VARS_MAX_CHILDREN);
+    shownKeys.forEach((childKey) => {
+        container.appendChild(
+            buildVarsNode(childKey, normalizeVarValue(value[childKey]), depth, false)
+        );
+    });
+    if (keys.length > VARS_MAX_CHILDREN) {
+        const more = document.createElement('div');
+        more.className = 'vars-more';
+        more.textContent = `… ${keys.length - VARS_MAX_CHILDREN} more`;
+        container.appendChild(more);
+    }
+}
+
+function setVarsNodeExpanded(node, expanded) {
+    const toggle = node._varsToggle;
+    const children = node._varsChildren;
+    if (!toggle || !children) {
+        return;
+    }
+    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    toggle.innerHTML = expanded
+        ? '<i class="ph ph-caret-down"></i>'
+        : '<i class="ph ph-caret-right"></i>';
+    children.hidden = !expanded;
+}
+
+function renderScalar(value) {
+    const el = document.createElement('span');
+    if (value === null) {
+        el.className = 'vars-null';
+        el.textContent = 'null';
+        return el;
+    }
+    if (value === undefined) {
+        el.className = 'vars-null';
+        el.textContent = 'undefined';
+        return el;
+    }
+    const type = typeof value;
+    if (type === 'string') {
+        el.className = 'vars-string';
+        el.textContent = JSON.stringify(value);
+        return el;
+    }
+    if (type === 'number') {
+        el.className = 'vars-number';
+        el.textContent = String(value);
+        return el;
+    }
+    if (type === 'boolean') {
+        el.className = 'vars-boolean';
+        el.textContent = value ? 'true' : 'false';
+        return el;
+    }
+    el.className = 'vars-null';
+    el.textContent = String(value);
+    return el;
+}
+
+function copyVarValue(value) {
+    let text;
+    try {
+        text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    } catch (_err) {
+        text = String(value);
+    }
+    copyToClipboard(text);
 }
 
 /**

@@ -27,6 +27,8 @@ import base64
 from logging import getLogger
 from urllib.parse import urlparse
 
+from ..utils.sentry_meta import annotate_frame_var_truncations
+
 logger = getLogger(__name__)
 
 # Create blueprint
@@ -439,6 +441,7 @@ def handle_event_item(part: ProjectPart, payload: dict, event_id: str | None = N
     contexts = json.dumps(payload.get("contexts", {})) if payload.get("contexts") else None
     tags = json.dumps(payload.get("tags", {})) if payload.get("tags") else None
     extra = json.dumps(payload.get("extra", {})) if payload.get("extra") else None
+    event_meta = json.dumps(payload["_meta"]) if payload.get("_meta") else None
 
     timestamp = int(time.time())
 
@@ -455,6 +458,9 @@ def handle_event_item(part: ProjectPart, payload: dict, event_id: str | None = N
         # Regression detection: reopen issues that were previously resolved.
         if error_group.status == "resolved":
             error_group.status = "unresolved"
+        # Backfill truncation meta when the first occurrence had none.
+        if not error_group.event_meta and event_meta:
+            error_group.event_meta = event_meta
         error_group.save()
         is_new = False
     except DoesNotExist:
@@ -475,6 +481,7 @@ def handle_event_item(part: ProjectPart, payload: dict, event_id: str | None = N
             contexts=contexts,
             tags=tags,
             extra=extra,
+            event_meta=event_meta,
             event_count=1,
             first_seen=timestamp,
             last_seen=timestamp,
@@ -760,6 +767,18 @@ def error_detail_view(user: User, part_id: int, error_id: int):
             stacktrace_frames = list(reversed(frames))
         except json.JSONDecodeError:
             pass
+
+    event_meta = None
+    if error.event_meta:
+        try:
+            event_meta = json.loads(error.event_meta)
+        except json.JSONDecodeError:
+            event_meta = None
+
+    if stacktrace_frames:
+        annotate_frame_var_truncations(
+            stacktrace_frames, event_meta, reversed_for_display=True
+        )
 
     # Parse contexts JSON
     contexts = {}

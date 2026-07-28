@@ -84,16 +84,37 @@
                             {% endif %}
 
                             {% if frame.vars %}
-                            <div class="frame-vars">
-                                <h4>Local Variables</h4>
-                                <table>
-                                    {% for var_name, var_value in frame.vars.items() %}
-                                    <tr>
-                                        <td class="var-name">{{ var_name|safe }}</td>
-                                        <td class="var-value"><code class="language-{{ lang }}">{{ var_value|e }}</code></td>
-                                    </tr>
-                                    {% endfor %}
-                                </table>
+                            <div class="frame-vars"
+                                 data-vars='{{ frame.vars | tojson }}'
+                                 data-truncations='{{ (frame._var_truncations or {}) | tojson }}'>
+                                <div class="frame-vars-header">
+                                    <h4>Local Variables</h4>
+                                    <div class="frame-vars-actions">
+                                        <button type="button" class="frame-vars-action" data-vars-action="expand-all" title="Expand all nested values">Expand all</button>
+                                        <button type="button" class="frame-vars-action" data-vars-action="collapse-all" title="Collapse nested values">Collapse all</button>
+                                        <button type="button" class="frame-vars-action is-active" data-vars-action="mode-tree" title="Tree view">Tree</button>
+                                        <button type="button" class="frame-vars-action" data-vars-action="mode-raw" title="Raw JSON">Raw</button>
+                                    </div>
+                                </div>
+                                {% if frame._var_truncations %}
+                                <p class="vars-truncated-notice" title="The SDK truncated some values before sending this event. Original sizes are shown below.">
+                                    Some values were truncated by the Sentry SDK — shown lists may be incomplete.
+                                </p>
+                                {% endif %}
+                                <div class="frame-vars-mount" hidden></div>
+                                <noscript>
+                                    <ul class="frame-vars-fallback">
+                                        {% for var_name, var_value in frame.vars.items() %}
+                                        <li>
+                                            <span class="var-name">{{ var_name|e }}</span>
+                                            <code>{{ var_value|e }}</code>
+                                            {% if frame._var_truncations and var_name in frame._var_truncations %}
+                                            <span class="var-truncated">{{ frame._var_truncations[var_name].label }}</span>
+                                            {% endif %}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </noscript>
                             </div>
                             {% endif %}
                         </div>
@@ -319,6 +340,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/php.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
 
 <script src="{{ url_for('static', filename='js/config.js') }}"></script>
 <script src="{{ url_for('static', filename='js/modal.js') }}"></script>

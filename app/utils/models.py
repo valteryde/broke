@@ -125,6 +125,7 @@ class ErrorGroup(BaseModel):
     contexts = CharField(null=True)  # OS, browser, device info as JSON
     tags = CharField(null=True)  # Tags as JSON
     extra = CharField(null=True)  # Extra data as JSON
+    event_meta = TextField(null=True)  # Sentry _meta JSON (truncation / rem annotations)
 
     # Aggregation
     event_count = IntegerField(default=1)
@@ -490,6 +491,7 @@ def initialize_db():
     _ensure_project_settings_column()
     _ensure_project_archived_column()
     _ensure_errorgroup_escalation_spike_column()
+    _ensure_errorgroup_event_meta_column()
     _ensure_monitor_last_response_ms_column()
     database.close()
 
@@ -563,6 +565,12 @@ def _ensure_errorgroup_escalation_spike_column() -> None:
         database.execute_sql(
             "ALTER TABLE errorgroup ADD COLUMN last_escalation_spike_email_at INTEGER;"
         )
+
+
+def _ensure_errorgroup_event_meta_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(errorgroup);").fetchall()]
+    if columns and "event_meta" not in columns:
+        database.execute_sql("ALTER TABLE errorgroup ADD COLUMN event_meta TEXT;")
 
 
 def _ensure_monitor_last_response_ms_column() -> None:

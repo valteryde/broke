@@ -791,3 +791,204 @@ def _(c=auth_client, part=error_project_part):
     finally:
         ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
         error.delete_instance()
+
+
+@test("handle_event_item stores Sentry _meta as event_meta")
+def _(part=error_project_part):
+    from app.views.bug import handle_event_item
+
+    payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "ZeroDivisionError",
+                    "value": "division by zero",
+                    "stacktrace": {
+                        "frames": [
+                            {
+                                "module": "app",
+                                "function": "run",
+                                "vars": {"items": list(range(10))},
+                            }
+                        ]
+                    },
+                }
+            ]
+        },
+        "platform": "python",
+        "event_id": "meta-store-1",
+        "_meta": {
+            "exception": {
+                "values": {
+                    "0": {
+                        "stacktrace": {
+                            "frames": {
+                                "0": {
+                                    "vars": {
+                                        "items": {"": {"len": 25, "rem": [["!limit", "x"]]}}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+    with patch("app.views.bug.bus.emit"):
+        error_group = handle_event_item(part, payload, "meta-store-1")
+
+    try:
+        assert error_group.event_meta is not None
+        stored = json.loads(error_group.event_meta)
+        assert (
+            stored["exception"]["values"]["0"]["stacktrace"]["frames"]["0"]["vars"]["items"][""][
+                "len"
+            ]
+            == 25
+        )
+    finally:
+        ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error_group).execute()
+        error_group.delete_instance()
+
+
+@test("handle_event_item backfills event_meta when first occurrence had none")
+def _(part=error_project_part):
+    from app.views.bug import handle_event_item
+
+    base_payload = {
+        "exception": {
+            "values": [
+                {
+                    "type": "RuntimeError",
+                    "value": "meta backfill",
+                    "stacktrace": {"frames": [{"module": "app", "function": "go"}]},
+                }
+            ]
+        },
+        "platform": "python",
+    }
+
+    with patch("app.views.bug.bus.emit"):
+        first = handle_event_item(part, {**base_payload, "event_id": "bf-1"}, "bf-1")
+        assert first.event_meta is None
+
+        second = handle_event_item(
+            part,
+            {
+                **base_payload,
+                "event_id": "bf-2",
+                "_meta": {"exception": {"values": {"0": {"": {"len": 1}}}}},
+            },
+            "bf-2",
+        )
+
+    try:
+        assert second.id == first.id
+        assert second.event_meta is not None
+        assert json.loads(second.event_meta)["exception"]["values"]["0"][""]["len"] == 1
+    finally:
+        ErrorOccurrence.delete().where(ErrorOccurrence.error_group == first).execute()
+        first.delete_instance()
+
+
+@test("error detail shows truncation notice for truncated frame vars")
+def _(c=auth_client, part=error_project_part):
+    stacktrace = {
+        "frames": [
+            {
+                "filename": "app.py",
+                "function": "run",
+                "lineno": 10,
+                "context_line": "raise ZeroDivisionError()",
+                "vars": {"items": list(range(10))},
+            }
+        ]
+    }
+    event_meta = {
+        "exception": {
+            "values": {
+                "0": {
+                    "stacktrace": {
+                        "frames": {
+                            "0": {
+                                "vars": {
+                                    "items": {"": {"len": 42, "rem": [["!limit", "x"]]}}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    error = ErrorGroup.create(
+        part=part,
+        fingerprint=f"trunc-detail-{int(time.time() * 1000000)}",
+        exception_type="ZeroDivisionError",
+        exception_value="division by zero",
+        platform="python",
+        stacktrace=json.dumps(stacktrace),
+        event_meta=json.dumps(event_meta),
+        event_count=1,
+        status="unresolved",
+    )
+
+    try:
+        response = c.get(f"/errors/{part.id}/{error.id}")
+        assert response.status_code == 200
+        body = response.data.decode("utf-8")
+        assert "data-vars=" in body
+        assert "frame-vars-mount" in body
+        assert "Some values were truncated by the Sentry SDK" in body
+        assert "truncated · originally 42 items" in body
+        assert "frame-vars-action" in body
+    finally:
+        ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
+        error.delete_instance()
+
+
+@test("error detail embeds structured vars for interactive viewer")
+def _(c=auth_client, part=error_project_part):
+    stacktrace = {
+        "frames": [
+            {
+                "filename": "app.py",
+                "function": "run",
+                "lineno": 3,
+                "in_app": True,
+                "context_line": "print(payload)",
+                "vars": {
+                    "payload": {"users": [{"id": 1}, {"id": 2}], "ok": True},
+                    "count": 2,
+                },
+            }
+        ]
+    }
+    error = ErrorGroup.create(
+        part=part,
+        fingerprint=f"vars-viewer-{int(time.time() * 1000000)}",
+        exception_type="RuntimeError",
+        exception_value="boom",
+        platform="python",
+        stacktrace=json.dumps(stacktrace),
+        event_count=1,
+        status="unresolved",
+    )
+
+    try:
+        response = c.get(f"/errors/{part.id}/{error.id}")
+        assert response.status_code == 200
+        body = response.data.decode("utf-8")
+        assert 'data-vars="' in body or "data-vars='" in body
+        assert "frame-vars-mount" in body
+        assert "Expand all" in body
+        assert "mode-raw" in body
+        # Structured JSON embedded via |tojson in a single-quoted attribute
+        assert '"users"' in body
+        assert '"ok"' in body
+        assert '"count"' in body
+    finally:
+        ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
+        error.delete_instance()
