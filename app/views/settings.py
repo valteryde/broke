@@ -27,6 +27,8 @@ from ..utils.models import (
     DSNToken,
     GlobalSetting,
     Label,
+    MetricsHost,
+    MetricsToken,
     Project,
     ProjectPart,
     Ticket,
@@ -45,7 +47,7 @@ from ..utils.notifications import (
     save_notification_engine_settings,
 )
 from ..utils.reltime import time_ago
-from ..utils.features import FEATURE_UPDATER, is_feature_enabled
+from ..utils.features import FEATURE_METRICS, FEATURE_UPDATER, is_feature_enabled
 from ..utils.security import protected
 
 # Create blueprint
@@ -102,13 +104,17 @@ def docs_agent_integration(user: User):
 def settings_section_view(user: User, section: str):  # noqa: C901
     """Render settings page for a specific section"""
 
-    admin_only_sections = {"email", "webhooks", "sentry", "ai", "branding"}
+    admin_only_sections = {"email", "webhooks", "sentry", "ai", "branding", "metrics"}
     if section in admin_only_sections and user.admin != 1:
         flash("Unauthorized. Admins only.", "error")
         return redirect(url_for("settings.settings_section_view", section="profile"))
 
     if section == "updates" and not is_feature_enabled(FEATURE_UPDATER):
         flash("Updates are disabled on this instance.", "error")
+        return redirect(url_for("settings.settings_section_view", section="profile"))
+
+    if section == "metrics" and not is_feature_enabled(FEATURE_METRICS):
+        flash("Metrics are disabled on this instance.", "error")
         return redirect(url_for("settings.settings_section_view", section="profile"))
 
     # Map sections to their display titles
@@ -125,6 +131,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         "api": "API & Tokens",
         "webhooks": "Webhooks",
         "sentry": "Sentry Integration",
+        "metrics": "Server Metrics",
         "updates": "Updates",
         "trash": "Trash",
         "anonymous": "Anonymous Access",
@@ -245,6 +252,16 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         except DoesNotExist:
             context["dsn_token"] = None
             context["dsn_token_preview"] = ""
+
+    elif section == "metrics":
+        from ..utils import metrics_store
+
+        context["base_url"] = request.host_url.rstrip("/")
+        context["metrics_tokens"] = list(
+            MetricsToken.select().order_by(MetricsToken.created_at.desc())
+        )
+        context["metrics_hosts"] = list(MetricsHost.select().order_by(MetricsHost.hostname))
+        context["metrics_stats"] = metrics_store.store_stats()
 
     elif section == "branding":
         from ..utils.public_site import show_public_home
@@ -1182,6 +1199,51 @@ def api_revoke_dsn_token(user: User):
         return json.dumps({"success": True}), 200
     else:
         return json.dumps({"error": "No DSN token exists"}), 404
+
+
+# ============ Metrics Token Endpoints ============
+
+
+@settings_bp.route("/api/settings/metrics-tokens", methods=["POST"])
+@protected
+def api_create_metrics_token(user: User):
+    """Issue a metrics token. Several may coexist so one host can be revoked alone."""
+
+    if user.admin != 1:
+        return jsonify({"error": "Unauthorized. Admins only."}), 403
+    if not is_feature_enabled(FEATURE_METRICS):
+        return jsonify({"error": "Metrics are disabled on this instance"}), 404
+
+    from ..utils.metrics_auth import generate_token, hash_token
+
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name") or "").strip() or "Telegraf"
+    if len(name) > 80:
+        name = name[:80]
+
+    token = generate_token()
+    row = MetricsToken.create(
+        name=name,
+        token_hash=hash_token(token),
+        token_preview=token[:8],
+        created_at=int(time.time()),
+    )
+    return jsonify({"success": True, "token": token, "token_id": row.id, "name": name}), 200
+
+
+@settings_bp.route("/api/settings/metrics-tokens/<int:token_id>", methods=["DELETE"])
+@protected
+def api_revoke_metrics_token(user: User, token_id: int):
+    """Revoke a single metrics token."""
+
+    if user.admin != 1:
+        return jsonify({"error": "Unauthorized. Admins only."}), 403
+
+    row = MetricsToken.get_or_none(MetricsToken.id == token_id)
+    if not row:
+        return jsonify({"error": "Token not found"}), 404
+    row.delete_instance()
+    return jsonify({"success": True}), 200
 
 
 @settings_bp.route("/api/settings/projects", methods=["POST"])

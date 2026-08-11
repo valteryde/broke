@@ -442,6 +442,36 @@ class MonitorCheck(BaseModel):
         indexes = ((("monitor", "checked_at"), False),)
 
 
+# ============ Metrics (Telegraf) Models ============
+# Only the relational bits live here. The measurements themselves go to the metrics
+# lake (see app/utils/metrics_store.py), never to app.db.
+
+
+class MetricsToken(BaseModel):
+    """Bearer token a Telegraf agent presents when writing metrics.
+
+    Unlike DSNToken there may be several, so a single compromised host can be revoked
+    without cutting off the rest of the fleet.
+    """
+
+    id = AutoField(primary_key=True)
+    name = CharField()
+    token_hash = CharField(index=True)
+    token_preview = CharField()
+    created_at = IntegerField(default=lambda: int(time.time()))
+    last_used = IntegerField(null=True)
+
+
+class MetricsHost(BaseModel):
+    """A server that has written metrics, kept relational so listing hosts is cheap."""
+
+    id = AutoField(primary_key=True)
+    hostname = CharField(unique=True, index=True)
+    first_seen = IntegerField(default=lambda: int(time.time()))
+    last_seen = IntegerField(index=True, default=lambda: int(time.time()))
+    series_count = IntegerField(default=0)
+
+
 MODELS = [
     User,
     WorkCycle,
@@ -476,6 +506,8 @@ MODELS = [
     DeviceToken,
     Monitor,
     MonitorCheck,
+    MetricsToken,
+    MetricsHost,
 ]
 
 

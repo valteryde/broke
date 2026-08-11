@@ -22,6 +22,15 @@ services:
       - UPDATER_URL=http://broke-updater:9999
       # Optional: disable in-app updater UI/API/background checks (comma-separated ids):
       # - BROKE_DISABLED_FEATURES=updater
+      # Telegraf metrics: how long full-resolution points are kept, and the per-host
+      # series cap that stops a misconfigured agent flooding the lake.
+      # - METRICS_RETENTION_DAYS=365
+      # - METRICS_MAX_SERIES_PER_HOST=5000
+      # Set to 0 and enable the broke-metrics service below to compact out-of-process:
+      # - METRICS_COMPACTION_IN_PROCESS=1
+      # Only for legacy v1 clients that cannot send a header: allows ?p=<token>, which
+      # leaks the token into every access log along the way.
+      # - METRICS_ALLOW_QUERY_TOKEN=0
     depends_on:
       - redis
 
@@ -52,6 +61,20 @@ services:
       # - APP_BASE_URL=https://broke.example.com
     depends_on:
       - broke-server
+
+  # Optional: run metrics compaction in its own process instead of inside the web
+  # workers. Only useful with METRICS_COMPACTION_IN_PROCESS=0 on broke-server.
+  # broke-metrics:
+  #   restart: always
+  #   image: ghcr.io/valteryde/broke:latest
+  #   command: ["python", "-m", "app.metrics_worker"]
+  #   volumes:
+  #     - data:/data
+  #   environment:
+  #     - DATA_PATH=/data
+  #     - REDIS_URL=redis://redis:6379
+  #   depends_on:
+  #     - broke-server
 
 volumes:
   data:

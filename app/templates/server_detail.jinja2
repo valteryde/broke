@@ -1,0 +1,152 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}{{ host.hostname | e }} | Servers | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/uplot-1.6.32.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/metrics.css') }}">
+{% endblock %}
+
+{% block path %}
+    <span><a href="{{ request.script_root }}/servers"><i class="ph ph-hard-drives"></i> Servers</a></span>
+    <span>/</span>
+    <span>{{ host.hostname | e }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="met-page-header">
+    <div>
+        <h1>{{ host.hostname | e }}</h1>
+        <p class="card-description">
+            <span class="met-status met-status-{{ 'up' if summary.online else 'stale' }}">
+                {{ 'Online' if summary.online else 'Stale' }}
+            </span>
+            Last report {{ summary.last_seen_display }} · {{ series_count }} series · first seen {{ first_seen_display }}
+        </p>
+    </div>
+    <div class="met-range-picker">
+        {% for r in ranges %}
+        <a class="met-range {% if r == current_range %}active{% endif %}"
+           href="{{ request.script_root }}/servers/{{ host.hostname | urlencode }}?range={{ r }}">{{ r }}</a>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="met-charts" id="met-charts" data-host="{{ host.hostname | e }}" data-range="{{ current_range | e }}">
+    {% for chart in charts %}
+    <section class="met-chart" data-chart="{{ chart.key }}"
+             data-measurement="{{ chart.measurement }}"
+             data-field="{{ chart.field }}"
+             data-unit="{{ chart.unit }}"
+             data-aggregate="{{ chart.aggregate | default('avg') }}"
+             data-invert="{{ '1' if chart.invert else '0' }}"
+             {% if chart.tags is not none %}data-tags='{{ chart.tags | tojson }}'{% endif %}>
+        <header class="met-chart-head">
+            <h2>{{ chart.title }}</h2>
+            <span class="met-chart-current" data-role="current">—</span>
+        </header>
+        <div class="met-chart-body" data-role="canvas">
+            <div class="met-chart-loading">Loading…</div>
+        </div>
+    </section>
+    {% endfor %}
+</div>
+
+<details class="met-explorer">
+    <summary><i class="ph ph-list-magnifying-glass"></i> All measurements ({{ measurements | length }})</summary>
+    <div class="met-explorer-body">
+        <p class="card-description">
+            Everything this host has written. Pick any field to chart it over the selected range.
+        </p>
+        {% for measurement, entries in measurements.items() | sort %}
+        <div class="met-explorer-group">
+            <h3>{{ measurement }}</h3>
+            <div class="met-explorer-fields">
+                {% for entry in entries %}
+                <button type="button" class="met-explorer-field"
+                        data-measurement="{{ measurement }}"
+                        data-field="{{ entry.field }}"
+                        data-tags='{{ entry.tags | tojson }}'>
+                    {{ entry.field }}
+                    {% if entry.tags %}
+                    <span class="met-explorer-tags">
+                        {%- for k, v in entry.tags.items() %}{{ k }}={{ v }}{% if not loop.last %} {% endif %}{% endfor -%}
+                    </span>
+                    {% endif %}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</details>
+
+<section class="met-chart met-chart-adhoc" id="met-adhoc" hidden>
+    <header class="met-chart-head">
+        <h2 data-role="title">Custom series</h2>
+        <span class="met-chart-current" data-role="current">—</span>
+    </header>
+    <div class="met-chart-body" data-role="canvas"></div>
+</section>
+
+{% if user.admin == 1 %}
+<div class="met-danger">
+    <button type="button" class="btn btn-danger" id="met-delete-host">
+        <i class="ph ph-trash"></i> Delete this server and its metrics
+    </button>
+</div>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/vendor/uplot-1.6.32.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/metrics.js') }}"></script>
+<script>
+BrokeMetrics.ready(function () {
+    BrokeMetrics.initDashboard(document.getElementById('met-charts'));
+
+    document.querySelectorAll('.met-explorer-field').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var panel = document.getElementById('met-adhoc');
+            var measurement = button.getAttribute('data-measurement');
+            var field = button.getAttribute('data-field');
+            var tags = button.getAttribute('data-tags');
+            panel.hidden = false;
+            panel.querySelector('[data-role="title"]').textContent = measurement + '.' + field;
+            BrokeMetrics.renderChart({
+                container: panel,
+                host: {{ host.hostname | tojson }},
+                range: {{ current_range | tojson }},
+                measurement: measurement,
+                field: field,
+                tags: tags,
+                unit: '',
+                aggregate: 'avg'
+            });
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    });
+
+    document.getElementById('met-delete-host')?.addEventListener('click', async function () {
+        if (!confirm('Delete ' + {{ host.hostname | tojson }} + ' and every metric it has written? This cannot be undone.')) return;
+        try {
+            const r = await fetch(brokeAppUrl('/api/metrics/hosts/' + encodeURIComponent({{ host.hostname | tojson }})), {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-Token': window.BROKE_CSRF_TOKEN || ''
+                }
+            });
+            if (!r.ok) {
+                const data = await r.json().catch(function () { return {}; });
+                alert(data.error || ('Request failed (' + r.status + ')'));
+                return;
+            }
+            window.location.href = brokeAppUrl('/servers');
+        } catch (_) {
+            alert('Network error while deleting server.');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,407 @@
+/* Servers pages: Telegraf host board and metric charts */
+
+:root {
+    /* metrics.js reads these at startup: uPlot paints to canvas and cannot pick up
+       CSS variables on its own, so the theme still lives here. */
+    --met-line: #106ecc;
+    --met-line-fill: rgba(16, 110, 204, 0.12);
+    --met-grid: #e5e7eb;
+    --met-axis: #999999;
+    --met-chart-font: 'Rubik', system-ui, sans-serif;
+    --met-ok: #22c55e;
+    --met-warn: #f59e0b;
+    --met-high: #ef4444;
+}
+
+.met-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.met-page-header h1 {
+    margin: 0 0 0.25rem;
+}
+
+.met-page-header .card-description {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.met-empty {
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+    background: var(--bg-white);
+    padding: 24px;
+    color: #666;
+}
+
+.met-empty p {
+    margin: 0 0 10px;
+}
+
+.met-config {
+    margin: 14px 0 0;
+    padding: 14px 16px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    background: var(--bg-light-gray);
+    font-size: 0.82rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: #333;
+}
+
+/* ---------- Host board ---------- */
+
+.met-board {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.met-row {
+    display: grid;
+    grid-template-columns: 84px minmax(140px, 1.1fr) minmax(240px, 2fr) auto;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 16px;
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+    background: var(--bg-white);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.12s ease;
+}
+
+.met-row:hover {
+    background: var(--bg-light-gray);
+}
+
+.met-row.is-offline {
+    opacity: 0.6;
+}
+
+.met-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.met-status-up {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.met-status-stale {
+    background: #f3f4f6;
+    color: #64748b;
+}
+
+.met-identity {
+    min-width: 0;
+}
+
+.met-name {
+    display: block;
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.met-meta {
+    font-size: 0.8rem;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.met-gauges {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.met-gauge {
+    display: grid;
+    grid-template-columns: 58px 1fr 44px;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.78rem;
+    color: #666;
+}
+
+.met-gauge-label {
+    white-space: nowrap;
+}
+
+.met-gauge-track {
+    height: 6px;
+    border-radius: 3px;
+    background: #e5e7eb;
+    overflow: hidden;
+}
+
+.met-gauge-fill {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--met-ok);
+    transition: width 0.25s ease;
+}
+
+.met-gauge-fill[data-level="warn"] {
+    background: var(--met-warn);
+}
+
+.met-gauge-fill[data-level="high"] {
+    background: var(--met-high);
+}
+
+.met-gauge-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #333;
+}
+
+.met-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    min-width: 76px;
+}
+
+.met-stats-primary {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.met-stats-secondary {
+    color: #666;
+    font-size: 0.8rem;
+}
+
+/* ---------- Range picker ---------- */
+
+.met-range-picker {
+    display: flex;
+    gap: 4px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    padding: 4px;
+    background: var(--bg-white);
+}
+
+.met-range {
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: #666;
+}
+
+.met-range:hover {
+    background: var(--bg-light-gray);
+}
+
+.met-range.active {
+    background: var(--logo-blue);
+    color: #fff;
+}
+
+/* ---------- Charts ---------- */
+
+.met-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 14px;
+}
+
+.met-chart {
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+    background: var(--bg-white);
+    padding: 14px 16px 10px;
+    min-width: 0;
+}
+
+.met-chart-adhoc {
+    margin-top: 14px;
+}
+
+.met-chart-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.met-chart-head h2 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.met-chart-current {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.met-chart-body {
+    position: relative;
+    height: 190px;
+}
+
+.met-chart-loading,
+.met-chart-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #999;
+    font-size: 0.85rem;
+}
+
+/* uPlot overrides. The library ships a small stylesheet of its own; these bring the
+   cursor and axis text in line with the rest of the app. */
+
+.met-chart-body .uplot,
+.met-chart-body .u-wrap {
+    width: 100% !important;
+}
+
+.met-chart-body .u-cursor-x,
+.met-chart-body .u-cursor-y {
+    border-color: #999;
+    border-right-style: dashed;
+}
+
+.met-chart-body .u-select {
+    background: rgba(16, 110, 204, 0.1);
+}
+
+/* ---------- Measurement explorer ---------- */
+
+.met-explorer {
+    margin-top: 14px;
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+    background: var(--bg-white);
+}
+
+.met-explorer > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 14px 18px;
+    font-weight: 600;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.met-explorer > summary::-webkit-details-marker {
+    display: none;
+}
+
+.met-explorer[open] > summary {
+    border-bottom: 1px dashed #ccc;
+}
+
+.met-explorer-body {
+    padding: 16px 18px 18px;
+}
+
+.met-explorer-group {
+    margin-bottom: 16px;
+}
+
+.met-explorer-group h3 {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #666;
+}
+
+.met-explorer-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.met-explorer-field {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 10px;
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    background: var(--bg-white);
+    font-size: 0.8rem;
+    font-family: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.met-explorer-field:hover {
+    background: var(--bg-light-gray);
+}
+
+.met-explorer-tags {
+    color: #999;
+    font-size: 0.74rem;
+}
+
+.met-danger {
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px dashed #ccc;
+}
+
+@media (max-width: 900px) {
+    .met-row {
+        grid-template-columns: 72px 1fr;
+        row-gap: 12px;
+    }
+
+    .met-gauges,
+    .met-stats {
+        grid-column: 1 / -1;
+        align-items: stretch;
+    }
+
+    .met-stats {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+
+    .met-charts {
+        grid-template-columns: 1fr;
+    }
+}

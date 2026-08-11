@@ -91,6 +91,13 @@
             </div>
             {% endif %}
 
+            {% if feature_metrics_enabled %}
+            <div class="sb-element {% if page == 'servers' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/servers'">
+                <i class="ph ph-hard-drives"></i>
+                <span>Servers</span>
+            </div>
+            {% endif %}
+
             <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="openUrlWithArgs('/errors')">
                 <i class="ph ph-bug-beetle"></i>
                 <span>Errors</span>

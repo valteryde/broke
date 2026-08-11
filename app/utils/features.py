@@ -12,6 +12,7 @@ _ENV_KEY = "BROKE_DISABLED_FEATURES"
 # Known ids (documented); unknown tokens are ignored until wired up elsewhere.
 FEATURE_UPDATER = "updater"
 FEATURE_MONITORS = "monitors"
+FEATURE_METRICS = "metrics"
 
 
 def get_disabled_features() -> frozenset[str]:

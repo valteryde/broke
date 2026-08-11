@@ -40,6 +40,7 @@ It supports multiple teams but only one organization. It's designed to be small 
 - **Intake Inbox** — Route incoming issues before they hit active work
 - **Optional AI-Assisted Intake** — Draft and route tickets faster when AI settings are configured
 - **Error Tracking** — Sentry-compatible error ingestion and management
+- **Server Metrics** — Telegraf agents push host metrics over the InfluxDB write API
 - **Multi-user Support** — Multiple users can collaborate on tickets
 - **Reports + Timeline** — Activity and operational insights in one place
 - **Secure Authentication** — Password hashing with Argon2
@@ -167,6 +168,56 @@ sentry_sdk.init(
 )
 ```
 
+## Server Metrics (Telegraf)
+
+Broke implements the InfluxDB write API, so any server running
+[Telegraf](https://github.com/influxdata/telegraf) can push its metrics without a plugin
+or a separate time-series database.
+
+1. Go to Settings → Server Metrics and create a token. Create one per server so a single
+   compromised host can be revoked on its own.
+2. Add the output to `/etc/telegraf/telegraf.conf` on that server:
+
+```toml
+[[outputs.influxdb_v2]]
+  urls = ["https://broke.example.com"]
+  token = "<your metrics token>"
+  organization = "broke"
+  bucket = "broke"
+```
+
+3. Restart Telegraf. The host appears under **Servers** within a minute.
+
+The older `[[outputs.influxdb]]` plugin works too — point it at the same URL and pass the
+token as the `password` field, which it sends as basic auth. Passing the token in the URL
+as `?p=` is refused unless you set `METRICS_ALLOW_QUERY_TOKEN=1`, since query strings end
+up in access logs.
+
+Whatever Telegraf sends is stored, not just the fields Broke charts. The host detail page
+graphs CPU, memory, swap, load, disk, disk IO, network and processes, and its measurement
+explorer lets you chart any other field an agent has reported.
+
+### How metrics are stored
+
+Recent points land in `metrics.db`, a SQLite file kept separate from `app.db` so a burst
+of metrics can never block a ticket write. Every few minutes a background task compacts
+anything older than an hour into ZSTD-compressed Parquet under `metrics/dt=<date>/<host>/`,
+which DuckDB reads back when drawing charts. Compression works out to roughly 4 MB per
+host per day, so a year of full-resolution history is practical. Everything lives under
+your data volume, so the existing backup covers it.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `METRICS_RETENTION_DAYS` | `365` | How long Parquet day partitions are kept |
+| `METRICS_MAX_SERIES_PER_HOST` | `5000` | Cardinality cap; stops a misconfigured agent flooding the lake |
+| `METRICS_HOT_WINDOW_SECONDS` | `3600` | How much recent data stays in SQLite before compaction |
+| `METRICS_COMPACT_INTERVAL_SECONDS` | `300` | How often the compaction sweep runs |
+| `METRICS_COMPACTION_IN_PROCESS` | `1` | Set to `0` to compact in a separate `python -m app.metrics_worker` process |
+| `METRICS_ALLOW_QUERY_TOKEN` | `0` | Set to `1` to let legacy v1 clients pass the token as `?p=`. Off by default because a query string is recorded by every proxy access log it passes |
+
+Set `BROKE_DISABLED_FEATURES=metrics` to remove the ingest endpoints and the Servers page
+entirely.
+
 ## Email Service (SMTP)
 
 Password reset emails require SMTP configuration.
@@ -196,6 +247,8 @@ UI-saved SMTP settings take precedence over environment variables when present.
 
 - **Backend:** Flask + Gunicorn
 - **Database:** SQLite with Peewee ORM
+- **Metrics storage:** Parquet lake queried with DuckDB
+- **Metrics charts:** uPlot, vendored under `app/static/js/vendor` so charts work offline
 - **Templating:** Jinja2
 - **Authentication:** Argon2 password hashing
 - **Container:** Docker

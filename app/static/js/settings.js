@@ -866,6 +866,62 @@ function revokeDSNToken() {
         });
 }
 
+// ============ Metrics Token Functions ============
+
+function generateMetricsToken() {
+    const name = prompt('Name this token (e.g. the server it belongs to):', 'Telegraf');
+    if (name === null) return;
+
+    fetch(brokeAppUrl('/api/settings/metrics-tokens'), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': window.BROKE_CSRF_TOKEN || ''
+        },
+        body: JSON.stringify({ name: name })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.token) {
+                Modal.show('New Metrics Token', `
+                    <p>Copy this token into your Telegraf config now - it will not be shown again.</p>
+                    <br>
+                    <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; word-break: break-all; margin-bottom: 16px;">${data.token}</div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" onclick="Modal.close(); location.reload();">Close</button>
+                    </div>
+                `);
+            } else {
+                showToast(data.error || 'Failed to create metrics token', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('Failed to create metrics token', 'error');
+        });
+}
+
+function revokeMetricsToken(tokenId) {
+    if (!confirm('Revoke this token? Any server still using it will stop reporting.')) {
+        return;
+    }
+
+    fetch(brokeAppUrl('/api/settings/metrics-tokens/' + tokenId), {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': window.BROKE_CSRF_TOKEN || '' }
+    })
+        .then(response => {
+            if (response.ok) {
+                showToast('Metrics token revoked', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Failed to revoke metrics token', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('Failed to revoke metrics token', 'error');
+        });
+}
+
 // ============ Trash Functions ============
 
 async function restoreTicket(ticketId) {
