@@ -787,6 +787,69 @@ def _(ac=auth_client, home=metrics_home, host=board_host):
     assert len(payload["charts"]) == 3
 
 
+@test("rebuilding the board index clears the duplicates that stopped it being rebuilt")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    from scripts.migrate_018_repair_chart_index import INDEX, run_migration
+
+    ac.put(
+        _charts_url(host),
+        json={"charts": [{"key": _family_key("cpu", "usage_idle")}]},
+        headers=_csrf(ac),
+    )
+
+    # A board whose unique index has come loose can hold the same series twice, and that
+    # second copy is what refuses to be indexed again.
+    database.execute_sql(f"DROP INDEX IF EXISTS {INDEX};")
+    row = MetricsChart.get(MetricsChart.hostname == host)
+    MetricsChart.create(
+        hostname=host,
+        measurement=row.measurement,
+        field=row.field,
+        tags=row.tags,
+        kind=row.kind,
+        transform=row.transform,
+        tag_mode=row.tag_mode,
+        options=row.options,
+        position=1,
+    )
+    assert MetricsChart.select().where(MetricsChart.hostname == host).count() == 2
+
+    run_migration()
+
+    assert MetricsChart.select().where(MetricsChart.hostname == host).count() == 1
+    indexes = [
+        r[1] for r in database.execute_sql("PRAGMA index_list(metricschart);").fetchall()
+    ]
+    assert INDEX in indexes
+
+    # The point of the repair: a board that could not be saved can be saved again.
+    again = ac.put(
+        _charts_url(host),
+        json={"charts": [{"key": _family_key("mem", "used_percent")}]},
+        headers=_csrf(ac),
+    )
+    assert again.status_code == 200
+
+
+@test("rebuilding the board index is safe to run when there is nothing wrong")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    from scripts.migrate_018_repair_chart_index import run_migration
+
+    ac.put(
+        _charts_url(host),
+        json={"charts": [{"key": _family_key("cpu", "usage_idle"), "section": "Compute"}]},
+        headers=_csrf(ac),
+    )
+
+    # It runs on every boot, so running it twice over a healthy board has to be a no-op.
+    run_migration()
+    run_migration()
+
+    payload = ac.get(_charts_url(host)).get_json()
+    assert payload["customised"] is True
+    assert [(s["name"], s["charts"]) for s in payload["sections"]] == [("Compute", 1)]
+
+
 # ============ Arranging a board with AI ============
 
 
