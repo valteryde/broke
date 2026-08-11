@@ -47,11 +47,28 @@
 {% endif %}
 
 <section class="met-editor" id="met-editor" hidden>
+    {% if ai_enabled %}
+    <div class="met-editor-ai">
+        <i class="ph ph-magic-wand"></i>
+        <input type="text" id="met-editor-ai-prompt" class="form-input met-editor-ai-prompt"
+               maxlength="400" autocomplete="off"
+               placeholder="Optional: what does this server do, or what are you watching for?">
+        <button type="button" class="btn btn-secondary" id="met-editor-ai">Arrange with AI</button>
+    </div>
+    {% endif %}
     <div class="met-editor-grid">
         <div class="met-editor-pane">
-            <h3>On the board</h3>
-            <p class="met-editor-hint">Drag to reorder. This layout is shared with everyone.</p>
-            <ul class="met-editor-list" id="met-editor-selected"></ul>
+            <div class="met-editor-pane-head">
+                <h3>On the board</h3>
+                <button type="button" class="btn btn-secondary btn-sm" id="met-editor-add-section">
+                    <i class="ph ph-plus"></i> Add section
+                </button>
+            </div>
+            <p class="met-editor-hint">
+                Drag charts to reorder them or to move them between sections. A section with
+                no charts is not kept. This layout is shared with everyone.
+            </p>
+            <div class="met-editor-sections" id="met-editor-selected"></div>
         </div>
         <div class="met-editor-pane">
             <h3>Available charts</h3>
@@ -68,24 +85,45 @@
     </div>
 </section>
 
-<div class="met-charts" id="met-charts" data-host="{{ host.hostname | e }}" data-range="{{ current_range | e }}">
-    {% for chart in charts %}
-    <section class="met-chart" data-chart="{{ chart.key | e }}"
-             data-measurement="{{ chart.measurement | e }}"
-             data-field="{{ chart.field | e }}"
-             data-unit="{{ chart.unit | e }}"
-             data-kind="{{ chart.kind | e }}"
-             data-transform="{{ chart.transform | e }}"
-             data-tag-mode="{{ chart.tag_mode | e }}"
-             data-options='{{ chart.options | tojson }}'
-             data-invert="{{ '1' if chart.invert else '0' }}"
-             {% if chart.tags is not none %}data-tags='{{ chart.tags | tojson }}'{% endif %}>
-        <header class="met-chart-head">
-            <h2>{{ chart.title | e }}</h2>
-            <span class="met-chart-current" data-role="current">—</span>
+<div class="met-board-charts" id="met-charts" data-host="{{ host.hostname | e }}" data-range="{{ current_range | e }}">
+    {% for section in sections %}
+    <section class="met-section {% if not section.name %}is-unnamed{% endif %}" data-accent="{{ section.accent | e }}">
+        {% if section.name %}
+        <header class="met-section-head">
+            <h2 class="met-section-name">{{ section.name | e }}</h2>
+            <span class="met-section-count">{{ section.charts | length }}</span>
         </header>
-        <div class="met-chart-body" data-role="canvas">
-            <div class="met-chart-loading">Loading…</div>
+        {% endif %}
+        <div class="met-charts">
+            {% for chart in section.charts %}
+            <section class="met-chart" data-chart="{{ chart.key | e }}"
+                     data-measurement="{{ chart.measurement | e }}"
+                     data-field="{{ chart.field | e }}"
+                     data-unit="{{ chart.unit | e }}"
+                     data-kind="{{ chart.kind | e }}"
+                     data-transform="{{ chart.transform | e }}"
+                     data-tag-mode="{{ chart.tag_mode | e }}"
+                     data-options='{{ chart.options | tojson }}'
+                     data-accent="{{ chart.accent | e }}"
+                     data-invert="{{ '1' if chart.invert else '0' }}"
+                     {% if chart.tags is not none %}data-tags='{{ chart.tags | tojson }}'{% endif %}>
+                <header class="met-chart-head">
+                    <i class="ph {{ chart.icon | e }} met-chart-icon"></i>
+                    <div class="met-chart-heading">
+                        <h3>{{ chart.title | e }}</h3>
+                        {% if chart.subtitle %}<p class="met-chart-sub">{{ chart.subtitle | e }}</p>{% endif %}
+                    </div>
+                    <span class="met-chart-current" data-role="current">—</span>
+                </header>
+                <div class="met-chart-body" data-role="canvas">
+                    <div class="met-chart-loading">Loading…</div>
+                </div>
+                <footer class="met-chart-foot">
+                    <div class="met-chart-stats" data-role="stats"></div>
+                    <span class="met-chart-time" data-role="time"></span>
+                </footer>
+            </section>
+            {% endfor %}
         </div>
     </section>
     {% else %}
@@ -122,12 +160,20 @@
     </div>
 </details>
 
-<section class="met-chart met-chart-adhoc" id="met-adhoc" hidden>
+<section class="met-chart met-chart-adhoc" id="met-adhoc" data-accent="slate" hidden>
     <header class="met-chart-head">
-        <h2 data-role="title">Custom series</h2>
+        <i class="ph ph-chart-line met-chart-icon"></i>
+        <div class="met-chart-heading">
+            <h3 data-role="title">Custom series</h3>
+            <p class="met-chart-sub" data-role="subtitle"></p>
+        </div>
         <span class="met-chart-current" data-role="current">—</span>
     </header>
     <div class="met-chart-body" data-role="canvas"></div>
+    <footer class="met-chart-foot">
+        <div class="met-chart-stats" data-role="stats"></div>
+        <span class="met-chart-time" data-role="time"></span>
+    </footer>
 </section>
 
 {% if user.admin == 1 %}
@@ -157,6 +203,8 @@ BrokeMetrics.ready(function () {
             var tags = button.getAttribute('data-tags');
             panel.hidden = false;
             panel.querySelector('[data-role="title"]').textContent = measurement + '.' + field;
+            panel.querySelector('[data-role="subtitle"]').textContent =
+                button.querySelector('.met-explorer-tags')?.textContent.trim() || '';
             BrokeMetrics.renderChart({
                 container: panel,
                 host: {{ host.hostname | tojson }},

@@ -18,6 +18,8 @@ from typing import Any
 
 from flask import Blueprint, abort, jsonify, render_template, request
 
+from ..utils import ai_board
+from ..utils.ai_changelog import is_ai_enabled
 from ..utils.features import FEATURE_METRICS, is_feature_enabled
 from ..utils.lineprotocol import LineProtocolError, parse
 from ..utils.metrics_auth import verify_metrics_token
@@ -64,6 +66,46 @@ CHART_HINTS: dict[tuple[str, str], dict[str, Any]] = {
     ("processes", "total"): {"title": "Processes total"},
 }
 
+# A colour and an icon per measurement family, so a board of eight charts reads as eight
+# distinct things rather than the same blue line drawn eight times. The colour is a token
+# rather than a value: metrics.css owns the palette, and the canvas reads the resolved
+# colour back off the element it draws into.
+MEASUREMENT_STYLE: dict[str, tuple[str, str, str]] = {
+    "cpu": ("blue", "ph-cpu", "CPU"),
+    "mem": ("violet", "ph-memory", "Memory"),
+    "swap": ("violet", "ph-swap", "Swap"),
+    "disk": ("amber", "ph-hard-drive", "Disk"),
+    "diskio": ("amber", "ph-hard-drives", "Disk I/O"),
+    "net": ("teal", "ph-network", "Network"),
+    "netstat": ("teal", "ph-network", "Network"),
+    "system": ("indigo", "ph-gauge", "System"),
+    "processes": ("cyan", "ph-tree-structure", "Processes"),
+    "kernel": ("slate", "ph-gear-fine", "Kernel"),
+    "temp": ("rose", "ph-thermometer-simple", "Temperature"),
+    "sensors": ("rose", "ph-thermometer-simple", "Sensors"),
+    "docker": ("cyan", "ph-cube", "Docker"),
+    "nginx": ("green", "ph-globe-simple", "Nginx"),
+    "postgresql": ("green", "ph-database", "PostgreSQL"),
+    "mysql": ("green", "ph-database", "MySQL"),
+    "redis": ("green", "ph-database", "Redis"),
+}
+DEFAULT_STYLE = ("blue", "ph-chart-line", "")
+
+
+def _style_for(measurement: str) -> tuple[str, str, str]:
+    accent, icon, label = MEASUREMENT_STYLE.get(measurement, DEFAULT_STYLE)
+    return accent, icon, label or measurement.replace("_", " ").title()
+
+# The colours a section can be given, which are the same tokens a measurement uses. An
+# unrecognised one falls back rather than being rejected: a board is presentation, and a
+# renamed palette should not make a saved layout unloadable.
+SECTION_ACCENTS = ("blue", "violet", "teal", "amber", "rose", "green", "cyan", "indigo", "slate")
+DEFAULT_SECTION_ACCENT = "slate"
+
+# A section name is a heading, not a document. The cap keeps one from pushing the charts
+# off the page, and matches the column width.
+MAX_SECTION_NAME = 60
+
 # How many charts a board may hold, so one enthusiastic save cannot make the page unusable.
 MAX_BOARD_CHARTS = 24
 SUGGESTED_CHART_COUNT = 8
@@ -88,6 +130,21 @@ def _infer_unit(field: str) -> str:
     return ""
 
 
+def _chart_subtitle(family: metrics_families.Family, hint: dict[str, Any]) -> str:
+    """The second line of a chart header: where the reading actually comes from.
+
+    A recognised series is titled in prose — "Memory used" says more than
+    ``mem.used_percent`` — but the raw name is what someone reaches for when they go
+    looking in the explorer or write an alert, so it stays visible underneath.
+    """
+    parts = []
+    if hint.get("title"):
+        parts.append(f"{family.measurement}.{family.field}")
+    if family.tags:
+        parts.append(" ".join(f"{k}={v}" for k, v in sorted(family.tags.items())))
+    return " · ".join(parts)
+
+
 def chart_spec(family: metrics_families.Family) -> dict[str, Any]:
     """Everything the template and JS need to draw one family."""
     hint = CHART_HINTS.get((family.measurement, family.field), {})
@@ -102,13 +159,15 @@ def chart_spec(family: metrics_families.Family) -> dict[str, Any]:
         title += " per second"
         if unit == "bytes":
             unit = "bytes/s"
-    if family.tags:
-        title += " · " + " ".join(f"{k}={v}" for k, v in sorted(family.tags.items()))
 
+    accent, icon, _ = _style_for(family.measurement)
     return {
         "key": family.key,
         "title": title,
+        "subtitle": _chart_subtitle(family, hint),
         "unit": unit,
+        "accent": accent,
+        "icon": icon,
         "measurement": family.measurement,
         "field": family.field,
         "tags": family.tags,
@@ -139,6 +198,7 @@ def _family_option(family: metrics_families.Family) -> dict[str, Any]:
         "measurement": family.measurement,
         "kind": family.kind,
         "note": note,
+        "accent": _style_for(family.measurement)[0],
     }
 
 
@@ -383,14 +443,41 @@ def resolve_board(hostname: str) -> tuple[list[dict[str, Any]], bool]:
         .order_by(MetricsChart.position, MetricsChart.id)
     )
     if saved:
-        charts = [
-            chart_spec(metrics_families.family_from_selector(metrics_families.selector_from_row(row)))
-            for row in saved
-        ]
+        charts = []
+        for row in saved:
+            spec = chart_spec(
+                metrics_families.family_from_selector(metrics_families.selector_from_row(row))
+            )
+            section = str(row.section or "")
+            spec["section"] = section
+            # A chart above the first heading has no section, and so no colour to give it.
+            spec["section_accent"] = (
+                (str(row.section_accent or "") or DEFAULT_SECTION_ACCENT) if section else ""
+            )
+            charts.append(spec)
         return charts, True
 
+    # A suggested board is not arranged by anyone, so it has nothing to say about how the
+    # charts should be grouped; sections start existing once someone makes them.
     suggested = metrics_families.suggest(hostname, limit=SUGGESTED_CHART_COUNT)
     return [chart_spec(family) for family in suggested], False
+
+
+def group_into_sections(charts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fold an ordered board into the headings it renders under.
+
+    Consecutive charts sharing a section name are one heading. Reading runs rather than
+    collecting by name keeps the board a single ordered list: where a chart sits and which
+    section it is in are the same fact, so the two can never disagree.
+    """
+    sections: list[dict[str, Any]] = []
+    for chart in charts:
+        name = chart.get("section") or ""
+        accent = chart.get("section_accent") or DEFAULT_SECTION_ACCENT
+        if not sections or sections[-1]["name"] != name:
+            sections.append({"name": name, "accent": accent, "charts": []})
+        sections[-1]["charts"].append(chart)
+    return sections
 
 
 @metrics_bp.route("/servers/<path:hostname>")
@@ -421,12 +508,24 @@ def server_detail_view(user: User, hostname: str):
         host=host,
         summary=_host_summary(host, now),
         charts=charts,
+        sections=group_into_sections(charts),
         board_customised=customised,
         board_data={
             "host": hostname,
-            "charts": [{"key": c["key"], "title": c["title"]} for c in charts],
+            "charts": [
+                {
+                    "key": c["key"],
+                    "title": c["title"],
+                    "section": c.get("section", ""),
+                    "section_accent": c.get("section_accent", ""),
+                }
+                for c in charts
+            ],
             "available": [_family_option(family) for family in families],
+            "accents": list(SECTION_ACCENTS),
+            "max_section_name": MAX_SECTION_NAME,
         },
+        ai_enabled=is_ai_enabled(),
         ranges=list(RANGES.keys()),
         current_range=range_key,
         measurements=measurements,
@@ -720,8 +819,14 @@ def _board_payload(hostname: str) -> dict[str, Any]:
                 "field": c["field"],
                 "tags": c["tags"],
                 "kind": c["kind"],
+                "section": c.get("section", ""),
+                "section_accent": c.get("section_accent", ""),
             }
             for c in charts
+        ],
+        "sections": [
+            {"name": s["name"], "accent": s["accent"], "charts": len(s["charts"])}
+            for s in group_into_sections(charts)
         ],
         "customised": customised,
     }
@@ -776,6 +881,11 @@ def api_save_charts(user: User, hostname: str):
             continue
         seen.add(key)
 
+        section = str(item.get("section") or "").strip()[:MAX_SECTION_NAME]
+        accent = str(item.get("section_accent") or "")
+        if accent not in SECTION_ACCENTS:
+            accent = DEFAULT_SECTION_ACCENT
+
         rows.append(
             {
                 "hostname": hostname,
@@ -786,6 +896,9 @@ def api_save_charts(user: User, hostname: str):
                 "transform": family.transform,
                 "tag_mode": family.tag_mode,
                 "options": json.dumps(family.options(), separators=(",", ":")),
+                "section": section,
+                # A chart outside every section has no heading to colour.
+                "section_accent": accent if section else "",
                 "position": position,
                 "created_at": int(time.time()),
             }
@@ -799,6 +912,71 @@ def api_save_charts(user: User, hostname: str):
             MetricsChart.insert_many(rows).execute()
 
     return jsonify(_board_payload(hostname))
+
+
+def _ai_catalogue(families: list[metrics_families.Family]) -> list[dict[str, Any]]:
+    """Describe what a host can chart, in the terms a model needs to choose between them.
+
+    Everything here is already on the page somewhere; the point is to say it compactly
+    enough that a long catalogue still fits in one request.
+    """
+    catalogue = []
+    for family in families:
+        spec = chart_spec(family)
+        accent, _, group_label = _style_for(family.measurement)
+
+        detail = [family.measurement, family.kind]
+        if spec["unit"]:
+            detail.append(spec["unit"])
+        if family.transform == metrics_families.TRANSFORM_RATE:
+            detail.append("counter read as a rate")
+        if len(family.members) > 1:
+            detail.append(f"{len(family.members)} lines")
+
+        catalogue.append(
+            {
+                "key": family.key,
+                "label": spec["title"],
+                "detail": ", ".join(detail),
+                "group": family.measurement,
+                "group_label": group_label,
+                "accent": accent,
+            }
+        )
+    return catalogue
+
+
+@metrics_bp.route("/api/metrics/hosts/<path:hostname>/charts/arrange", methods=["POST"])
+@protected
+def api_arrange_charts(user: User, hostname: str):
+    """Propose a sectioned board for a host, optionally steered by a note from the operator.
+
+    Deliberately does not save. A board is shared with everyone looking at the host, so an
+    arrangement nobody has seen yet is a suggestion in the editor rather than a change to
+    what the team is looking at.
+    """
+    _feature_guard()
+    if not MetricsHost.get_or_none(MetricsHost.hostname == hostname):
+        return jsonify({"error": "Host not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    instruction = str(payload.get("prompt") or "")
+
+    families = metrics_families.families_for_host(hostname)
+    if not families:
+        return jsonify({"error": "This host has not sent anything that can be charted yet."}), 400
+
+    result = ai_board.arrange(
+        hostname=hostname,
+        catalogue=_ai_catalogue(families),
+        accents=list(SECTION_ACCENTS),
+        instruction=instruction,
+        max_charts=MAX_BOARD_CHARTS,
+    )
+
+    # The proposal is described by family key, which is what the editor already speaks, so
+    # it drops straight into the panel for review.
+    return jsonify(result)
 
 
 @metrics_bp.route("/api/metrics/hosts/<path:hostname>/charts", methods=["DELETE"])

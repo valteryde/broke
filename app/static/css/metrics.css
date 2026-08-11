@@ -21,6 +21,65 @@
     --met-ok: #22c55e;
     --met-warn: #f59e0b;
     --met-high: #ef4444;
+
+    /* An accent per measurement family, so a board of eight charts reads as eight
+       distinct things. The view names the token, this decides what it looks like, and
+       metrics.js reads the resolved colour back off the chart element. */
+    --met-accent-blue: #106ecc;
+    --met-accent-violet: #7c3aed;
+    --met-accent-teal: #0d9488;
+    --met-accent-amber: #d97706;
+    --met-accent-rose: #e11d48;
+    --met-accent-green: #16a34a;
+    --met-accent-cyan: #0891b2;
+    --met-accent-indigo: #4f46e5;
+    --met-accent-slate: #475569;
+}
+
+/* Set on anything carrying data-accent: the chart tiles, and the dots in the editor that
+   have to agree with them. */
+[data-accent] {
+    --met-accent: var(--met-accent-blue);
+}
+
+[data-accent="violet"] {
+    --met-accent: var(--met-accent-violet);
+}
+
+[data-accent="teal"] {
+    --met-accent: var(--met-accent-teal);
+}
+
+[data-accent="amber"] {
+    --met-accent: var(--met-accent-amber);
+}
+
+[data-accent="rose"] {
+    --met-accent: var(--met-accent-rose);
+}
+
+[data-accent="green"] {
+    --met-accent: var(--met-accent-green);
+}
+
+[data-accent="cyan"] {
+    --met-accent: var(--met-accent-cyan);
+}
+
+[data-accent="indigo"] {
+    --met-accent: var(--met-accent-indigo);
+}
+
+[data-accent="slate"] {
+    --met-accent: var(--met-accent-slate);
+}
+
+.met-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    background: var(--met-accent, var(--met-accent-blue));
 }
 
 .met-page-header {
@@ -114,6 +173,37 @@
     margin-bottom: 1.25rem;
 }
 
+/* The AI row sits above both panes: what it proposes lands in the left one for review
+   rather than being saved, so it belongs to the editor as a whole. */
+.met-editor-ai {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px dashed #e0e0e0;
+}
+
+.met-editor-ai > i {
+    font-size: 1.15rem;
+    color: var(--met-accent-violet);
+    flex-shrink: 0;
+}
+
+.met-editor-ai-prompt {
+    flex: 1;
+    min-width: 0;
+}
+
+.met-editor-ai button {
+    flex-shrink: 0;
+}
+
+.met-editor-ai.is-busy {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
 .met-editor-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -129,6 +219,112 @@
 .met-editor-pane h3 {
     margin: 0 0 4px;
     font-size: 0.95rem;
+}
+
+.met-editor-pane-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+/* ---------- Editor: sections ---------- */
+
+.met-editor-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.met-editor-section {
+    border: 1px dashed #ddd;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+/* The run above the first heading is not a section anyone made, so it is drawn as a
+   holding area rather than as something with a name and a colour. */
+.met-editor-section.is-loose {
+    border-style: dotted;
+    background: transparent;
+}
+
+.met-editor-section-loose {
+    margin: 0 0 6px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #bbb;
+}
+
+.met-editor-section-bar {
+    margin-bottom: 8px;
+}
+
+.met-editor-section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.met-editor-colour {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+}
+
+.met-editor-colour:hover {
+    border-color: #ddd;
+    background: var(--bg-light-gray);
+}
+
+.met-editor-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin-top: 6px;
+    padding: 4px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background: var(--bg-light-gray);
+}
+
+.met-editor-palette[hidden] {
+    display: none;
+}
+
+.met-editor-name {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: none;
+    font-family: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.met-editor-name:hover {
+    border-color: #e0e0e0;
+}
+
+.met-editor-name:focus {
+    outline: none;
+    border-color: var(--met-accent, var(--met-accent-slate));
+    background: var(--bg-white);
+}
+
+.met-editor-name::placeholder {
+    font-weight: 500;
+    color: #bbb;
 }
 
 .met-editor-hint {
@@ -176,6 +372,14 @@
 .met-editor-label {
     flex: 1;
     word-break: break-word;
+}
+
+/* How many lines a pick actually draws, and how they are read: "histogram · 12 buckets"
+   is the difference between choosing one chart and choosing twelve. */
+.met-editor-note {
+    flex-shrink: 0;
+    font-size: 0.74rem;
+    color: #999;
 }
 
 .met-editor-remove {
@@ -254,6 +458,20 @@
     padding: 10px 0;
     font-size: 0.82rem;
     color: #999;
+}
+
+/* An empty section still has to be a target you can aim a chart at. */
+.met-editor-section .met-editor-list {
+    min-height: 30px;
+}
+
+.met-editor-section .met-editor-empty {
+    padding: 7px;
+    border: 1px dashed #e5e5e5;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.78rem;
+    color: #bbb;
 }
 
 .met-editor-actions {
@@ -448,6 +666,46 @@
     color: #fff;
 }
 
+/* ---------- Sections ---------- */
+
+.met-board-charts {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+/* Charts sitting above the first heading are still a section, just an unnamed one, so
+   they need no extra room above them. */
+.met-section.is-unnamed {
+    margin-top: 0;
+}
+
+.met-section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding-bottom: 7px;
+    border-bottom: 2px solid color-mix(in srgb, var(--met-accent, var(--met-accent-slate)) 45%, transparent);
+}
+
+/* The name carries the section's colour rather than a swatch beside it: one coloured
+   thing per heading is enough to group the charts underneath it. */
+.met-section-name {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--met-accent, var(--met-accent-slate));
+}
+
+.met-section-count {
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: #aaa;
+}
+
 /* ---------- Charts ---------- */
 
 .met-charts {
@@ -469,28 +727,100 @@
 }
 
 .met-chart-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
     margin-bottom: 10px;
 }
 
-.met-chart-head h2 {
+.met-chart-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+    color: var(--met-accent, var(--met-accent-blue));
+}
+
+.met-chart-heading {
+    min-width: 0;
+}
+
+.met-chart-head h3 {
     margin: 0;
     font-size: 0.95rem;
     font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Where the reading comes from. A recognised series is titled in prose, so the raw
+   measurement and field would otherwise be invisible on the page that charts them. */
+.met-chart-sub {
+    margin: 1px 0 0;
+    font-size: 0.74rem;
+    color: #999;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .met-chart-current {
     font-size: 1.05rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+    color: var(--met-accent, var(--met-accent-blue));
+    white-space: nowrap;
+}
+
+/* A chart drawing several lines has no single current reading, so the header says how
+   many there are instead and steps out of the way of the legend. */
+.met-chart-current.is-count {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #999;
 }
 
 .met-chart-body {
     position: relative;
     height: 190px;
+    overflow: hidden;
+}
+
+/* What the window held, not just where it ended. */
+.met-chart-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 16px;
+    margin-top: 6px;
+}
+
+.met-chart-stats {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.met-stat-key {
+    margin-right: 5px;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #aaa;
+}
+
+.met-stat-value {
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+    color: #555;
+}
+
+.met-chart-time {
+    font-size: 0.72rem;
+    color: #999;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 .met-chart-loading,
@@ -518,7 +848,7 @@
 }
 
 .met-chart-body .u-select {
-    background: rgba(16, 110, 204, 0.1);
+    background: color-mix(in srgb, var(--met-accent, var(--met-accent-blue)) 12%, transparent);
 }
 
 /* The legend only appears on a chart drawing more than one line, where it has to name

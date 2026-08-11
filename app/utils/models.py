@@ -488,6 +488,13 @@ class MetricsChart(BaseModel):
 
     ``tags`` is the canonical JSON that ``metrics_store.encode_tags`` produces, so it joins
     straight against the series catalogue.
+
+    A board can be divided into named sections. Rather than a table of its own, a section
+    is carried on the charts that belong to it: consecutive rows sharing a ``section``
+    name are one heading on the page. That keeps a board a single ordered list — the thing
+    ``position`` already describes — and means a section cannot outlive its last chart or
+    strand rows behind a heading nobody can see. ``section`` is empty for charts that sit
+    above the first heading.
     """
 
     id = AutoField(primary_key=True)
@@ -499,6 +506,8 @@ class MetricsChart(BaseModel):
     transform = CharField(default="raw")
     tag_mode = CharField(default="exact")
     options = TextField(default="{}")
+    section = CharField(default="")
+    section_accent = CharField(default="")
     position = IntegerField(default=0)
     created_at = IntegerField(default=lambda: int(time.time()))
 
