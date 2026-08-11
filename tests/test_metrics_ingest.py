@@ -17,6 +17,7 @@ from tests.fixtures import app, auth_client, auth_user, client, fake
 from app.utils import metrics_store
 from app.utils.metrics_auth import generate_token, hash_token
 from app.utils.models import MetricsHost, MetricsToken
+from app.views.metrics import ingest_base_url
 
 
 @fixture(scope=Scope.Test)
@@ -381,6 +382,68 @@ def _(ac=auth_client, home=metrics_home, raw=metrics_token, host=ingest_host):
 @test("an unknown host is a 404")
 def _(ac=auth_client, home=metrics_home):
     assert ac.get("/servers/does-not-exist").status_code == 404
+
+
+# ============ The Telegraf config snippet ============
+#
+# Getting the scheme wrong here is not cosmetic: a TLS-terminating proxy answers an
+# http:// write with a redirect that Telegraf refuses to follow, and the token has already
+# gone out in clear text by the time it fails.
+
+
+@test("the config snippet advertises https for a proxied install, not the internal hop")
+def _(a=app, home=metrics_home):
+    with a.test_request_context("/", base_url="http://broke.example.com"):
+        assert ingest_base_url() == "https://broke.example.com"
+
+
+@test("the config snippet trusts the scheme the proxy forwards")
+def _(a=app, home=metrics_home):
+    with a.test_request_context(
+        "/", base_url="http://broke.example.com", headers={"X-Forwarded-Proto": "https"}
+    ):
+        assert ingest_base_url() == "https://broke.example.com"
+
+
+@test("a local install keeps http, since nobody put a certificate in front of it")
+def _(a=app, home=metrics_home):
+    for base in ("http://localhost:5000", "http://127.0.0.1:5000", "http://192.168.1.5:8080"):
+        with a.test_request_context("/", base_url=base):
+            assert ingest_base_url() == base, base
+
+
+@test("APP_BASE_URL overrides whatever the request happens to look like")
+def _(a=app, home=metrics_home):
+    os.environ["APP_BASE_URL"] = "https://metrics.example.com/"
+    try:
+        with a.test_request_context("/", base_url="http://internal:8000"):
+            assert ingest_base_url() == "https://metrics.example.com"
+    finally:
+        os.environ.pop("APP_BASE_URL", None)
+
+
+@test("the settings snippet users copy from is https, and says why it must stay that way")
+def _(ac=auth_client, u=auth_user, home=metrics_home):
+    u.admin = 1
+    u.save()
+
+    body = ac.get(
+        "/settings/metrics", headers={"X-Forwarded-Proto": "https"}
+    ).get_data(as_text=True)
+    assert 'urls = ["https://localhost"]' in body
+    assert "308 Permanent Redirect" in body
+
+
+@test("the Servers empty state hands out an https snippet with the reason why")
+def _(ac=auth_client, home=metrics_home):
+    # MetricsHost lives in app.db, which metrics_home does not isolate, so clear the rows
+    # other tests left behind to reach the empty state that carries the snippet.
+    MetricsHost.delete().execute()
+
+    # Same host so the session cookie survives; the proxy header is what lifts the scheme.
+    body = ac.get("/servers", headers={"X-Forwarded-Proto": "https"}).get_data(as_text=True)
+    assert 'urls = ["https://localhost"]' in body
+    assert "clear text" in body
 
 
 @test("the query API returns bucketed points")

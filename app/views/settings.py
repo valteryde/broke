@@ -255,8 +255,11 @@ def settings_section_view(user: User, section: str):  # noqa: C901
 
     elif section == "metrics":
         from ..utils import metrics_store
+        from .metrics import ingest_base_url
 
-        context["base_url"] = request.host_url.rstrip("/")
+        # Not request.host_url: Telegraf must be told the public https origin, not the
+        # plain-HTTP hop a TLS-terminating proxy speaks to gunicorn over.
+        context["base_url"] = ingest_base_url()
         context["metrics_tokens"] = list(
             MetricsToken.select().order_by(MetricsToken.created_at.desc())
         )

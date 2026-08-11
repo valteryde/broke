@@ -27,10 +27,13 @@
     <p>Create a metrics token under <a href="{{ request.script_root }}/settings/metrics">Settings &rsaquo; Metrics</a>,
        then point Telegraf's <code>outputs.influxdb_v2</code> at this instance.</p>
     <pre class="met-config">[[outputs.influxdb_v2]]
-  urls = ["{{ request.url_root.rstrip('/') }}"]
+  urls = ["{{ base_url }}"]
   token = "&lt;your metrics token&gt;"
   organization = "broke"
   bucket = "broke"</pre>
+    <p class="met-empty-note">Keep the <code>https://</code> URL. Telegraf reports the redirect an
+       <code>http://</code> address gets as a write failure, and the token would cross the
+       network in clear text first.</p>
 </div>
 {% else %}
 <div class="met-board" id="met-board">

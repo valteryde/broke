@@ -8,6 +8,8 @@ a session, which is also what keeps them out of CSRF checking.
 
 from __future__ import annotations
 
+import os
+import re
 import time
 import zlib
 from datetime import datetime, timezone
@@ -287,6 +289,38 @@ def _host_summary(host: MetricsHost, now: int) -> dict[str, Any]:
     }
 
 
+def _is_plain_http_host(host: str) -> bool:
+    """Whether this host is one nobody would have put a certificate in front of."""
+    name = host.partition(":")[0].lower()
+    if name in ("localhost", "127.0.0.1", "::1", "[::1]") or name.endswith(".local"):
+        return True
+    # A bare IP is almost always a LAN install reached over plain HTTP.
+    return bool(re.fullmatch(r"[0-9.]+", name))
+
+
+def ingest_base_url() -> str:
+    """The URL to hand out in a Telegraf config, as https wherever that can be true.
+
+    Broke normally sits behind a proxy that terminates TLS, so ``request.host_url``
+    describes the plain-HTTP hop between the proxy and gunicorn and would advertise an
+    ``http://`` endpoint. Telegraf will not follow the redirect such a proxy answers
+    http with — it reports the 308 as a write failure — and the token would already have
+    crossed the internet in clear text by then. So prefer the operator's APP_BASE_URL,
+    then the scheme the proxy reports, and only fall back to http for local installs.
+    """
+    configured = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
+    if configured:
+        return configured
+
+    scheme, _, host = request.host_url.rstrip("/").partition("://")
+    forwarded = (request.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
+    if forwarded in ("http", "https"):
+        scheme = forwarded
+    elif scheme == "http" and not _is_plain_http_host(host):
+        scheme = "https"
+    return f"{scheme}://{host}"
+
+
 @metrics_bp.route("/servers")
 @protected
 def servers_list_view(user: User):
@@ -299,6 +333,7 @@ def servers_list_view(user: User):
         user=user,
         page="servers",
         rows=rows,
+        base_url=ingest_base_url(),
         online_count=sum(1 for r in rows if r["online"]),
     )
 

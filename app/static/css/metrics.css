@@ -58,6 +58,16 @@
     color: #333;
 }
 
+.met-empty-note {
+    margin: 12px 0 0;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.met-empty-note code {
+    font-size: 0.82rem;
+}
+
 /* ---------- Host board ---------- */
 
 .met-board {

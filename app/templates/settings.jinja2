@@ -1612,6 +1612,20 @@
   token = "&lt;your metrics token&gt;"
   organization = "broke"
   bucket = "broke"</pre>
+                    {% if base_url.startswith('https://') %}
+                    <p class="card-description" style="margin-top: 12px;">
+                        Keep the <code>https://</code> URL. Telegraf does not follow the redirect a
+                        TLS-terminating proxy answers <code>http://</code> with — it logs
+                        <code>308 Permanent Redirect</code> and drops the batch — and the token would
+                        cross the network in clear text before that happened.
+                    </p>
+                    {% else %}
+                    <p class="card-description" style="margin-top: 12px;">
+                        This instance looks like a plain-HTTP install, so the snippet uses
+                        <code>http://</code>. Once it is behind TLS, set <code>APP_BASE_URL</code> to the
+                        public <code>https://</code> origin so agents are told the right address.
+                    </p>
+                    {% endif %}
                     <p class="card-description" style="margin-top: 12px;">
                         Metrics appear under <a href="{{ request.script_root }}/servers">Servers</a> within
                         a minute of the first write.

@@ -188,6 +188,13 @@ or a separate time-series database.
 
 3. Restart Telegraf. The host appears under **Servers** within a minute.
 
+Use the `https://` URL. A TLS-terminating proxy answers an `http://` write with a
+`308 Permanent Redirect`, which Telegraf does not follow — it logs
+`E! [outputs.influxdb_v2] ... 308 Permanent Redirect` and drops the batch — and the token
+has already crossed the network in clear text by then. The snippet in Settings → Server
+Metrics fills this in for you; if Broke cannot see its own public origin behind your proxy,
+set `APP_BASE_URL` to it.
+
 The older `[[outputs.influxdb]]` plugin works too — point it at the same URL and pass the
 token as the `password` field, which it sends as basic auth. Passing the token in the URL
 as `?p=` is refused unless you set `METRICS_ALLOW_QUERY_TOKEN=1`, since query strings end
