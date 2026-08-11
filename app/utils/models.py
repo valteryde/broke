@@ -472,6 +472,30 @@ class MetricsHost(BaseModel):
     series_count = IntegerField(default=0)
 
 
+class MetricsChart(BaseModel):
+    """One chart pinned to a host's board, ordered by ``position``.
+
+    The board is shared per host rather than per user: a team looking at the same server
+    should be looking at the same thing. Absence of rows is meaningful — it means nobody
+    has arranged this host yet, so the page falls back to a suggestion drawn from the data.
+
+    ``tags`` is the canonical JSON that ``metrics_store.encode_tags`` produces, so it joins
+    straight against the series catalogue. An empty object means the series carrying no
+    tags beyond host, which is different from "any tag set".
+    """
+
+    id = AutoField(primary_key=True)
+    hostname = CharField(index=True)
+    measurement = CharField()
+    field = CharField()
+    tags = TextField(default="{}")
+    position = IntegerField(default=0)
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+    class Meta:  # type: ignore
+        indexes = ((("hostname", "measurement", "field", "tags"), True),)
+
+
 MODELS = [
     User,
     WorkCycle,
@@ -508,6 +532,7 @@ MODELS = [
     MonitorCheck,
     MetricsToken,
     MetricsHost,
+    MetricsChart,
 ]
 
 

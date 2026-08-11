@@ -16,7 +16,7 @@ from ward import Scope, fixture, test
 from tests.fixtures import app, auth_client, auth_user, client, fake
 from app.utils import metrics_store
 from app.utils.metrics_auth import generate_token, hash_token
-from app.utils.models import MetricsHost, MetricsToken
+from app.utils.models import MetricsChart, MetricsHost, MetricsToken, database
 from app.views.metrics import ingest_base_url
 
 
@@ -268,17 +268,20 @@ def _(ac=auth_client, home=metrics_home, raw=metrics_token):
     # The host tag comes from whoever holds a write token, so it is untrusted input.
     # Templates are .jinja2, which Flask does not autoescape, hence the explicit filters.
     host = "evil</script><script>alert(1)</script>"
-    ac.post(
-        "/api/v2/write?precision=s",
-        data=f"mem,host={host} used_percent=1.0 {int(time.time())}\n".encode(),
-        headers=_auth(raw),
-    )
-    assert MetricsHost.get_or_none(MetricsHost.hostname == host) is not None
+    try:
+        ac.post(
+            "/api/v2/write?precision=s",
+            data=f"mem,host={host} used_percent=1.0 {int(time.time())}\n".encode(),
+            headers=_auth(raw),
+        )
+        assert MetricsHost.get_or_none(MetricsHost.hostname == host) is not None
 
-    for path in ("/servers", f"/servers/{quote(host, safe='')}"):
-        body = ac.get(path).get_data(as_text=True)
-        assert "<script>alert(1)</script>" not in body, path
-        assert "&lt;/script&gt;&lt;script&gt;" in body, path
+        for path in ("/servers", f"/servers/{quote(host, safe='')}"):
+            body = ac.get(path).get_data(as_text=True)
+            assert "<script>alert(1)</script>" not in body, path
+            assert "&lt;/script&gt;&lt;script&gt;" in body, path
+    finally:
+        MetricsHost.delete().where(MetricsHost.hostname == host).execute()
 
 
 @test("the precision parameter scales incoming timestamps")
@@ -436,12 +439,16 @@ def _(ac=auth_client, u=auth_user, home=metrics_home):
 
 @test("the Servers empty state hands out an https snippet with the reason why")
 def _(ac=auth_client, home=metrics_home):
-    # MetricsHost lives in app.db, which metrics_home does not isolate, so clear the rows
-    # other tests left behind to reach the empty state that carries the snippet.
-    MetricsHost.delete().execute()
+    # MetricsHost lives in app.db, which metrics_home does not isolate, so reaching the
+    # empty state means clearing rows this suite shares with everything else. Do it inside
+    # a transaction that is rolled back, rather than really deleting anyone's hosts.
+    with database.atomic() as txn:
+        MetricsHost.delete().execute()
 
-    # Same host so the session cookie survives; the proxy header is what lifts the scheme.
-    body = ac.get("/servers", headers={"X-Forwarded-Proto": "https"}).get_data(as_text=True)
+        # Same host so the session cookie survives; the header is what lifts the scheme.
+        body = ac.get("/servers", headers={"X-Forwarded-Proto": "https"}).get_data(as_text=True)
+        txn.rollback()
+
     assert 'urls = ["https://localhost"]' in body
     assert "clear text" in body
 
@@ -481,6 +488,136 @@ def _(ac=auth_client, home=metrics_home):
     assert (
         ac.get("/api/metrics/query?host=a&measurement=cpu&field=x&tags=notjson").status_code == 400
     )
+
+
+# ============ The chart board ============
+
+
+def _charts_url(host: str) -> str:
+    return f"/api/metrics/hosts/{quote(host, safe='')}/charts"
+
+
+@fixture(scope=Scope.Test)
+def board_host(c=auth_client, home=metrics_home, raw=metrics_token):
+    """A host reporting three measurements, with no board arranged for it."""
+    host = f"boardhost-{int(time.time() * 1000000)}"
+    now = int(time.time())
+    body = "\n".join(
+        f"cpu,host={host} usage_idle={80 + i}.0 {now - i * 10}\n"
+        f"mem,host={host} used_percent={40 + i}.0 {now - i * 10}\n"
+        f"disk,host={host} used_percent={10 + i}.0 {now - i * 10}"
+        for i in range(3)
+    )
+    c.post("/api/v2/write?precision=s", data=body.encode(), headers=_auth(raw))
+    c.get("/servers")
+
+    yield host
+
+    MetricsChart.delete().where(MetricsChart.hostname == host).execute()
+    MetricsHost.delete().where(MetricsHost.hostname == host).execute()
+
+
+@test("a host nobody has arranged gets charts drawn from what it actually sent")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    payload = ac.get(_charts_url(host)).get_json()
+
+    assert payload["customised"] is False
+    assert sorted(c["measurement"] for c in payload["charts"]) == ["cpu", "disk", "mem"]
+
+
+@test("the detail page says its charts were picked automatically")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    body = ac.get(f"/servers/{quote(host, safe='')}").get_data(as_text=True)
+    assert "picked from what this server is actually sending" in body
+
+
+@test("saving a board keeps the order it was given")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    response = ac.put(
+        _charts_url(host),
+        json={
+            "charts": [
+                {"measurement": "disk", "field": "used_percent", "tags": {}},
+                {"measurement": "cpu", "field": "usage_idle", "tags": {}},
+            ]
+        },
+        headers=_csrf(ac),
+    )
+    assert response.status_code == 200
+
+    payload = response.get_json()
+    assert payload["customised"] is True
+    assert [c["measurement"] for c in payload["charts"]] == ["disk", "cpu"]
+
+    # And the order survives a fresh read rather than only the response.
+    again = ac.get(_charts_url(host)).get_json()
+    assert [c["measurement"] for c in again["charts"]] == ["disk", "cpu"]
+
+
+@test("a saved board replaces the suggestion on the page, with no automatic note")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    ac.put(
+        _charts_url(host),
+        json={"charts": [{"measurement": "mem", "field": "used_percent", "tags": {}}]},
+        headers=_csrf(ac),
+    )
+
+    body = ac.get(f"/servers/{quote(host, safe='')}").get_data(as_text=True)
+    assert "picked from what this server is actually sending" not in body
+    assert body.count('class="met-chart"') == 1
+
+
+@test("an empty board is refused rather than silently reverting to the suggestion")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    # No rows already means "nobody arranged this host", so an empty save would come back
+    # as the suggestion on the next load and look like the save had been ignored.
+    response = ac.put(_charts_url(host), json={"charts": []}, headers=_csrf(ac))
+    assert response.status_code == 400
+
+    assert ac.get(_charts_url(host)).get_json()["customised"] is False
+
+
+@test("saving rejects a series the host never sent")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    response = ac.put(
+        _charts_url(host),
+        json={"charts": [{"measurement": "nope", "field": "nope", "tags": {}}]},
+        headers=_csrf(ac),
+    )
+    assert response.status_code == 400
+    assert "never" in response.get_json()["error"] or "not a series" in response.get_json()["error"]
+
+
+@test("saving rejects a board larger than the cap")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    charts = [{"measurement": "cpu", "field": "usage_idle", "tags": {}}] * 40
+    response = ac.put(_charts_url(host), json={"charts": charts}, headers=_csrf(ac))
+    assert response.status_code == 400
+
+
+@test("resetting a board brings the data-driven suggestion back")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    ac.put(
+        _charts_url(host),
+        json={"charts": [{"measurement": "mem", "field": "used_percent", "tags": {}}]},
+        headers=_csrf(ac),
+    )
+    assert ac.get(_charts_url(host)).get_json()["customised"] is True
+
+    payload = ac.delete(_charts_url(host), headers=_csrf(ac)).get_json()
+    assert payload["customised"] is False
+    assert len(payload["charts"]) == 3
+
+
+@test("the board endpoints 404 for an unknown host and when metrics are disabled")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    assert ac.get(_charts_url("no-such-host")).status_code == 404
+
+    os.environ["BROKE_DISABLED_FEATURES"] = "metrics"
+    try:
+        assert ac.get(_charts_url(host)).status_code == 404
+    finally:
+        os.environ.pop("BROKE_DISABLED_FEATURES", None)
 
 
 @test("deleting a host is admin only and clears its metrics")

@@ -671,6 +671,91 @@ def list_measurements(host: str) -> list[str]:
     return [r[0] for r in rows]
 
 
+def text_only_series(host: str, *, now: int | None = None) -> set[tuple[str, str, str]]:
+    """Series that have arrived recently carrying only text, keyed by (measurement, field, tags).
+
+    Telegraf mixes string fields in with numbers — ``system.uptime_format`` and friends —
+    and there is nothing to draw for those. A series with no recent rows at all is absent
+    from the result rather than reported as text: we simply do not know, and guessing wrong
+    would hide a real chart.
+    """
+    now = int(now if now is not None else time.time())
+    start_ms = (now - hot_window_seconds()) * 1000
+
+    rows = hot_connection().execute(
+        "SELECT measurement, field, tags FROM hot_point"
+        " WHERE host = ? AND ts >= ?"
+        " GROUP BY measurement, field, tags"
+        " HAVING SUM(CASE WHEN value IS NOT NULL THEN 1 ELSE 0 END) = 0",
+        (host, start_ms),
+    ).fetchall()
+    return {(r[0], r[1], r[2] or "{}") for r in rows}
+
+
+def suggest_charts(host: str, *, limit: int = 8, now: int | None = None) -> list[dict[str, Any]]:
+    """A starting board for a host nobody has arranged yet.
+
+    Deliberately not a list of metrics we consider interesting: the picks come from what
+    this agent actually sent. Two data-driven rules do the work. A series whose value moved
+    over the window beats one that sat still, which is what separates a live reading from a
+    counter pinned at zero or a constant flag. And at most one field per measurement is
+    taken, so the board spans the host instead of showing eight views of the CPU.
+
+    String-valued series are skipped: there is nothing to plot.
+    """
+    now = int(now if now is not None else time.time())
+    start_ms = (now - hot_window_seconds()) * 1000
+
+    rows = hot_connection().execute(
+        "SELECT measurement, field, tags, MIN(value), MAX(value), COUNT(value)"
+        " FROM hot_point"
+        " WHERE host = ? AND ts >= ? AND value IS NOT NULL"
+        " GROUP BY measurement, field, tags",
+        (host, start_ms),
+    ).fetchall()
+
+    candidates = [
+        {
+            "measurement": r[0],
+            "field": r[1],
+            "tags": json.loads(r[2] or "{}"),
+            "varies": r[3] is not None and r[4] is not None and r[4] > r[3],
+            "points": r[5],
+        }
+        for r in rows
+    ]
+
+    if not candidates:
+        # Nothing recent to judge — a host that stopped reporting, or one whose window has
+        # already been compacted away. Fall back to the durable catalogue so the board is
+        # still populated, just without the variance signal.
+        candidates = [
+            {**entry, "varies": False, "points": 0}
+            for entry in list_series(host)
+        ]
+
+    candidates.sort(
+        key=lambda c: (not c["varies"], c["measurement"], c["field"], encode_tags(c["tags"]))
+    )
+
+    picked: list[dict[str, Any]] = []
+    seen_measurements: set[str] = set()
+    for candidate in candidates:
+        if candidate["measurement"] in seen_measurements:
+            continue
+        seen_measurements.add(candidate["measurement"])
+        picked.append(
+            {
+                "measurement": candidate["measurement"],
+                "field": candidate["field"],
+                "tags": candidate["tags"],
+            }
+        )
+        if len(picked) >= limit:
+            break
+    return picked
+
+
 def latest_value(
     *,
     host: str,

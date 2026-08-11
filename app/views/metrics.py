@@ -8,6 +8,7 @@ a session, which is also what keeps them out of CSRF checking.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -20,7 +21,7 @@ from flask import Blueprint, abort, jsonify, render_template, request
 from ..utils.features import FEATURE_METRICS, is_feature_enabled
 from ..utils.lineprotocol import LineProtocolError, parse
 from ..utils.metrics_auth import verify_metrics_token
-from ..utils.models import MetricsHost, User
+from ..utils.models import MetricsChart, MetricsHost, User, database
 from ..utils.security import protected
 from ..utils import metrics_store
 
@@ -39,77 +40,67 @@ RANGES: dict[str, tuple[int, int]] = {
 }
 DEFAULT_RANGE = "24h"
 
-# Series drawn on the host detail page, in order.
-CHART_SPECS: list[dict[str, Any]] = [
-    {
-        "key": "cpu",
-        "title": "CPU usage",
-        "unit": "%",
-        "measurement": "cpu",
-        "field": "usage_idle",
-        "tags": {"cpu": "cpu-total"},
-        "invert": True,
-    },
-    {
-        "key": "memory",
-        "title": "Memory used",
-        "unit": "%",
-        "measurement": "mem",
-        "field": "used_percent",
-        "tags": {},
-    },
-    {
-        "key": "swap",
-        "title": "Swap used",
-        "unit": "%",
-        "measurement": "swap",
-        "field": "used_percent",
-        "tags": {},
-    },
-    {
-        "key": "load",
-        "title": "Load average (1m)",
-        "unit": "",
-        "measurement": "system",
-        "field": "load1",
-        "tags": {},
-    },
-    {
-        "key": "disk",
-        "title": "Disk used (busiest mount)",
-        "unit": "%",
-        "measurement": "disk",
-        "field": "used_percent",
-        "tags": None,
-        "aggregate": "max",
-    },
-    {
-        "key": "disk_io_read",
-        "title": "Disk read",
-        "unit": "bytes",
-        "measurement": "diskio",
-        "field": "read_bytes",
-        "tags": None,
-        "aggregate": "max",
-    },
-    {
-        "key": "net_recv",
-        "title": "Network received",
-        "unit": "bytes",
-        "measurement": "net",
-        "field": "bytes_recv",
-        "tags": None,
-        "aggregate": "max",
-    },
-    {
-        "key": "processes",
-        "title": "Processes running",
-        "unit": "",
-        "measurement": "processes",
-        "field": "running",
-        "tags": {},
-    },
-]
+# Presentation only. Nothing here decides what a board shows — that comes from the host's
+# saved layout, or from metrics_store.suggest_charts when there is none. These entries just
+# make a series that happens to be recognisable read better once it is already on screen.
+CHART_HINTS: dict[tuple[str, str], dict[str, Any]] = {
+    ("cpu", "usage_idle"): {"title": "CPU usage", "unit": "%", "invert": True},
+    ("cpu", "usage_user"): {"title": "CPU user", "unit": "%"},
+    ("cpu", "usage_system"): {"title": "CPU system", "unit": "%"},
+    ("cpu", "usage_iowait"): {"title": "CPU iowait", "unit": "%"},
+    ("mem", "used_percent"): {"title": "Memory used", "unit": "%"},
+    ("mem", "available_percent"): {"title": "Memory available", "unit": "%"},
+    ("swap", "used_percent"): {"title": "Swap used", "unit": "%"},
+    ("system", "load1"): {"title": "Load average (1m)"},
+    ("system", "load5"): {"title": "Load average (5m)"},
+    ("system", "load15"): {"title": "Load average (15m)"},
+    ("system", "n_cpus"): {"title": "CPU count"},
+    ("disk", "used_percent"): {"title": "Disk used", "unit": "%", "aggregate": "max"},
+    ("diskio", "read_bytes"): {"title": "Disk read", "unit": "bytes", "aggregate": "max"},
+    ("diskio", "write_bytes"): {"title": "Disk write", "unit": "bytes", "aggregate": "max"},
+    ("net", "bytes_recv"): {"title": "Network received", "unit": "bytes", "aggregate": "max"},
+    ("net", "bytes_sent"): {"title": "Network sent", "unit": "bytes", "aggregate": "max"},
+    ("processes", "running"): {"title": "Processes running"},
+    ("processes", "total"): {"title": "Processes total"},
+}
+
+# How many charts a board may hold, so one enthusiastic save cannot make the page unusable.
+MAX_BOARD_CHARTS = 24
+SUGGESTED_CHART_COUNT = 8
+
+
+def _infer_unit(field: str) -> str:
+    """Guess a unit from the field name so axes format sensibly for unknown series."""
+    lowered = field.lower()
+    if lowered.endswith("_percent") or lowered.endswith("_pct") or lowered == "percent":
+        return "%"
+    if "bytes" in lowered:
+        return "bytes"
+    return ""
+
+
+def chart_spec(measurement: str, field: str, tags: dict[str, str] | None) -> dict[str, Any]:
+    """Everything the template and JS need to draw one series."""
+    hint = CHART_HINTS.get((measurement, field), {})
+    title = hint.get("title") or f"{measurement}.{field}"
+    if tags:
+        title += " · " + " ".join(f"{k}={v}" for k, v in sorted(tags.items()))
+    return {
+        "key": series_key(measurement, field, tags),
+        "title": title,
+        "unit": hint.get("unit", _infer_unit(field)),
+        "measurement": measurement,
+        "field": field,
+        "tags": tags,
+        "aggregate": hint.get("aggregate", "avg"),
+        "invert": hint.get("invert", False),
+    }
+
+
+def series_key(measurement: str, field: str, tags: dict[str, str] | None) -> str:
+    """Stable identifier for one series, used as a DOM id and by the editor."""
+    return f"{measurement}|{field}|{metrics_store.encode_tags(tags or {})}"
+
 
 _host_touch_cache: dict[str, int] = {}
 
@@ -338,6 +329,33 @@ def servers_list_view(user: User):
     )
 
 
+def resolve_board(hostname: str) -> tuple[list[dict[str, Any]], bool]:
+    """The host's board, and whether a human arranged it.
+
+    No saved rows is meaningful rather than empty: it means nobody has chosen anything for
+    this host yet, so we suggest a board from the data instead of leaving the page blank.
+    The suggestion is not written to the database — leaving it unsaved keeps it responsive
+    to whatever the agent starts or stops sending, right up until someone edits it.
+    """
+    saved = list(
+        MetricsChart.select()
+        .where(MetricsChart.hostname == hostname)
+        .order_by(MetricsChart.position, MetricsChart.id)
+    )
+    if saved:
+        charts = []
+        for row in saved:
+            try:
+                tags = json.loads(row.tags or "{}")
+            except json.JSONDecodeError:
+                tags = {}
+            charts.append(chart_spec(str(row.measurement), str(row.field), tags))
+        return charts, True
+
+    suggested = metrics_store.suggest_charts(hostname, limit=SUGGESTED_CHART_COUNT)
+    return [chart_spec(s["measurement"], s["field"], s["tags"]) for s in suggested], False
+
+
 @metrics_bp.route("/servers/<path:hostname>")
 @protected
 def server_detail_view(user: User, hostname: str):
@@ -356,13 +374,36 @@ def server_detail_view(user: User, hostname: str):
     for entry in series:
         measurements.setdefault(entry["measurement"], []).append(entry)
 
+    charts, customised = resolve_board(hostname)
+    # A string field would only ever draw an empty chart, so keep it out of the picker.
+    text_only = metrics_store.text_only_series(hostname, now=now)
+
     return render_template(
         "server_detail.jinja2",
         user=user,
         page="servers",
         host=host,
         summary=_host_summary(host, now),
-        charts=CHART_SPECS,
+        charts=charts,
+        board_customised=customised,
+        board_data={
+            "host": hostname,
+            "charts": [
+                {"key": c["key"], "measurement": c["measurement"], "field": c["field"]}
+                for c in charts
+            ],
+            "available": [
+                {
+                    "key": series_key(e["measurement"], e["field"], e["tags"]),
+                    "measurement": e["measurement"],
+                    "field": e["field"],
+                    "tags": e["tags"],
+                }
+                for e in series
+                if (e["measurement"], e["field"], metrics_store.encode_tags(e["tags"]))
+                not in text_only
+            ],
+        },
         ranges=list(RANGES.keys()),
         current_range=range_key,
         measurements=measurements,
@@ -403,8 +444,6 @@ def api_query(user: User):
     tags: dict[str, str] | None = None
     raw_tags = request.args.get("tags")
     if raw_tags:
-        import json
-
         try:
             parsed = json.loads(raw_tags)
         except json.JSONDecodeError:
@@ -468,5 +507,112 @@ def api_delete_host(user: User, hostname: str):
 
     metrics_store.purge_host(hostname)
     host.delete_instance()
+    MetricsChart.delete().where(MetricsChart.hostname == hostname).execute()
     _host_touch_cache.pop(hostname, None)
     return jsonify({"ok": True})
+
+
+# ============ Board layout ============
+
+
+def _board_payload(hostname: str) -> dict[str, Any]:
+    charts, customised = resolve_board(hostname)
+    return {
+        "charts": [
+            {
+                "key": c["key"],
+                "title": c["title"],
+                "measurement": c["measurement"],
+                "field": c["field"],
+                "tags": c["tags"],
+            }
+            for c in charts
+        ],
+        "customised": customised,
+    }
+
+
+@metrics_bp.route("/api/metrics/hosts/<path:hostname>/charts")
+@protected
+def api_get_charts(user: User, hostname: str):
+    _feature_guard()
+    if not MetricsHost.get_or_none(MetricsHost.hostname == hostname):
+        return jsonify({"error": "Host not found"}), 404
+    return jsonify(_board_payload(hostname))
+
+
+@metrics_bp.route("/api/metrics/hosts/<path:hostname>/charts", methods=["PUT"])
+@protected
+def api_save_charts(user: User, hostname: str):
+    """Replace a host's board. The order of the list is the order on the page."""
+    _feature_guard()
+    if not MetricsHost.get_or_none(MetricsHost.hostname == hostname):
+        return jsonify({"error": "Host not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    requested = payload.get("charts")
+    if not isinstance(requested, list):
+        return jsonify({"error": "charts must be a list"}), 400
+    if len(requested) > MAX_BOARD_CHARTS:
+        return jsonify({"error": f"a board holds at most {MAX_BOARD_CHARTS} charts"}), 400
+    if not requested:
+        # "No rows" already means "nobody arranged this host", so an empty board could not
+        # be told apart from an unarranged one and would silently revert on the next load.
+        # Rejecting it keeps that distinction honest; DELETE is how you ask for the
+        # suggestion back.
+        return jsonify({"error": "a board needs at least one chart"}), 400
+
+    known = {
+        series_key(e["measurement"], e["field"], e["tags"]): e
+        for e in metrics_store.list_series(hostname)
+    }
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for position, item in enumerate(requested):
+        if not isinstance(item, dict):
+            return jsonify({"error": "each chart must be an object"}), 400
+        measurement = str(item.get("measurement") or "")
+        field = str(item.get("field") or "")
+        tags = item.get("tags")
+        if not isinstance(tags, dict):
+            tags = {}
+        tags = {str(k): str(v) for k, v in tags.items()}
+
+        key = series_key(measurement, field, tags)
+        if key not in known:
+            return jsonify({"error": f"{measurement}.{field} is not a series this host sent"}), 400
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(
+            {
+                "hostname": hostname,
+                "measurement": measurement,
+                "field": field,
+                "tags": metrics_store.encode_tags(tags),
+                "position": position,
+                "created_at": int(time.time()),
+            }
+        )
+
+    # Replace wholesale: positions are only meaningful as a complete sequence, and this
+    # keeps a removed chart from lingering because its row happened not to be overwritten.
+    with database.atomic():
+        MetricsChart.delete().where(MetricsChart.hostname == hostname).execute()
+        if rows:
+            MetricsChart.insert_many(rows).execute()
+
+    return jsonify(_board_payload(hostname))
+
+
+@metrics_bp.route("/api/metrics/hosts/<path:hostname>/charts", methods=["DELETE"])
+@protected
+def api_reset_charts(user: User, hostname: str):
+    """Drop the saved board so the host falls back to a suggestion from its data."""
+    _feature_guard()
+    if not MetricsHost.get_or_none(MetricsHost.hostname == hostname):
+        return jsonify({"error": "Host not found"}), 404
+
+    MetricsChart.delete().where(MetricsChart.hostname == hostname).execute()
+    return jsonify(_board_payload(hostname))

@@ -200,9 +200,18 @@ token as the `password` field, which it sends as basic auth. Passing the token i
 as `?p=` is refused unless you set `METRICS_ALLOW_QUERY_TOKEN=1`, since query strings end
 up in access logs.
 
-Whatever Telegraf sends is stored, not just the fields Broke charts. The host detail page
-graphs CPU, memory, swap, load, disk, disk IO, network and processes, and its measurement
-explorer lets you chart any other field an agent has reported.
+Whatever Telegraf sends is stored, and the charts come from that rather than a fixed list,
+so a host running an unusual plugin is charted just as well as a stock one.
+
+The first time you open a server, Broke picks a board from the data itself: at most one
+field per measurement, favouring series whose value actually moved over ones sitting at a
+constant, and skipping string fields as unplottable. Nothing is written to the database at
+this point, so the suggestion keeps up as the agent starts or stops sending things.
+
+**Edit charts** replaces that with your own selection — tick the series you want, drag to
+reorder, and save. A saved board is shared by everyone looking at that server, and
+**Reset to suggested** discards it and returns to the automatic picks. The measurement
+explorer below the board still charts any single field ad hoc without changing the board.
 
 ### How metrics are stored
 

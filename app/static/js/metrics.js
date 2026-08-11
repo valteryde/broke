@@ -244,6 +244,222 @@ window.BrokeMetrics = (function () {
         setInterval(function () { charts.forEach(renderChart); }, REFRESH_MS);
     }
 
+    /* ============ Board editor ============ */
+
+    function seriesLabel(entry) {
+        var label = entry.measurement + '.' + entry.field;
+        var tags = entry.tags && Object.keys(entry.tags);
+        if (tags && tags.length) {
+            label += ' · ' + tags.sort().map(function (k) {
+                return k + '=' + entry.tags[k];
+            }).join(' ');
+        }
+        return label;
+    }
+
+    function initEditor(config) {
+        var panel = document.getElementById('met-editor');
+        var toggle = document.getElementById('met-edit-toggle');
+        if (!panel || !toggle) return;
+
+        var selectedList = document.getElementById('met-editor-selected');
+        var availableList = document.getElementById('met-editor-available');
+        var filterInput = document.getElementById('met-editor-filter');
+        var status = document.getElementById('met-editor-status');
+
+        var available = config.available || [];
+        var byKey = {};
+        available.forEach(function (entry) { byKey[entry.key] = entry; });
+
+        // Keys only; the editor reorders this array and the server stores that order.
+        var chosen = (config.charts || []).map(function (c) { return c.key; })
+            .filter(function (key) { return byKey[key]; });
+
+        var dragKey = null;
+
+        function setStatus(message, isError) {
+            status.textContent = message || '';
+            status.classList.toggle('is-error', !!isError);
+        }
+
+        function renderSelected() {
+            selectedList.textContent = '';
+            if (!chosen.length) {
+                var empty = document.createElement('li');
+                empty.className = 'met-editor-empty';
+                empty.textContent = 'Nothing selected. The board would be blank.';
+                selectedList.appendChild(empty);
+                return;
+            }
+
+            chosen.forEach(function (key) {
+                var entry = byKey[key];
+                var item = document.createElement('li');
+                item.className = 'met-editor-item';
+                item.draggable = true;
+                item.dataset.key = key;
+
+                var handle = document.createElement('i');
+                handle.className = 'ph ph-dots-six-vertical met-editor-handle';
+                item.appendChild(handle);
+
+                var label = document.createElement('span');
+                label.className = 'met-editor-label';
+                label.textContent = seriesLabel(entry);
+                item.appendChild(label);
+
+                var remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'met-editor-remove';
+                remove.title = 'Remove from board';
+                remove.innerHTML = '<i class="ph ph-x"></i>';
+                remove.addEventListener('click', function () {
+                    chosen = chosen.filter(function (k) { return k !== key; });
+                    render();
+                });
+                item.appendChild(remove);
+
+                item.addEventListener('dragstart', function () {
+                    dragKey = key;
+                    item.classList.add('is-dragging');
+                });
+                item.addEventListener('dragend', function () {
+                    dragKey = null;
+                    item.classList.remove('is-dragging');
+                });
+                item.addEventListener('dragover', function (event) {
+                    event.preventDefault();
+                    if (!dragKey || dragKey === key) return;
+                    var from = chosen.indexOf(dragKey);
+                    var to = chosen.indexOf(key);
+                    if (from < 0 || to < 0) return;
+                    chosen.splice(from, 1);
+                    chosen.splice(to, 0, dragKey);
+                    renderSelected();
+                });
+
+                selectedList.appendChild(item);
+            });
+        }
+
+        function renderAvailable() {
+            var filter = (filterInput.value || '').trim().toLowerCase();
+            availableList.textContent = '';
+
+            var groups = {};
+            available.forEach(function (entry) {
+                if (chosen.indexOf(entry.key) !== -1) return;
+                if (filter && seriesLabel(entry).toLowerCase().indexOf(filter) === -1) return;
+                (groups[entry.measurement] = groups[entry.measurement] || []).push(entry);
+            });
+
+            var names = Object.keys(groups).sort();
+            if (!names.length) {
+                var empty = document.createElement('p');
+                empty.className = 'met-editor-empty';
+                empty.textContent = filter
+                    ? 'Nothing matches that filter.'
+                    : 'Every series this host sends is already on the board.';
+                availableList.appendChild(empty);
+                return;
+            }
+
+            names.forEach(function (name) {
+                var group = document.createElement('div');
+                group.className = 'met-editor-group';
+
+                var heading = document.createElement('h4');
+                heading.textContent = name;
+                group.appendChild(heading);
+
+                groups[name].forEach(function (entry) {
+                    var button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'met-editor-add';
+                    button.innerHTML = '<i class="ph ph-plus"></i>';
+                    button.appendChild(document.createTextNode(seriesLabel(entry)));
+                    button.addEventListener('click', function () {
+                        if (chosen.indexOf(entry.key) === -1) chosen.push(entry.key);
+                        render();
+                    });
+                    group.appendChild(button);
+                });
+
+                availableList.appendChild(group);
+            });
+        }
+
+        function render() {
+            renderSelected();
+            renderAvailable();
+        }
+
+        async function send(method, body) {
+            setStatus('Saving…');
+            try {
+                var response = await fetch(
+                    brokeAppUrl('/api/metrics/hosts/' + encodeURIComponent(config.host) + '/charts'),
+                    {
+                        method: method,
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-Token': window.BROKE_CSRF_TOKEN || ''
+                        },
+                        body: body ? JSON.stringify(body) : undefined
+                    }
+                );
+                if (!response.ok) {
+                    var data = await response.json().catch(function () { return {}; });
+                    setStatus(data.error || ('Request failed (' + response.status + ')'), true);
+                    return;
+                }
+                window.location.reload();
+            } catch (_) {
+                setStatus('Network error while saving.', true);
+            }
+        }
+
+        toggle.addEventListener('click', function () {
+            panel.hidden = !panel.hidden;
+            toggle.classList.toggle('is-active', !panel.hidden);
+            if (!panel.hidden) render();
+        });
+
+        filterInput.addEventListener('input', renderAvailable);
+
+        document.getElementById('met-editor-cancel').addEventListener('click', function () {
+            chosen = (config.charts || []).map(function (c) { return c.key; })
+                .filter(function (key) { return byKey[key]; });
+            panel.hidden = true;
+            toggle.classList.remove('is-active');
+            setStatus('');
+        });
+
+        document.getElementById('met-editor-save').addEventListener('click', function () {
+            if (!chosen.length) {
+                setStatus('Pick at least one series, or use Reset to suggested.', true);
+                return;
+            }
+            send('PUT', {
+                charts: chosen.map(function (key) {
+                    var entry = byKey[key];
+                    return {
+                        measurement: entry.measurement,
+                        field: entry.field,
+                        tags: entry.tags || {}
+                    };
+                })
+            });
+        });
+
+        document.getElementById('met-editor-reset').addEventListener('click', function () {
+            if (!confirm('Discard this board and go back to charts picked from the data?')) return;
+            send('DELETE', null);
+        });
+    }
+
     /* config.js, which defines brokeAppUrl, is loaded after the content block, so page
        scripts must wait for the document rather than running at parse time. */
     function ready(callback) {
@@ -257,6 +473,7 @@ window.BrokeMetrics = (function () {
     return {
         ready: ready,
         initDashboard: initDashboard,
+        initEditor: initEditor,
         renderChart: renderChart,
         formatValue: formatValue
     };

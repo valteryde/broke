@@ -25,13 +25,48 @@
             Last report {{ summary.last_seen_display }} · {{ series_count }} series · first seen {{ first_seen_display }}
         </p>
     </div>
-    <div class="met-range-picker">
-        {% for r in ranges %}
-        <a class="met-range {% if r == current_range %}active{% endif %}"
-           href="{{ request.script_root }}/servers/{{ host.hostname | urlencode }}?range={{ r }}">{{ r }}</a>
-        {% endfor %}
+    <div class="met-header-actions">
+        <div class="met-range-picker">
+            {% for r in ranges %}
+            <a class="met-range {% if r == current_range %}active{% endif %}"
+               href="{{ request.script_root }}/servers/{{ host.hostname | urlencode }}?range={{ r }}">{{ r }}</a>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-secondary" id="met-edit-toggle">
+            <i class="ph ph-sliders-horizontal"></i> Edit charts
+        </button>
     </div>
 </div>
+
+{% if not board_customised and charts %}
+<p class="met-board-note">
+    <i class="ph ph-magic-wand"></i>
+    These charts were picked from what this server is actually sending. Use
+    <strong>Edit charts</strong> to choose your own — the board is then shared with everyone.
+</p>
+{% endif %}
+
+<section class="met-editor" id="met-editor" hidden>
+    <div class="met-editor-grid">
+        <div class="met-editor-pane">
+            <h3>On the board</h3>
+            <p class="met-editor-hint">Drag to reorder. This layout is shared with everyone.</p>
+            <ul class="met-editor-list" id="met-editor-selected"></ul>
+        </div>
+        <div class="met-editor-pane">
+            <h3>Available series</h3>
+            <input type="search" id="met-editor-filter" class="form-input met-editor-filter"
+                   placeholder="Filter by measurement or field…" autocomplete="off">
+            <div class="met-editor-available" id="met-editor-available"></div>
+        </div>
+    </div>
+    <div class="met-editor-actions">
+        <button type="button" class="btn btn-primary" id="met-editor-save">Save board</button>
+        <button type="button" class="btn btn-secondary" id="met-editor-cancel">Cancel</button>
+        <button type="button" class="btn btn-secondary" id="met-editor-reset">Reset to suggested</button>
+        <span class="met-editor-status" id="met-editor-status"></span>
+    </div>
+</section>
 
 <div class="met-charts" id="met-charts" data-host="{{ host.hostname | e }}" data-range="{{ current_range | e }}">
     {% for chart in charts %}
@@ -50,6 +85,8 @@
             <div class="met-chart-loading">Loading…</div>
         </div>
     </section>
+    {% else %}
+    <p class="met-empty">This server has not sent anything that can be charted yet.</p>
     {% endfor %}
 </div>
 
@@ -103,6 +140,7 @@
 <script>
 BrokeMetrics.ready(function () {
     BrokeMetrics.initDashboard(document.getElementById('met-charts'));
+    BrokeMetrics.initEditor({{ board_data | tojson }});
 
     document.querySelectorAll('.met-explorer-field').forEach(function (button) {
         button.addEventListener('click', function () {

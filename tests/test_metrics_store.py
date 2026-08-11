@@ -347,3 +347,92 @@ def _(home=metrics_home):
     result = run_maintenance(now=now)
     assert result["rows_compacted"] == 1
     assert result["files_written"] == 1
+
+
+# ============ Suggesting a starting board ============
+
+
+def _keys(charts):
+    return [(c["measurement"], c["field"]) for c in charts]
+
+
+@test("a series that moves is suggested over one that never budges")
+def _(home=metrics_home):
+    now = int(time.time())
+    for offset in range(3):
+        _write(
+            f"cpu,host=a usage_guest=0.0,usage_idle={80 + offset}.0 {now - offset * 10}",
+            now=now,
+        )
+
+    assert _keys(metrics_store.suggest_charts("a")) == [("cpu", "usage_idle")]
+
+
+@test("the suggestion spreads across measurements instead of stacking one")
+def _(home=metrics_home):
+    now = int(time.time())
+    for offset in range(3):
+        ts = now - offset * 10
+        _write(
+            f"cpu,host=a usage_idle={80 + offset}.0,usage_user={offset}.0 {ts}"
+            f"\nmem,host=a used_percent={40 + offset}.0 {ts}"
+            f"\ndisk,host=a used_percent={10 + offset}.0 {ts}",
+            now=now,
+        )
+
+    suggested = metrics_store.suggest_charts("a")
+    measurements = [m for m, _ in _keys(suggested)]
+    assert sorted(measurements) == ["cpu", "disk", "mem"]
+    assert len(measurements) == len(set(measurements))
+
+
+@test("the suggestion honours its limit")
+def _(home=metrics_home):
+    now = int(time.time())
+    body = "\n".join(f"m{i},host=a value={i}.0 {now}" for i in range(10))
+    _write(body, now=now)
+
+    assert len(metrics_store.suggest_charts("a", limit=4)) == 4
+
+
+@test("string-only series are never suggested, since there is nothing to plot")
+def _(home=metrics_home):
+    now = int(time.time())
+    _write(f'system,host=a name="web",load1=1.5 {now}', now=now)
+
+    assert _keys(metrics_store.suggest_charts("a")) == [("system", "load1")]
+
+
+@test("a host whose hot window has been compacted away still gets a suggestion")
+def _(home=metrics_home):
+    now = int(time.time())
+    _write(f"cpu,host=a usage_idle=90.0 {now - 7200}", now=now)
+    metrics_store.compact(now=now)
+
+    # No hot rows left to judge variance by, so this falls through to the catalogue.
+    assert metrics_store.suggest_charts("a", now=now) != []
+
+
+@test("a host that has sent nothing gets an empty suggestion rather than an error")
+def _(home=metrics_home):
+    assert metrics_store.suggest_charts("nobody") == []
+
+
+@test("text-only series are identified so the picker can leave them out")
+def _(home=metrics_home):
+    now = int(time.time())
+    _write(f'system,host=a uptime_format=" 1:20",load1=1.5 {now}', now=now)
+
+    text_only = metrics_store.text_only_series("a", now=now)
+    assert ("system", "uptime_format", "{}") in text_only
+    assert ("system", "load1", "{}") not in text_only
+
+
+@test("a series with no recent points is not assumed to be text")
+def _(home=metrics_home):
+    now = int(time.time())
+    _write(f"cpu,host=a usage_idle=90.0 {now - 7200}", now=now)
+
+    # Outside the hot window there is no evidence either way, and guessing "text" here
+    # would quietly hide a chartable series from the picker.
+    assert metrics_store.text_only_series("a", now=now) == set()

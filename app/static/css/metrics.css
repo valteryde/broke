@@ -68,6 +68,188 @@
     font-size: 0.82rem;
 }
 
+/* ---------- Board editor ---------- */
+
+.met-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.met-board-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 1rem;
+    padding: 10px 14px;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    background: var(--bg-light-gray);
+    color: #555;
+    font-size: 0.85rem;
+}
+
+#met-edit-toggle.is-active {
+    background: var(--met-line);
+    border-color: var(--met-line);
+    color: #fff;
+}
+
+.met-editor {
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    background: var(--bg-white);
+    padding: 18px;
+    margin-bottom: 1.25rem;
+}
+
+.met-editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 900px) {
+    .met-editor-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.met-editor-pane h3 {
+    margin: 0 0 4px;
+    font-size: 0.95rem;
+}
+
+.met-editor-hint {
+    margin: 0 0 10px;
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.met-editor-filter {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.met-editor-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.met-editor-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background: var(--bg-light-gray);
+    cursor: grab;
+    font-size: 0.85rem;
+}
+
+.met-editor-item.is-dragging {
+    opacity: 0.4;
+    border-style: dashed;
+}
+
+.met-editor-handle {
+    color: #aaa;
+    flex-shrink: 0;
+}
+
+.met-editor-label {
+    flex: 1;
+    word-break: break-word;
+}
+
+.met-editor-remove {
+    border: none;
+    background: none;
+    color: #999;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+}
+
+.met-editor-remove:hover {
+    color: var(--met-high);
+}
+
+.met-editor-available {
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+.met-editor-group {
+    margin-bottom: 12px;
+}
+
+.met-editor-group h4 {
+    margin: 0 0 6px;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #999;
+}
+
+.met-editor-add {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #333;
+}
+
+.met-editor-add:hover {
+    border-color: #e0e0e0;
+    background: var(--bg-light-gray);
+}
+
+.met-editor-add i {
+    color: var(--met-line);
+}
+
+.met-editor-empty {
+    margin: 0;
+    padding: 10px 0;
+    font-size: 0.82rem;
+    color: #999;
+}
+
+.met-editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid #eee;
+    flex-wrap: wrap;
+}
+
+.met-editor-status {
+    font-size: 0.82rem;
+    color: #888;
+}
+
+.met-editor-status.is-error {
+    color: var(--met-high);
+}
+
 /* ---------- Host board ---------- */
 
 .met-board {
