@@ -23,6 +23,7 @@ from scripts.migrate_012_monitor_checks import run_migration as run_migration_01
 from scripts.migrate_013_error_event_meta import run_migration as run_migration_013
 from scripts.migrate_014_metrics import run_migration as run_migration_014
 from scripts.migrate_015_metrics_charts import run_migration as run_migration_015
+from scripts.migrate_016_chart_families import run_migration as run_migration_016
 
 if __name__ == "__main__":
     # Docker entrypoint runs migrations before the app boots; create_tables only
@@ -41,3 +42,4 @@ if __name__ == "__main__":
     run_migration_013()
     run_migration_014()
     run_migration_015()
+    run_migration_016()

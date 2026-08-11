@@ -8,18 +8,33 @@ window.BrokeMetrics = (function () {
     var REFRESH_MS = 30000;
     var theme = null;
 
+    var PALETTE_SIZE = 8;
+
     function readTheme() {
         if (theme) return theme;
         var root = getComputedStyle(document.documentElement);
         function value(name, fallback) {
             return (root.getPropertyValue(name) || '').trim() || fallback;
         }
+
+        // A chart can now hold a histogram's quantiles or one line per disk, so colours
+        // come from a palette. Defaults keep a single-line chart looking as it always did.
+        var fallbacks = [
+            '#106ecc', '#e8710a', '#0f9d58', '#a142f4',
+            '#d93025', '#12b5cb', '#f9ab00', '#7b8794'
+        ];
+        var palette = [];
+        for (var i = 0; i < PALETTE_SIZE; i++) {
+            palette.push(value('--met-line-' + (i + 1), fallbacks[i]));
+        }
+
         theme = {
             line: value('--met-line', '#106ecc'),
             fill: value('--met-line-fill', 'rgba(16, 110, 204, 0.12)'),
             grid: value('--met-grid', '#e5e7eb'),
             axis: value('--met-axis', '#999999'),
-            font: '11px ' + value('--met-chart-font', 'system-ui, sans-serif')
+            font: '11px ' + value('--met-chart-font', 'system-ui, sans-serif'),
+            palette: palette
         };
         return theme;
     }
@@ -27,11 +42,24 @@ window.BrokeMetrics = (function () {
     function formatValue(value, unit) {
         if (value == null || isNaN(value)) return '—';
         if (unit === 'bytes') return formatBytes(value);
+        if (unit === 'bytes/s') return formatBytes(value) + '/s';
         if (unit === '%') return value.toFixed(1) + '%';
+        if (unit === 'seconds') return formatDuration(value);
         if (Number.isInteger(value)) return value.toLocaleString();
         if (Math.abs(value) >= 1000) return Math.round(value).toLocaleString();
         if (Math.abs(value) >= 10) return value.toFixed(1);
         return value.toFixed(2);
+    }
+
+    /* Latency histograms are recorded in seconds but usually live in the milliseconds,
+       where "0.00s" would throw away the whole reading. */
+    function formatDuration(value) {
+        var n = Math.abs(value);
+        if (n === 0) return '0';
+        if (n < 0.001) return (value * 1000000).toFixed(0) + 'µs';
+        if (n < 1) return (value * 1000).toFixed(n < 0.01 ? 1 : 0) + 'ms';
+        if (n < 60) return value.toFixed(2) + 's';
+        return (value / 60).toFixed(1) + 'm';
     }
 
     /* Axis ticks land on round numbers, so drop the decimal a reading would want:
@@ -52,16 +80,43 @@ window.BrokeMetrics = (function () {
         return (value < 0 ? '-' : '') + n.toFixed(n >= 10 || index === 0 ? 0 : 1) + ' ' + units[index];
     }
 
-    function canvasSize(body) {
+    // uPlot renders its legend inside the element it is given, so a chart that shows one
+    // has to hand back the room for it or the tile overflows.
+    var LEGEND_HEIGHT = 22;
+
+    function canvasSize(body, multi) {
+        var reserved = multi ? LEGEND_HEIGHT : 0;
         return {
             width: Math.max(120, body.clientWidth),
-            height: Math.max(120, body.clientHeight)
+            height: Math.max(90, body.clientHeight - reserved)
         };
     }
 
-    function buildOptions(options, body, onCursor) {
+    function buildOptions(options, body, labels, onCursor) {
         var t = readTheme();
-        var size = canvasSize(body);
+        var multi = labels.length > 1;
+        var size = canvasSize(body, multi);
+
+        var series = [{}];
+        labels.forEach(function (label, index) {
+            var colour = multi ? t.palette[index % t.palette.length] : t.line;
+            series.push({
+                label: label,
+                stroke: colour,
+                width: 2,
+                // A fill under every line would turn a multi-line chart into mud, so only
+                // a chart drawing one thing keeps the shaded area.
+                fill: multi ? undefined : t.fill,
+                points: { show: false },
+                value: function (u, v, sidx) {
+                    // Away from the cursor uPlot has no value to report. The latest
+                    // reading is more use than a dash, and matches what the header shows
+                    // on a chart with a single line.
+                    if (v == null) v = lastValue(u.data[sidx] || []);
+                    return formatValue(v, options.unit);
+                }
+            });
+        });
 
         return {
             width: size.width,
@@ -69,11 +124,13 @@ window.BrokeMetrics = (function () {
             // Right padding leaves room for the final x-axis label, which otherwise gets
             // clipped by the plot edge.
             padding: [10, 26, 0, 0],
-            legend: { show: false },
+            // One line keeps the single reading in the header; several need naming, and
+            // uPlot's own legend gives each a value at the cursor for free.
+            legend: { show: multi, live: multi },
             cursor: {
                 y: false,
                 drag: { x: true, y: false },
-                points: { size: 7, width: 1.5, stroke: '#ffffff', fill: t.line }
+                points: { size: 7, width: 1.5, stroke: '#ffffff' }
             },
             scales: {
                 x: { time: true },
@@ -98,16 +155,7 @@ window.BrokeMetrics = (function () {
                     }
                 }
             ],
-            series: [
-                {},
-                {
-                    stroke: t.line,
-                    width: 2,
-                    fill: t.fill,
-                    points: { show: false },
-                    value: function (u, v) { return formatValue(v, options.unit); }
-                }
-            ],
+            series: series,
             hooks: { setCursor: [onCursor] }
         };
     }
@@ -144,48 +192,93 @@ window.BrokeMetrics = (function () {
         }
     }
 
+    /* uPlot wants one shared x axis with every series aligned to it, but the lines in a
+       chart rarely agree on their timestamps: a rate has no value for its first bucket,
+       and a quantile is undefined for any bucket where nothing was observed. Gaps become
+       nulls, which uPlot draws as a break in the line rather than a bogus join. */
+    function alignSeries(lines) {
+        var stamps = {};
+        lines.forEach(function (line) {
+            (line.points || []).forEach(function (p) { stamps[p.ts] = true; });
+        });
+
+        var xs = Object.keys(stamps).map(Number).sort(function (a, b) { return a - b; });
+        var index = {};
+        xs.forEach(function (ts, i) { index[ts] = i; });
+
+        var columns = lines.map(function (line) {
+            var column = new Array(xs.length).fill(null);
+            (line.points || []).forEach(function (p) { column[index[p.ts]] = p.value; });
+            return column;
+        });
+
+        // uPlot's time scale works in seconds; the API reports milliseconds.
+        return [xs.map(function (ts) { return ts / 1000; })].concat(columns);
+    }
+
+    function lastValue(column) {
+        for (var i = column.length - 1; i >= 0; i--) {
+            if (column[i] != null) return column[i];
+        }
+        return null;
+    }
+
     function draw(container, payload, options) {
         var body = container.querySelector('[data-role="canvas"]');
         var currentLabel = container.querySelector('[data-role="current"]');
-        var points = payload.points || [];
+        var lines = (payload.series || []).filter(function (line) {
+            return (line.points || []).length;
+        });
 
-        if (!points.length) {
+        if (!lines.length) {
             renderEmpty(container, 'No data in this range.');
             return;
         }
 
-        // uPlot's time scale works in seconds; the API reports milliseconds.
-        var xs = points.map(function (p) { return p.ts / 1000; });
-        var ys = points.map(function (p) { return p.value; });
-        var last = ys[ys.length - 1];
+        var labels = lines.map(function (line, i) { return line.label || ('series ' + (i + 1)); });
+        var data = alignSeries(lines);
+        var multi = lines.length > 1;
 
-        // The explorer reuses one panel for whichever field you click, so a chart whose
-        // series changed needs rebuilding rather than just new data: the unit, and with
-        // it the axis formatting and scale, is baked into the options.
-        var key = [options.measurement, options.field, options.tags || '', options.unit].join('|');
+        function showCurrent(idx) {
+            if (!currentLabel) return;
+            // With several lines the legend names each value, so a single number in the
+            // header would be ambiguous about which line it belongs to.
+            if (multi) {
+                currentLabel.textContent = '';
+                return;
+            }
+            var value = idx == null ? lastValue(data[1]) : data[1][idx];
+            currentLabel.textContent = formatValue(value, options.unit);
+        }
+
+        // The explorer reuses one panel for whichever field you click, and a family can
+        // gain or lose a line between refreshes, so a chart whose shape changed needs
+        // rebuilding rather than just new data: the unit and the series list are baked
+        // into the options.
+        var key = [
+            options.measurement, options.field, options.tags || '',
+            options.unit, options.kind || '', labels.join(',')
+        ].join('|');
         if (container._uplot && container._seriesKey !== key) destroyChart(container);
         container._seriesKey = key;
 
         if (container._uplot) {
-            container._uplot.setData([xs, ys]);
-            if (currentLabel) currentLabel.textContent = formatValue(last, options.unit);
+            container._uplot.setData(data);
+            showCurrent(null);
             return;
         }
 
-        function onCursor(u) {
-            if (!currentLabel) return;
-            var idx = u.cursor.idx;
-            var value = idx == null ? u.data[1][u.data[1].length - 1] : u.data[1][idx];
-            currentLabel.textContent = formatValue(value, options.unit);
-        }
-
         body.innerHTML = '';
-        container._uplot = new uPlot(buildOptions(options, body, onCursor), [xs, ys], body);
-        if (currentLabel) currentLabel.textContent = formatValue(last, options.unit);
+        container._uplot = new uPlot(
+            buildOptions(options, body, labels, function (u) { showCurrent(u.cursor.idx); }),
+            data,
+            body
+        );
+        showCurrent(null);
 
         if (typeof ResizeObserver !== 'undefined') {
             container._resizeObserver = new ResizeObserver(function () {
-                if (container._uplot) container._uplot.setSize(canvasSize(body));
+                if (container._uplot) container._uplot.setSize(canvasSize(body, multi));
             });
             container._resizeObserver.observe(body);
         }
@@ -200,6 +293,10 @@ window.BrokeMetrics = (function () {
             aggregate: options.aggregate || 'avg'
         });
         if (options.tags) params.set('tags', options.tags);
+        if (options.kind) params.set('kind', options.kind);
+        if (options.transform) params.set('transform', options.transform);
+        if (options.tagMode) params.set('tag_mode', options.tagMode);
+        if (options.chartOptions) params.set('options', options.chartOptions);
         if (options.invert) params.set('invert', '1');
         return brokeAppUrl('/api/metrics/query') + '?' + params.toString();
     }
@@ -235,6 +332,10 @@ window.BrokeMetrics = (function () {
                 field: node.getAttribute('data-field'),
                 unit: node.getAttribute('data-unit'),
                 tags: node.getAttribute('data-tags'),
+                kind: node.getAttribute('data-kind'),
+                transform: node.getAttribute('data-transform'),
+                tagMode: node.getAttribute('data-tag-mode'),
+                chartOptions: node.getAttribute('data-options'),
                 aggregate: node.getAttribute('data-aggregate') || 'avg',
                 invert: node.getAttribute('data-invert') === '1'
             };
@@ -246,15 +347,24 @@ window.BrokeMetrics = (function () {
 
     /* ============ Board editor ============ */
 
+    /* The server has already turned the raw catalogue into families and named them, so
+       the editor only ever shows a label and the note describing what a family draws. */
     function seriesLabel(entry) {
-        var label = entry.measurement + '.' + entry.field;
-        var tags = entry.tags && Object.keys(entry.tags);
-        if (tags && tags.length) {
-            label += ' · ' + tags.sort().map(function (k) {
-                return k + '=' + entry.tags[k];
-            }).join(' ');
+        return entry.label || entry.key || '';
+    }
+
+    function appendLabel(parent, entry) {
+        var label = document.createElement('span');
+        label.className = 'met-editor-label';
+        label.textContent = seriesLabel(entry);
+        parent.appendChild(label);
+
+        if (entry.note) {
+            var note = document.createElement('span');
+            note.className = 'met-editor-note';
+            note.textContent = entry.note;
+            parent.appendChild(note);
         }
-        return label;
     }
 
     function initEditor(config) {
@@ -303,10 +413,7 @@ window.BrokeMetrics = (function () {
                 handle.className = 'ph ph-dots-six-vertical met-editor-handle';
                 item.appendChild(handle);
 
-                var label = document.createElement('span');
-                label.className = 'met-editor-label';
-                label.textContent = seriesLabel(entry);
-                item.appendChild(label);
+                appendLabel(item, entry);
 
                 var remove = document.createElement('button');
                 remove.type = 'button';
@@ -349,7 +456,10 @@ window.BrokeMetrics = (function () {
             var groups = {};
             available.forEach(function (entry) {
                 if (chosen.indexOf(entry.key) !== -1) return;
-                if (filter && seriesLabel(entry).toLowerCase().indexOf(filter) === -1) return;
+                var haystack = [
+                    entry.label, entry.measurement, entry.kind, entry.note
+                ].join(' ').toLowerCase();
+                if (filter && haystack.indexOf(filter) === -1) return;
                 (groups[entry.measurement] = groups[entry.measurement] || []).push(entry);
             });
 
@@ -377,7 +487,7 @@ window.BrokeMetrics = (function () {
                     button.type = 'button';
                     button.className = 'met-editor-add';
                     button.innerHTML = '<i class="ph ph-plus"></i>';
-                    button.appendChild(document.createTextNode(seriesLabel(entry)));
+                    appendLabel(button, entry);
                     button.addEventListener('click', function () {
                         if (chosen.indexOf(entry.key) === -1) chosen.push(entry.key);
                         render();
@@ -442,16 +552,10 @@ window.BrokeMetrics = (function () {
                 setStatus('Pick at least one series, or use Reset to suggested.', true);
                 return;
             }
-            send('PUT', {
-                charts: chosen.map(function (key) {
-                    var entry = byKey[key];
-                    return {
-                        measurement: entry.measurement,
-                        field: entry.field,
-                        tags: entry.tags || {}
-                    };
-                })
-            });
+            // Only the family key travels: the server rebuilds the rest of the selector
+            // from its own classification, so a board can never store a chart definition
+            // the browser made up.
+            send('PUT', { charts: chosen.map(function (key) { return { key: key }; }) });
         });
 
         document.getElementById('met-editor-reset').addEventListener('click', function () {

@@ -494,6 +494,18 @@ class Bucket(NamedTuple):
     maximum: float
 
 
+class GroupKey(NamedTuple):
+    """Which stored series a set of buckets came from."""
+
+    field: str
+    tags: str
+
+
+# A chart drawing more lines than this is unreadable anyway, and the cap keeps one badly
+# chosen selector from turning into a thousand-way GROUP BY.
+MAX_GROUP_SERIES = 50
+
+
 def _merge_buckets(*sources: Sequence[Bucket]) -> dict[int, Bucket]:
     merged: dict[int, Bucket] = {}
     for source in sources:
@@ -510,6 +522,68 @@ def _merge_buckets(*sources: Sequence[Bucket]) -> dict[int, Bucket]:
                     max(existing.maximum, bucket.maximum),
                 )
     return merged
+
+
+def _reduce(bucket: Bucket, aggregate: str) -> float:
+    if aggregate == "max":
+        return bucket.maximum
+    if aggregate == "min":
+        return bucket.minimum
+    if aggregate == "sum":
+        return bucket.total
+    return bucket.total / bucket.count if bucket.count else 0.0
+
+
+def _tags_match(stored: str, wanted: dict[str, str]) -> bool:
+    """Whether a stored tag set carries at least the wanted pairs."""
+    if not wanted:
+        return True
+    try:
+        parsed = json.loads(stored or "{}")
+    except json.JSONDecodeError:
+        return False
+    return all(parsed.get(k) == v for k, v in wanted.items())
+
+
+def resolve_series(
+    host: str,
+    measurement: str,
+    *,
+    fields: Sequence[str] | None = None,
+    tag_filter: dict[str, str] | None = None,
+    tag_mode: str = "exact",
+    limit: int = MAX_GROUP_SERIES,
+) -> list[GroupKey]:
+    """The concrete series a selector names, looked up in the catalogue.
+
+    Resolving a subset tag filter here rather than in the query is deliberate. The
+    catalogue is small and already indexed by host, so expanding "every tag set carrying
+    ``endpoint=create``" into a list of exact strings costs almost nothing — and it leaves
+    both tiers matching on plain equality, which keeps the hot query on its index and
+    avoids needing JSON functions on the DuckDB side.
+    """
+    rows = hot_connection().execute(
+        "SELECT field, tags FROM series WHERE host = ? AND measurement = ?"
+        " ORDER BY field, tags",
+        (host, measurement),
+    ).fetchall()
+
+    wanted_fields = set(fields) if fields else None
+    exact = encode_tags(tag_filter or {}) if tag_mode == "exact" else None
+
+    matched: list[GroupKey] = []
+    for field, tags in rows:
+        if wanted_fields is not None and field not in wanted_fields:
+            continue
+        if exact is not None:
+            if (tags or "{}") != exact:
+                continue
+        elif not _tags_match(tags, tag_filter or {}):
+            continue
+        matched.append(GroupKey(field, tags or "{}"))
+        if len(matched) >= limit:
+            break
+    return matched
 
 
 def query_series(
@@ -534,112 +608,214 @@ def query_series(
 
     # An empty dict is a real filter meaning "the series carrying no tags beyond host",
     # which is how mem/swap/system charts are addressed. Only None means "any tag set".
-    tags_json = None if tags is None else encode_tags(tags)
+    tag_values = None if tags is None else [encode_tags(tags)]
 
-    hot = _query_hot_buckets(
+    grouped = _grouped_buckets(
         host=host,
         measurement=measurement,
-        field=field,
+        fields=[field],
+        tag_values=tag_values,
         start_ms=start_ms,
         end_ms=end_ms,
         step_ms=step_ms,
-        tags_json=tags_json,
+    )
+
+    # Every matching tag set folds into one line, which is what "any tag set" has always
+    # meant here and what the ad-hoc explorer still relies on.
+    merged = _merge_buckets(*grouped.values())
+    return [{"ts": ts, "value": _reduce(merged[ts], aggregate)} for ts in sorted(merged)]
+
+
+def query_group(
+    *,
+    host: str,
+    measurement: str,
+    fields: Sequence[str] | None = None,
+    tag_filter: dict[str, str] | None = None,
+    tag_mode: str = "exact",
+    start_ms: int,
+    end_ms: int,
+    step_ms: int,
+    aggregate: str = "avg",
+    limit: int = MAX_GROUP_SERIES,
+) -> list[dict[str, Any]]:
+    """Bucketed values for a family of series, one entry per stored series.
+
+    Where ``query_series`` answers "this one line", this answers "these lines" and keeps
+    them apart, which is what a histogram's buckets, a summary's quantiles and a field
+    reported once per disk all need.
+    """
+    if step_ms <= 0:
+        raise ValueError("step_ms must be positive")
+
+    members = resolve_series(
+        host,
+        measurement,
+        fields=fields,
+        tag_filter=tag_filter,
+        tag_mode=tag_mode,
+        limit=limit,
+    )
+    if not members:
+        return []
+
+    grouped = _grouped_buckets(
+        host=host,
+        measurement=measurement,
+        fields=sorted({m.field for m in members}),
+        tag_values=sorted({m.tags for m in members}),
+        start_ms=start_ms,
+        end_ms=end_ms,
+        step_ms=step_ms,
+    )
+
+    wanted = set(members)
+    out: list[dict[str, Any]] = []
+    for key in sorted(grouped):
+        if key not in wanted:
+            continue
+        buckets = grouped[key]
+        try:
+            tags = json.loads(key.tags or "{}")
+        except json.JSONDecodeError:
+            tags = {}
+        out.append(
+            {
+                "field": key.field,
+                "tags": tags,
+                "points": [
+                    {"ts": b.ts, "value": _reduce(b, aggregate)}
+                    for b in sorted(buckets, key=lambda b: b.ts)
+                ],
+            }
+        )
+    return out
+
+
+def _grouped_buckets(
+    *,
+    host: str,
+    measurement: str,
+    fields: Sequence[str],
+    tag_values: Sequence[str] | None,
+    start_ms: int,
+    end_ms: int,
+    step_ms: int,
+) -> dict[GroupKey, list[Bucket]]:
+    """Union both tiers, keeping each stored series separate.
+
+    Sum/count/min/max travel per bucket rather than a finished average so a bucket that
+    straddles the compaction cutoff still aggregates correctly across the two tiers.
+    """
+    hot = _query_hot_buckets(
+        host=host,
+        measurement=measurement,
+        fields=fields,
+        tag_values=tag_values,
+        start_ms=start_ms,
+        end_ms=end_ms,
+        step_ms=step_ms,
     )
     cold = _query_cold_buckets(
         host=host,
         measurement=measurement,
-        field=field,
+        fields=fields,
+        tag_values=tag_values,
         start_ms=start_ms,
         end_ms=end_ms,
         step_ms=step_ms,
-        tags_json=tags_json,
     )
 
-    merged = _merge_buckets(hot, cold)
-    points: list[dict[str, Any]] = []
-    for ts in sorted(merged):
-        bucket = merged[ts]
-        if aggregate == "max":
-            value = bucket.maximum
-        elif aggregate == "min":
-            value = bucket.minimum
-        elif aggregate == "sum":
-            value = bucket.total
-        else:
-            value = bucket.total / bucket.count if bucket.count else 0.0
-        points.append({"ts": ts, "value": value})
-    return points
+    combined: dict[GroupKey, list[Bucket]] = {}
+    for source in (hot, cold):
+        for key, buckets in source.items():
+            combined.setdefault(key, []).extend(buckets)
+
+    return {
+        key: sorted(_merge_buckets(buckets).values(), key=lambda b: b.ts)
+        for key, buckets in combined.items()
+    }
+
+
+def _placeholders(values: Sequence[str]) -> str:
+    return ", ".join("?" for _ in values)
+
+
+def _collect(rows: Iterable[Sequence[Any]]) -> dict[GroupKey, list[Bucket]]:
+    out: dict[GroupKey, list[Bucket]] = {}
+    for field, tags, bucket, total, count, minimum, maximum in rows:
+        if not count:
+            continue
+        out.setdefault(GroupKey(field, tags or "{}"), []).append(
+            Bucket(int(bucket), float(total or 0.0), int(count), float(minimum), float(maximum))
+        )
+    return out
 
 
 def _query_hot_buckets(
     *,
     host: str,
     measurement: str,
-    field: str,
+    fields: Sequence[str],
+    tag_values: Sequence[str] | None,
     start_ms: int,
     end_ms: int,
     step_ms: int,
-    tags_json: str | None,
-) -> list[Bucket]:
+) -> dict[GroupKey, list[Bucket]]:
     sql = (
-        "SELECT (ts / ?) * ? AS bucket, SUM(value), COUNT(value), MIN(value), MAX(value)"
+        "SELECT field, tags, (ts / ?) * ? AS bucket,"
+        " SUM(value), COUNT(value), MIN(value), MAX(value)"
         " FROM hot_point"
-        " WHERE host = ? AND measurement = ? AND field = ?"
+        f" WHERE host = ? AND measurement = ? AND field IN ({_placeholders(fields)})"
         " AND ts >= ? AND ts < ? AND value IS NOT NULL"
-    )
-    params: list[Any] = [step_ms, step_ms, host, measurement, field, start_ms, end_ms]
-    if tags_json is not None:
-        sql += " AND tags = ?"
-        params.append(tags_json)
-    sql += " GROUP BY bucket ORDER BY bucket"
+    )  # nosec B608 - placeholders only, every value is bound
+    params: list[Any] = [step_ms, step_ms, host, measurement, *fields, start_ms, end_ms]
+    if tag_values is not None:
+        sql += f" AND tags IN ({_placeholders(tag_values)})"  # nosec B608 - placeholders only
+        params.extend(tag_values)
+    sql += " GROUP BY field, tags, bucket ORDER BY field, tags, bucket"
 
-    conn = hot_connection()
-    return [
-        Bucket(int(row[0]), float(row[1] or 0.0), int(row[2]), float(row[3]), float(row[4]))
-        for row in conn.execute(sql, params)
-        if row[2]
-    ]
+    return _collect(hot_connection().execute(sql, params))
 
 
 def _query_cold_buckets(
     *,
     host: str,
     measurement: str,
-    field: str,
+    fields: Sequence[str],
+    tag_values: Sequence[str] | None,
     start_ms: int,
     end_ms: int,
     step_ms: int,
-    tags_json: str | None,
-) -> list[Bucket]:
+) -> dict[GroupKey, list[Bucket]]:
     if not _cold_has_files(host):
-        return []
+        return {}
     pattern = _cold_glob(host)
     if not pattern:
-        return []
+        return {}
 
     sql = (
-        "SELECT (ts // ?) * ? AS bucket, SUM(value), COUNT(value), MIN(value), MAX(value)"
+        "SELECT field, tags, (ts // ?) * ? AS bucket,"
+        " SUM(value), COUNT(value), MIN(value), MAX(value)"
         " FROM read_parquet(?, hive_partitioning = true, union_by_name = true)"
-        " WHERE host = ? AND measurement = ? AND field = ?"
+        f" WHERE host = ? AND measurement = ? AND field IN ({_placeholders(fields)})"
         " AND ts >= ? AND ts < ? AND value IS NOT NULL"
-    )
-    params: list[Any] = [step_ms, step_ms, pattern, host, measurement, field, start_ms, end_ms]
-    if tags_json is not None:
-        sql += " AND tags = ?"
-        params.append(tags_json)
-    sql += " GROUP BY bucket ORDER BY bucket"
+    )  # nosec B608 - placeholders only, every value is bound
+    params: list[Any] = [
+        step_ms, step_ms, pattern, host, measurement, *fields, start_ms, end_ms
+    ]
+    if tag_values is not None:
+        sql += f" AND tags IN ({_placeholders(tag_values)})"  # nosec B608 - placeholders only
+        params.extend(tag_values)
+    sql += " GROUP BY field, tags, bucket ORDER BY field, tags, bucket"
 
     duck = _duckdb_connection()
     try:
         rows = duck.execute(sql, params).fetchall()
     except Exception:
         logger.exception("Metrics cold query failed")
-        return []
-    return [
-        Bucket(int(r[0]), float(r[1] or 0.0), int(r[2]), float(r[3]), float(r[4]))
-        for r in rows
-        if r[2]
-    ]
+        return {}
+    return _collect(rows)
 
 
 def list_series(host: str) -> list[dict[str, Any]]:
@@ -690,70 +866,6 @@ def text_only_series(host: str, *, now: int | None = None) -> set[tuple[str, str
         (host, start_ms),
     ).fetchall()
     return {(r[0], r[1], r[2] or "{}") for r in rows}
-
-
-def suggest_charts(host: str, *, limit: int = 8, now: int | None = None) -> list[dict[str, Any]]:
-    """A starting board for a host nobody has arranged yet.
-
-    Deliberately not a list of metrics we consider interesting: the picks come from what
-    this agent actually sent. Two data-driven rules do the work. A series whose value moved
-    over the window beats one that sat still, which is what separates a live reading from a
-    counter pinned at zero or a constant flag. And at most one field per measurement is
-    taken, so the board spans the host instead of showing eight views of the CPU.
-
-    String-valued series are skipped: there is nothing to plot.
-    """
-    now = int(now if now is not None else time.time())
-    start_ms = (now - hot_window_seconds()) * 1000
-
-    rows = hot_connection().execute(
-        "SELECT measurement, field, tags, MIN(value), MAX(value), COUNT(value)"
-        " FROM hot_point"
-        " WHERE host = ? AND ts >= ? AND value IS NOT NULL"
-        " GROUP BY measurement, field, tags",
-        (host, start_ms),
-    ).fetchall()
-
-    candidates = [
-        {
-            "measurement": r[0],
-            "field": r[1],
-            "tags": json.loads(r[2] or "{}"),
-            "varies": r[3] is not None and r[4] is not None and r[4] > r[3],
-            "points": r[5],
-        }
-        for r in rows
-    ]
-
-    if not candidates:
-        # Nothing recent to judge — a host that stopped reporting, or one whose window has
-        # already been compacted away. Fall back to the durable catalogue so the board is
-        # still populated, just without the variance signal.
-        candidates = [
-            {**entry, "varies": False, "points": 0}
-            for entry in list_series(host)
-        ]
-
-    candidates.sort(
-        key=lambda c: (not c["varies"], c["measurement"], c["field"], encode_tags(c["tags"]))
-    )
-
-    picked: list[dict[str, Any]] = []
-    seen_measurements: set[str] = set()
-    for candidate in candidates:
-        if candidate["measurement"] in seen_measurements:
-            continue
-        seen_measurements.add(candidate["measurement"])
-        picked.append(
-            {
-                "measurement": candidate["measurement"],
-                "field": candidate["field"],
-                "tags": candidate["tags"],
-            }
-        )
-        if len(picked) >= limit:
-            break
-    return picked
 
 
 def latest_value(

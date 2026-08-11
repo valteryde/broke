@@ -479,9 +479,15 @@ class MetricsChart(BaseModel):
     should be looking at the same thing. Absence of rows is meaningful — it means nobody
     has arranged this host yet, so the page falls back to a suggestion drawn from the data.
 
+    A row is a *selector* rather than a single series. ``measurement``, ``field`` and
+    ``tags`` say what to look for and ``tag_mode`` says how strictly: ``exact`` matches one
+    stored series, ``filter`` matches every series carrying at least those tags, which is
+    what puts a histogram's buckets or one field per disk on a single chart. ``kind`` and
+    ``transform`` say how to read what comes back — quantiles from buckets, a rate from a
+    counter — and ``options`` carries the rest, such as which quantiles to draw.
+
     ``tags`` is the canonical JSON that ``metrics_store.encode_tags`` produces, so it joins
-    straight against the series catalogue. An empty object means the series carrying no
-    tags beyond host, which is different from "any tag set".
+    straight against the series catalogue.
     """
 
     id = AutoField(primary_key=True)
@@ -489,11 +495,15 @@ class MetricsChart(BaseModel):
     measurement = CharField()
     field = CharField()
     tags = TextField(default="{}")
+    kind = CharField(default="gauge")
+    transform = CharField(default="raw")
+    tag_mode = CharField(default="exact")
+    options = TextField(default="{}")
     position = IntegerField(default=0)
     created_at = IntegerField(default=lambda: int(time.time()))
 
     class Meta:  # type: ignore
-        indexes = ((("hostname", "measurement", "field", "tags"), True),)
+        indexes = ((("hostname", "measurement", "field", "tags", "kind"), True),)
 
 
 MODELS = [

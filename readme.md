@@ -203,15 +203,50 @@ up in access logs.
 Whatever Telegraf sends is stored, and the charts come from that rather than a fixed list,
 so a host running an unusual plugin is charted just as well as a stock one.
 
-The first time you open a server, Broke picks a board from the data itself: at most one
-field per measurement, favouring series whose value actually moved over ones sitting at a
-constant, and skipping string fields as unplottable. Nothing is written to the database at
-this point, so the suggestion keeps up as the agent starts or stops sending things.
+The first time you open a server, Broke picks a board from the data itself, favouring
+series whose value actually moved over ones sitting at a constant and spreading the picks
+across the host rather than showing eight views of the CPU. Nothing is written to the
+database at this point, so the suggestion keeps up as the agent starts or stops sending
+things.
 
-**Edit charts** replaces that with your own selection — tick the series you want, drag to
+**Edit charts** replaces that with your own selection — tick what you want, drag to
 reorder, and save. A saved board is shared by everyone looking at that server, and
 **Reset to suggested** discards it and returns to the automatic picks. The measurement
 explorer below the board still charts any single field ad hoc without changing the board.
+
+### Metric types
+
+Not everything is a single line over time, so Broke recognises what a series is before
+charting it:
+
+- **Gauges** are drawn as they arrive. A field reported once per device — `used_percent`
+  for each mount, `usage_idle` for each core — becomes one chart with a line per device
+  rather than a tile each.
+- **Counters** are drawn as a per-second rate. They only ever climb, so the raw value is a
+  ramp since boot; `net.bytes_recv` and `diskio.read_bytes` are charted as throughput for
+  the same reason. A counter that restarts leaves a gap rather than a negative spike.
+- **Histograms** are drawn as p50, p90 and p99, estimated from the bucket counts the way
+  Prometheus does it: over the increase across each window, interpolating inside whichever
+  bucket the quantile falls in. The accuracy is bounded by the bucket layout the exporter
+  chose. The `_sum` and `_count` alongside the buckets are absorbed into the same chart.
+- **Summaries** are drawn as the quantiles the exporter already computed.
+
+### Prometheus exporters
+
+Anything exposing a `/metrics` endpoint can be scraped by Telegraf and forwarded to Broke,
+which is how you get things like the
+[BigBlueButton exporter](https://bigbluebutton-exporter.greenstatic.dev/) onto a board:
+
+```toml
+[[inputs.prometheus]]
+  urls = ["http://localhost:9688/metrics"]
+```
+
+Both of Telegraf's mappings work. `metric_version = 1`, the default, makes each metric its
+own measurement and gives fields generic names (`gauge`, `counter`, or one field per bucket
+edge). `metric_version = 2` makes the metric name the field and puts everything in a single
+`prometheus` measurement. Broke reads either, and the histogram in an exporter arrives as
+one chart in both cases rather than as a dozen unreadable bucket counters.
 
 ### How metrics are stored
 

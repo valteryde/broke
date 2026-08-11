@@ -54,9 +54,9 @@
             <ul class="met-editor-list" id="met-editor-selected"></ul>
         </div>
         <div class="met-editor-pane">
-            <h3>Available series</h3>
+            <h3>Available charts</h3>
             <input type="search" id="met-editor-filter" class="form-input met-editor-filter"
-                   placeholder="Filter by measurement or field…" autocomplete="off">
+                   placeholder="Filter by name, measurement or type…" autocomplete="off">
             <div class="met-editor-available" id="met-editor-available"></div>
         </div>
     </div>
@@ -70,15 +70,18 @@
 
 <div class="met-charts" id="met-charts" data-host="{{ host.hostname | e }}" data-range="{{ current_range | e }}">
     {% for chart in charts %}
-    <section class="met-chart" data-chart="{{ chart.key }}"
-             data-measurement="{{ chart.measurement }}"
-             data-field="{{ chart.field }}"
-             data-unit="{{ chart.unit }}"
-             data-aggregate="{{ chart.aggregate | default('avg') }}"
+    <section class="met-chart" data-chart="{{ chart.key | e }}"
+             data-measurement="{{ chart.measurement | e }}"
+             data-field="{{ chart.field | e }}"
+             data-unit="{{ chart.unit | e }}"
+             data-kind="{{ chart.kind | e }}"
+             data-transform="{{ chart.transform | e }}"
+             data-tag-mode="{{ chart.tag_mode | e }}"
+             data-options='{{ chart.options | tojson }}'
              data-invert="{{ '1' if chart.invert else '0' }}"
              {% if chart.tags is not none %}data-tags='{{ chart.tags | tojson }}'{% endif %}>
         <header class="met-chart-head">
-            <h2>{{ chart.title }}</h2>
+            <h2>{{ chart.title | e }}</h2>
             <span class="met-chart-current" data-role="current">—</span>
         </header>
         <div class="met-chart-body" data-role="canvas">
@@ -129,9 +132,13 @@
 
 {% if user.admin == 1 %}
 <div class="met-danger">
-    <button type="button" class="btn btn-danger" id="met-delete-host">
-        <i class="ph ph-trash"></i> Delete this server and its metrics
+    <button type="button" class="btn btn-danger" id="met-clear-data">
+        <i class="ph ph-eraser"></i> Clear all data
     </button>
+    <p class="card-description">
+        Removes every point this server has written. The server and its chart layout stay,
+        and the charts fill back in as soon as the agent reports again.
+    </p>
 </div>
 {% endif %}
 
@@ -164,10 +171,10 @@ BrokeMetrics.ready(function () {
         });
     });
 
-    document.getElementById('met-delete-host')?.addEventListener('click', async function () {
-        if (!confirm('Delete ' + {{ host.hostname | tojson }} + ' and every metric it has written? This cannot be undone.')) return;
+    document.getElementById('met-clear-data')?.addEventListener('click', async function () {
+        if (!confirm('Delete every metric ' + {{ host.hostname | tojson }} + ' has written? The server and its charts are kept. This cannot be undone.')) return;
         try {
-            const r = await fetch(brokeAppUrl('/api/metrics/hosts/' + encodeURIComponent({{ host.hostname | tojson }})), {
+            const r = await fetch(brokeAppUrl('/api/metrics/hosts/' + encodeURIComponent({{ host.hostname | tojson }}) + '/data'), {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {
@@ -180,9 +187,9 @@ BrokeMetrics.ready(function () {
                 alert(data.error || ('Request failed (' + r.status + ')'));
                 return;
             }
-            window.location.href = brokeAppUrl('/servers');
+            window.location.reload();
         } catch (_) {
-            alert('Network error while deleting server.');
+            alert('Network error while clearing data.');
         }
     });
 });

@@ -7,6 +7,16 @@
     --met-line-fill: rgba(16, 110, 204, 0.12);
     --met-grid: #e5e7eb;
     --met-axis: #999999;
+    /* A chart may hold a histogram's quantiles or one line per disk. Ordered so the
+       first colours stay far apart, which is what most charts actually use. */
+    --met-line-1: #106ecc;
+    --met-line-2: #e8710a;
+    --met-line-3: #0f9d58;
+    --met-line-4: #a142f4;
+    --met-line-5: #d93025;
+    --met-line-6: #12b5cb;
+    --met-line-7: #f9ab00;
+    --met-line-8: #7b8794;
     --met-chart-font: 'Rubik', system-ui, sans-serif;
     --met-ok: #22c55e;
     --met-warn: #f59e0b;
@@ -222,6 +232,21 @@
 
 .met-editor-add i {
     color: var(--met-line);
+}
+
+/* Says what a family will actually draw — how many buckets, how many lines, whether it
+   is a rate — so the choice is not made on the name alone. */
+.met-editor-note {
+    margin-left: auto;
+    padding-left: 10px;
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    color: #999;
+    white-space: nowrap;
+}
+
+.met-editor-item .met-editor-note {
+    margin-left: 0;
 }
 
 .met-editor-empty {
@@ -496,6 +521,55 @@
     background: rgba(16, 110, 204, 0.1);
 }
 
+/* The legend only appears on a chart drawing more than one line, where it has to name
+   them. It sits inside the chart body, so it stays compact and scrolls with the tile. */
+.met-chart-body .u-legend {
+    font-size: 0.72rem;
+    margin-top: 2px;
+    text-align: left;
+}
+
+.met-chart-body .u-legend .u-series {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px 0 0;
+}
+
+/* The first entry is uPlot's x axis. The chart already has a time axis beneath it, so
+   naming it again in the legend only takes room from the lines. */
+.met-chart-body .u-legend .u-series:first-child {
+    display: none;
+}
+
+.met-chart-body .u-legend .u-marker {
+    width: 9px;
+    height: 3px;
+    border-radius: 2px;
+    border-width: 0;
+}
+
+.met-chart-body .u-legend .u-label {
+    color: var(--text-secondary, #666);
+}
+
+.met-chart-body .u-legend .u-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+/* uPlot's default legend is a table with a row per series; a horizontal run of small
+   swatches fits a dashboard tile far better than a stacked list would. */
+.met-chart-body .u-legend > tbody,
+.met-chart-body .u-legend > tbody > tr {
+    display: block;
+}
+
+.met-chart-body .u-legend > tbody > tr > th {
+    display: inline-flex;
+    font-weight: 500;
+}
+
 /* ---------- Measurement explorer ---------- */
 
 .met-explorer {
@@ -574,6 +648,10 @@
     margin-top: 24px;
     padding-top: 18px;
     border-top: 1px dashed #ccc;
+}
+
+.met-danger .card-description {
+    margin-top: 8px;
 }
 
 @media (max-width: 900px) {

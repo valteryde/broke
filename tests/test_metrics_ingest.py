@@ -2,7 +2,9 @@
 
 import base64
 import gzip
+import json
 import os
+import re
 import shutil
 import tempfile
 import zlib
@@ -464,7 +466,9 @@ def _(ac=auth_client, home=metrics_home, raw=metrics_token, host=ingest_host):
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["range"] == "1h"
-    assert payload["points"][-1]["value"] == 42.0
+    # One line or twelve, the answer always has the same shape.
+    assert len(payload["series"]) == 1
+    assert payload["series"][0]["points"][-1]["value"] == 42.0
 
 
 @test("the query API can invert a percentage, turning idle into usage")
@@ -474,20 +478,80 @@ def _(ac=auth_client, home=metrics_home, raw=metrics_token, host=ingest_host):
     response = ac.get(
         f"/api/metrics/query?host={host}&measurement=cpu&field=usage_idle&range=1h&invert=1"
     )
-    assert response.get_json()["points"][-1]["value"] == 9.5
+    assert response.get_json()["series"][0]["points"][-1]["value"] == 9.5
+
+
+@test("the query API draws one line per tag set when asked for a family")
+def _(ac=auth_client, home=metrics_home, raw=metrics_token, host=ingest_host):
+    now = int(time.time())
+    body = (
+        f"disk,host={host},path=/ used_percent=70.0 {now}\n"
+        f"disk,host={host},path=/boot used_percent=10.0 {now}"
+    ).encode()
+    ac.post("/api/v2/write?precision=s", data=body, headers=_auth(raw))
+
+    payload = ac.get(
+        f"/api/metrics/query?host={host}&measurement=disk&field=used_percent"
+        "&range=1h&tag_mode=filter&tags=%7B%7D"
+    ).get_json()
+
+    assert sorted(line["label"] for line in payload["series"]) == ["path=/", "path=/boot"]
+
+
+@test("the query API answers a histogram with quantiles rather than raw buckets")
+def _(ac=auth_client, home=metrics_home, raw=metrics_token, host=ingest_host):
+    now = int(time.time())
+    edges = {"1": 10, "2": 20, "+Inf": 40}
+    lines = []
+    for step in range(4):
+        ts = now - (3 - step) * 30
+        for edge, growth in edges.items():
+            lines.append(
+                f"prometheus,host={host},le={edge} lat_bucket={growth * step} {ts}"
+            )
+    ac.post("/api/v2/write?precision=s", data="\n".join(lines).encode(), headers=_auth(raw))
+
+    options = quote('{"bucket_by": "tag", "quantiles": [0.5]}', safe="")
+    payload = ac.get(
+        f"/api/metrics/query?host={host}&measurement=prometheus&field=lat_bucket"
+        f"&range=1h&kind=histogram&tag_mode=filter&tags=%7B%7D&options={options}"
+    ).get_json()
+
+    assert [line["label"] for line in payload["series"]] == ["p50"]
+    # Half of each window's observations land at or below the second edge.
+    assert payload["series"][0]["points"][-1]["value"] == 2.0
+
+
+@test("the query API differentiates a counter instead of drawing its climb since boot")
+def _(ac=auth_client, home=metrics_home, raw=metrics_token, host=ingest_host):
+    now = int(time.time())
+    # 30s apart at 3000 bytes a step, which is 100 bytes per second.
+    lines = [
+        f"net,host={host},interface=eth0 bytes_recv={3000 * step} {now - (3 - step) * 30}"
+        for step in range(4)
+    ]
+    ac.post("/api/v2/write?precision=s", data="\n".join(lines).encode(), headers=_auth(raw))
+
+    payload = ac.get(
+        f"/api/metrics/query?host={host}&measurement=net&field=bytes_recv"
+        "&range=1h&transform=rate&tag_mode=filter&tags=%7B%7D"
+    ).get_json()
+
+    values = [p["value"] for p in payload["series"][0]["points"]]
+    assert values and all(v == 100.0 for v in values)
 
 
 @test("the query API validates its arguments")
 def _(ac=auth_client, home=metrics_home):
+    base = "/api/metrics/query?host=a&measurement=cpu&field=x"
     assert ac.get("/api/metrics/query?host=a").status_code == 400
-    assert ac.get("/api/metrics/query?host=a&measurement=cpu&field=x&range=99y").status_code == 400
-    assert (
-        ac.get("/api/metrics/query?host=a&measurement=cpu&field=x&aggregate=nope").status_code
-        == 400
-    )
-    assert (
-        ac.get("/api/metrics/query?host=a&measurement=cpu&field=x&tags=notjson").status_code == 400
-    )
+    assert ac.get(f"{base}&range=99y").status_code == 400
+    assert ac.get(f"{base}&aggregate=nope").status_code == 400
+    assert ac.get(f"{base}&tags=notjson").status_code == 400
+    assert ac.get(f"{base}&kind=nope").status_code == 400
+    assert ac.get(f"{base}&transform=nope").status_code == 400
+    assert ac.get(f"{base}&tag_mode=nope").status_code == 400
+    assert ac.get(f"{base}&options=notjson").status_code == 400
 
 
 # ============ The chart board ============
@@ -495,6 +559,11 @@ def _(ac=auth_client, home=metrics_home):
 
 def _charts_url(host: str) -> str:
     return f"/api/metrics/hosts/{quote(host, safe='')}/charts"
+
+
+def _family_key(measurement: str, field: str, kind: str = "gauge", tags: str = "{}") -> str:
+    """The identifier a board is saved by; mirrors metrics_families.Family.key."""
+    return f"{measurement}|{field}|{tags}|{kind}"
 
 
 @fixture(scope=Scope.Test)
@@ -537,8 +606,8 @@ def _(ac=auth_client, home=metrics_home, host=board_host):
         _charts_url(host),
         json={
             "charts": [
-                {"measurement": "disk", "field": "used_percent", "tags": {}},
-                {"measurement": "cpu", "field": "usage_idle", "tags": {}},
+                {"key": _family_key("disk", "used_percent")},
+                {"key": _family_key("cpu", "usage_idle")},
             ]
         },
         headers=_csrf(ac),
@@ -558,7 +627,7 @@ def _(ac=auth_client, home=metrics_home, host=board_host):
 def _(ac=auth_client, home=metrics_home, host=board_host):
     ac.put(
         _charts_url(host),
-        json={"charts": [{"measurement": "mem", "field": "used_percent", "tags": {}}]},
+        json={"charts": [{"key": _family_key("mem", "used_percent")}]},
         headers=_csrf(ac),
     )
 
@@ -581,16 +650,28 @@ def _(ac=auth_client, home=metrics_home, host=board_host):
 def _(ac=auth_client, home=metrics_home, host=board_host):
     response = ac.put(
         _charts_url(host),
-        json={"charts": [{"measurement": "nope", "field": "nope", "tags": {}}]},
+        json={"charts": [{"key": _family_key("nope", "nope")}]},
         headers=_csrf(ac),
     )
     assert response.status_code == 400
-    assert "never" in response.get_json()["error"] or "not a series" in response.get_json()["error"]
+    assert "not something this host sends" in response.get_json()["error"]
+
+
+@test("saving rejects a chart whose kind the host's data does not support")
+def _(ac=auth_client, home=metrics_home, host=board_host):
+    # The series exists, but nothing about it says histogram, so the selector the browser
+    # asked for is not one this server would ever have built.
+    response = ac.put(
+        _charts_url(host),
+        json={"charts": [{"key": _family_key("cpu", "usage_idle", kind="histogram")}]},
+        headers=_csrf(ac),
+    )
+    assert response.status_code == 400
 
 
 @test("saving rejects a board larger than the cap")
 def _(ac=auth_client, home=metrics_home, host=board_host):
-    charts = [{"measurement": "cpu", "field": "usage_idle", "tags": {}}] * 40
+    charts = [{"key": _family_key("cpu", "usage_idle")}] * 40
     response = ac.put(_charts_url(host), json={"charts": charts}, headers=_csrf(ac))
     assert response.status_code == 400
 
@@ -599,7 +680,7 @@ def _(ac=auth_client, home=metrics_home, host=board_host):
 def _(ac=auth_client, home=metrics_home, host=board_host):
     ac.put(
         _charts_url(host),
-        json={"charts": [{"measurement": "mem", "field": "used_percent", "tags": {}}]},
+        json={"charts": [{"key": _family_key("mem", "used_percent")}]},
         headers=_csrf(ac),
     )
     assert ac.get(_charts_url(host)).get_json()["customised"] is True
@@ -607,6 +688,76 @@ def _(ac=auth_client, home=metrics_home, host=board_host):
     payload = ac.delete(_charts_url(host), headers=_csrf(ac)).get_json()
     assert payload["customised"] is False
     assert len(payload["charts"]) == 3
+
+
+@fixture(scope=Scope.Test)
+def prometheus_host(c=auth_client, home=metrics_home, raw=metrics_token):
+    """A host scraped with metric_version = 2, so everything shares one measurement."""
+    host = f"promhost-{int(time.time() * 1000000)}"
+    now = int(time.time())
+    edges = {"1": 10, "2": 20, "+Inf": 40}
+
+    lines = []
+    for step in range(3):
+        ts = now - (2 - step) * 20
+        lines.append(f"prometheus,host={host} bbb_meetings_participants={10 + step} {ts}")
+        lines.append(f"prometheus,host={host} bbb_recordings_processing={step} {ts}")
+        for edge, growth in edges.items():
+            lines.append(
+                f"prometheus,host={host},le={edge} bbb_api_latency_bucket={growth * step} {ts}"
+            )
+        lines.append(
+            f"prometheus,host={host} bbb_api_latency_count={40 * step},"
+            f"bbb_api_latency_sum={0.5 * step} {ts}"
+        )
+    c.post("/api/v2/write?precision=s", data="\n".join(lines).encode(), headers=_auth(raw))
+    c.get("/servers")
+
+    yield host
+
+    MetricsChart.delete().where(MetricsChart.hostname == host).execute()
+    MetricsHost.delete().where(MetricsHost.hostname == host).execute()
+
+
+@test("a Prometheus host does not collapse to a single chart just because it has one measurement")
+def _(ac=auth_client, home=metrics_home, host=prometheus_host):
+    payload = ac.get(_charts_url(host)).get_json()
+
+    # Every series here sits in the "prometheus" measurement. Suggesting per family rather
+    # than per measurement is the only reason this is a board and not one tile.
+    assert payload["customised"] is False
+    assert len(payload["charts"]) == 3
+    assert {c["measurement"] for c in payload["charts"]} == {"prometheus"}
+
+
+@test("a histogram is suggested as one chart, drawn as quantiles")
+def _(ac=auth_client, home=metrics_home, host=prometheus_host):
+    charts = ac.get(_charts_url(host)).get_json()["charts"]
+    histograms = [c for c in charts if c["kind"] == "histogram"]
+
+    assert len(histograms) == 1
+    assert histograms[0]["title"] == "bbb_api_latency (quantiles)"
+
+
+def _board_data(body: str) -> dict:
+    """The config the page hands the board editor."""
+    match = re.search(r"BrokeMetrics\.initEditor\((\{.*?\})\);", body, re.DOTALL)
+    assert match, "the detail page did not initialise the board editor"
+    return json.loads(match.group(1))
+
+
+@test("the picker offers a histogram once rather than once per bucket")
+def _(ac=auth_client, home=metrics_home, host=prometheus_host):
+    body = ac.get(f"/servers/{quote(host, safe='')}").get_data(as_text=True)
+    available = _board_data(body)["available"]
+
+    # Three buckets plus a _sum and a _count went in. One entry should come out, and the
+    # companions should not be offered as charts in their own right.
+    latency = [entry for entry in available if entry["label"] == "bbb_api_latency"]
+    assert len(latency) == 1
+    assert latency[0]["kind"] == "histogram"
+    assert latency[0]["note"] == "histogram · 3 buckets"
+    assert not [e for e in available if e["label"].startswith("bbb_api_latency_")]
 
 
 @test("the board endpoints 404 for an unknown host and when metrics are disabled")
@@ -632,3 +783,25 @@ def _(ac=auth_client, u=auth_user, home=metrics_home, raw=metrics_token, host=in
     assert ac.delete(f"/api/metrics/hosts/{host}", headers=_csrf(ac)).status_code == 200
     assert MetricsHost.get_or_none(MetricsHost.hostname == host) is None
     assert metrics_store.list_series(host) == []
+
+
+@test("clearing a host's data is admin only and leaves the host and its board alone")
+def _(ac=auth_client, u=auth_user, home=metrics_home, host=board_host):
+    ac.put(
+        _charts_url(host),
+        json={"charts": [{"key": _family_key("mem", "used_percent")}]},
+        headers=_csrf(ac),
+    )
+
+    url = f"/api/metrics/hosts/{quote(host, safe='')}/data"
+    assert ac.delete(url, headers=_csrf(ac)).status_code == 403
+
+    u.admin = 1
+    u.save()
+    assert ac.delete(url, headers=_csrf(ac)).status_code == 200
+
+    assert metrics_store.list_series(host) == []
+    assert MetricsHost.get_or_none(MetricsHost.hostname == host) is not None
+    board = ac.get(_charts_url(host)).get_json()
+    assert board["customised"] is True
+    assert [c["field"] for c in board["charts"]] == ["used_percent"]

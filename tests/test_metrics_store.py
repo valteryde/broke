@@ -349,73 +349,108 @@ def _(home=metrics_home):
     assert result["files_written"] == 1
 
 
-# ============ Suggesting a starting board ============
+# ============ Querying a family of series ============
 
 
-def _keys(charts):
-    return [(c["measurement"], c["field"]) for c in charts]
+def _group(host="a", measurement="disk", **kwargs):
+    now = int(time.time())
+    defaults = {
+        "fields": ["used_percent"],
+        "tag_filter": {},
+        "tag_mode": "filter",
+        "start_ms": (now - 600) * 1000,
+        "end_ms": (now + 60) * 1000,
+        "step_ms": 10_000,
+    }
+    defaults.update(kwargs)
+    return metrics_store.query_group(host=host, measurement=measurement, **defaults)
 
 
-@test("a series that moves is suggested over one that never budges")
+@test("query_group keeps one line per tag set instead of folding them together")
 def _(home=metrics_home):
     now = int(time.time())
-    for offset in range(3):
-        _write(
-            f"cpu,host=a usage_guest=0.0,usage_idle={80 + offset}.0 {now - offset * 10}",
-            now=now,
-        )
+    _write(
+        f"disk,host=a,path=/ used_percent=70.0 {now}"
+        f"\ndisk,host=a,path=/boot used_percent=10.0 {now}",
+        now=now,
+    )
 
-    assert _keys(metrics_store.suggest_charts("a")) == [("cpu", "usage_idle")]
+    lines = _group()
+    assert [line["tags"] for line in lines] == [{"path": "/"}, {"path": "/boot"}]
+    assert [line["points"][0]["value"] for line in lines] == [70.0, 10.0]
 
 
-@test("the suggestion spreads across measurements instead of stacking one")
+@test("query_series still folds every tag set into a single line")
 def _(home=metrics_home):
     now = int(time.time())
-    for offset in range(3):
-        ts = now - offset * 10
-        _write(
-            f"cpu,host=a usage_idle={80 + offset}.0,usage_user={offset}.0 {ts}"
-            f"\nmem,host=a used_percent={40 + offset}.0 {ts}"
-            f"\ndisk,host=a used_percent={10 + offset}.0 {ts}",
-            now=now,
-        )
+    _write(
+        f"disk,host=a,path=/ used_percent=70.0 {now}"
+        f"\ndisk,host=a,path=/boot used_percent=10.0 {now}",
+        now=now,
+    )
 
-    suggested = metrics_store.suggest_charts("a")
-    measurements = [m for m, _ in _keys(suggested)]
-    assert sorted(measurements) == ["cpu", "disk", "mem"]
-    assert len(measurements) == len(set(measurements))
+    points = metrics_store.query_series(
+        host="a",
+        measurement="disk",
+        field="used_percent",
+        start_ms=(now - 600) * 1000,
+        end_ms=(now + 60) * 1000,
+        step_ms=10_000,
+        aggregate="avg",
+    )
+    assert [p["value"] for p in points] == [40.0]
 
 
-@test("the suggestion honours its limit")
+@test("a subset tag filter matches every series carrying those tags")
 def _(home=metrics_home):
     now = int(time.time())
-    body = "\n".join(f"m{i},host=a value={i}.0 {now}" for i in range(10))
+    _write(
+        f"prometheus,host=a,endpoint=create,le=1 lat_bucket=5 {now}"
+        f"\nprometheus,host=a,endpoint=create,le=2 lat_bucket=8 {now}"
+        f"\nprometheus,host=a,endpoint=join,le=1 lat_bucket=3 {now}",
+        now=now,
+    )
+
+    lines = _group(
+        measurement="prometheus", fields=["lat_bucket"], tag_filter={"endpoint": "create"}
+    )
+    assert [line["tags"]["le"] for line in lines] == ["1", "2"]
+
+
+@test("an exact tag match is not satisfied by a series carrying extra tags")
+def _(home=metrics_home):
+    now = int(time.time())
+    _write(f"disk,host=a,path=/ used_percent=70.0 {now}", now=now)
+
+    assert _group(tag_mode="exact", tag_filter={}) == []
+    assert _group(tag_mode="exact", tag_filter={"path": "/"}) != []
+
+
+@test("a family query spans the compaction boundary without losing a line")
+def _(home=metrics_home):
+    now = int(time.time())
+    _write(f"disk,host=a,path=/ used_percent=70.0 {now - 7200}", now=now)
+    metrics_store.compact(now=now)
+    _write(f"disk,host=a,path=/ used_percent=72.0 {now}", now=now)
+
+    lines = _group(start_ms=(now - 7300) * 1000, step_ms=1000)
+    assert len(lines) == 1
+    assert [p["value"] for p in lines[0]["points"]] == [70.0, 72.0]
+
+
+@test("a family query caps how many lines one chart can ask for")
+def _(home=metrics_home):
+    now = int(time.time())
+    body = "\n".join(f"disk,host=a,path=/m{i} used_percent={i}.0 {now}" for i in range(60))
     _write(body, now=now)
 
-    assert len(metrics_store.suggest_charts("a", limit=4)) == 4
+    assert len(_group(limit=8)) == 8
 
 
-@test("string-only series are never suggested, since there is nothing to plot")
+@test("resolve_series answers with nothing for a host that never reported")
 def _(home=metrics_home):
-    now = int(time.time())
-    _write(f'system,host=a name="web",load1=1.5 {now}', now=now)
-
-    assert _keys(metrics_store.suggest_charts("a")) == [("system", "load1")]
-
-
-@test("a host whose hot window has been compacted away still gets a suggestion")
-def _(home=metrics_home):
-    now = int(time.time())
-    _write(f"cpu,host=a usage_idle=90.0 {now - 7200}", now=now)
-    metrics_store.compact(now=now)
-
-    # No hot rows left to judge variance by, so this falls through to the catalogue.
-    assert metrics_store.suggest_charts("a", now=now) != []
-
-
-@test("a host that has sent nothing gets an empty suggestion rather than an error")
-def _(home=metrics_home):
-    assert metrics_store.suggest_charts("nobody") == []
+    assert metrics_store.resolve_series("nobody", "cpu") == []
+    assert _group(host="nobody") == []
 
 
 @test("text-only series are identified so the picker can leave them out")
