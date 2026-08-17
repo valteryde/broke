@@ -441,6 +441,18 @@ def _(ac=auth_client, u=auth_user, home=metrics_home):
     assert "308 Permanent Redirect" in body
 
 
+@test("the Server Metrics settings list offers a delete action per host")
+def _(ac=auth_client, u=auth_user, home=metrics_home, raw=metrics_token, host=ingest_host):
+    ac.post("/api/v2/write?precision=s", data=_body(host, int(time.time())), headers=_auth(raw))
+    u.admin = 1
+    u.save()
+
+    body = ac.get("/settings/metrics").get_data(as_text=True)
+    assert host in body
+    assert "deleteMetricsHost" in body
+    assert "Delete server" in body
+
+
 @test("the Servers empty state hands out an https snippet with the reason why")
 def _(ac=auth_client, home=metrics_home):
     # MetricsHost lives in app.db, which metrics_home does not isolate, so reaching the

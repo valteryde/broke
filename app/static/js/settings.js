@@ -922,6 +922,29 @@ function revokeMetricsToken(tokenId) {
         });
 }
 
+function deleteMetricsHost(hostname) {
+    if (!hostname) return;
+    if (!confirm('Delete ' + hostname + ' and all of its metrics? This cannot be undone. If Telegraf is still running, the host will reappear on the next write.')) {
+        return;
+    }
+
+    fetch(brokeAppUrl('/api/metrics/hosts/' + encodeURIComponent(hostname)), {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': window.BROKE_CSRF_TOKEN || '' }
+    })
+        .then(response => {
+            if (response.ok) {
+                showToast('Server deleted', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Failed to delete server', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('Failed to delete server', 'error');
+        });
+}
+
 // ============ Trash Functions ============
 
 async function restoreTicket(ticketId) {

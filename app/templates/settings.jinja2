@@ -1670,6 +1670,9 @@
                                 <a class="btn-icon" title="View metrics" href="{{ request.script_root }}/servers/{{ host.hostname | urlencode }}">
                                     <i class="ph ph-chart-line"></i>
                                 </a>
+                                <button type="button" class="btn-icon danger" title="Delete server" data-hostname="{{ host.hostname | e }}" onclick="deleteMetricsHost(this.dataset.hostname)">
+                                    <i class="ph ph-trash"></i>
+                                </button>
                             </div>
                         </div>
                         {% endfor %}
