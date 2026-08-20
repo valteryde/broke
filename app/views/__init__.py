@@ -11,6 +11,7 @@ from .settings import settings_bp
 from .tickets import tickets_bp
 from .webhooks import webhooks_bp
 from .work_cycles import work_cycles_bp
+from .status_page import status_bp
 
 __all__ = [
     "tickets_bp",
@@ -26,4 +27,5 @@ __all__ = [
     "agent_bp",
     "monitors_bp",
     "metrics_bp",
+    "status_bp",
 ]

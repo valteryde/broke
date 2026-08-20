@@ -406,6 +406,7 @@ def create_app():  # noqa: C901
         tickets_bp,
         webhooks_bp,
         work_cycles_bp,
+        status_bp,
     )
 
     app.register_blueprint(auth_bp)
@@ -414,6 +415,7 @@ def create_app():  # noqa: C901
     app.register_blueprint(monitors_bp)
     app.register_blueprint(metrics_bp)
     app.register_blueprint(agent_bp)
+    app.register_blueprint(status_bp)
     app.register_blueprint(bug_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(news_bp)

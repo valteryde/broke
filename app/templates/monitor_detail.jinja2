@@ -98,6 +98,15 @@
                     <span>Enabled</span>
                 </div>
             </div>
+            <div class="form-group">
+                <div style="display:inline-flex;align-items:center;gap:12px;">
+                    <label class="toggle-switch" for="mon-public" aria-label="Public">
+                        <input type="checkbox" id="mon-public" {% if monitor.public %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>Public</span>
+                </div>
+            </div>
             <div style="display:flex;flex-wrap:wrap;gap:8px;">
                 <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Save</button>
                 <button type="button" class="btn btn-secondary" id="mon-delete"><i class="ph ph-trash"></i> Delete</button>
@@ -118,7 +127,8 @@ document.getElementById('monitor-edit-form')?.addEventListener('submit', async (
         interval_seconds: parseInt(document.getElementById('mon-interval').value, 10) || 60,
         expected_status: parseInt(document.getElementById('mon-expected').value, 10) || 200,
         timeout_seconds: parseInt(document.getElementById('mon-timeout').value, 10) || 10,
-        enabled: document.getElementById('mon-enabled').checked
+        enabled: document.getElementById('mon-enabled').checked,
+        public: document.getElementById('mon-public').checked
     };
     try {
         const r = await fetch(brokeAppUrl('/api/monitors/' + MONITOR_ID), {

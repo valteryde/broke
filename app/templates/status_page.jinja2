@@ -1,0 +1,338 @@
+{% extends "standalone.jinja2" %}
+
+{% block head %}
+    <meta name="description" content="{{ settings.title }}">
+    <script src="{{ url_for('static', filename='js/config.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/anon.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/monitors.css') }}">
+    <style>
+        .anon-container-wide {
+            max-width: 1400px !important;
+            width: 85%;
+            padding-top: 1rem !important;
+            justify-content: flex-start !important;
+        }
+
+        .status-hero-section {
+            text-align: center;
+            margin: 0 0 3rem 0;
+        }
+
+        .status-hero-icon {
+            font-size: 3.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-hero-title {
+            font-size: 2.25rem;
+            font-weight: 500;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .status-hero-time {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .status-ok-theme .status-hero-icon { color: #22c55e; }
+        .status-ok-theme .status-hero-title { color: #15803d; }
+
+        .status-error-theme .status-hero-icon { color: #ef4444; }
+        .status-error-theme .status-hero-title { color: #b91c1c; }
+
+        .status-divider {
+            border: 0;
+            height: 1px;
+            background: #e5e7eb;
+            margin: 3rem 0;
+        }
+
+        .status-section-title {
+            font-size: 1.75rem;
+            font-weight: 500;
+            margin-bottom: 2rem;
+            color: #111;
+        }
+
+        .status-section-subtitle {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+
+        .mon-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            margin-bottom: 4rem;
+        }
+
+        .mon-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .mon-card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .mon-card-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: #6b7280;
+            min-width: 110px;
+        }
+
+        .mon-card-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #111;
+            margin-left: 0.5rem;
+        }
+
+        .mon-card-footer {
+            text-align: right;
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.75rem;
+        }
+
+        .mon-card-footer strong {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .maintenance-box {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border: 1px solid #ffeeba;
+            text-align: center;
+        }
+
+        .subscribe-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.5rem 1rem;
+            background-color: #fff;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .subscribe-btn:hover {
+            background-color: #f3f4f6;
+        }
+        .subscribe-wrapper {
+            position: relative;
+        }
+        .subscribe-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 0.5rem;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            width: 320px;
+            z-index: 50;
+        }
+        .subscribe-dropdown.show {
+            display: block;
+        }
+
+        .subscribe-dropdown h3 {
+            font-size: 1rem !important;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .subscribe-dropdown p {
+            font-size: 0.85rem;
+            color: #6b7280;
+            margin-bottom: 12px;
+        }
+        .subscribe-dropdown .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .subscribe-dropdown input[type="email"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            background: #fff;
+        }
+        .subscribe-dropdown button {
+            width: 100%;
+            padding: 0.5rem 1rem;
+            background-color: #111;
+            color: #fff;
+            border: 1px solid #111;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .subscribe-dropdown button:hover {
+            background-color: #333;
+        }
+    </style>
+{% endblock %}
+
+{% block title %}{{ settings.title }} - {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="anon-container anon-container-wide">
+
+    {% if settings.is_maintenance_active and settings.maintenance_message %}
+    <div class="maintenance-box">
+        <strong>Maintenance:</strong> {{ settings.maintenance_message }}
+    </div>
+    {% endif %}
+
+    <div class="status-hero-section {% if all_operational %}status-ok-theme{% else %}status-error-theme{% endif %}">
+        {% if all_operational %}
+            <i class="ph-fill ph-check-circle status-hero-icon"></i>
+            <h1 class="status-hero-title">All Systems Operational</h1>
+        {% else %}
+            <i class="ph-fill ph-warning-circle status-hero-icon"></i>
+            <h1 class="status-hero-title">Some Systems Are Experiencing Issues</h1>
+        {% endif %}
+        <p class="status-hero-time" id="status-time">As of --</p>
+    </div>
+
+    <hr class="status-divider">
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
+        <div>
+            <h2 class="status-section-title" style="margin-bottom: 0.5rem;">{{ settings.title }}</h2>
+            <div class="status-section-subtitle" style="margin-bottom: 0;">Current Status by Service</div>
+        </div>
+
+        <div class="subscribe-wrapper">
+            <button type="button" class="subscribe-btn" onclick="document.getElementById('subscribeDropdown').classList.toggle('show')">
+                <i class="ph ph-bell" style="font-size: 1.1rem;"></i> Subscribe to Updates
+            </button>
+
+            <div id="subscribeDropdown" class="subscribe-dropdown">
+                <h3>Subscribe to Updates</h3>
+                <p>Get email notifications whenever a system goes down or recovers.</p>
+                <form id="subscribeForm" onsubmit="event.preventDefault(); subscribe();">
+                    <div class="form-group">
+                        <input type="email" id="emailInput" placeholder="Enter your email address" required>
+                        <button type="submit">Subscribe</button>
+                    </div>
+                </form>
+                <p id="subscribeResult" style="margin-top: 1rem; font-weight: 500; font-size: 0.9rem;"></p>
+            </div>
+        </div>
+    </div>
+
+    {% if not board_rows %}
+    <div class="anon-welcome" style="text-align: center;">No public monitors are configured yet.</div>
+    {% else %}
+    <div class="mon-grid">
+        {% for row in board_rows %}
+        {% set m = row.monitor %}
+        <div class="mon-card">
+            <div class="mon-card-header">
+                <div class="mon-card-status">
+                    {% if m.status == 'up' %}
+                        <i class="ph-fill ph-check-circle" style="color: #22c55e; font-size: 1.1rem;"></i> Operational
+                    {% elif m.status == 'down' %}
+                        <i class="ph-fill ph-warning-circle" style="color: #ef4444; font-size: 1.1rem;"></i> Outage
+                    {% else %}
+                        <i class="ph-fill ph-question" style="color: #6b7280; font-size: 1.1rem;"></i> Pending
+                    {% endif %}
+                </div>
+                <div class="mon-card-name">{{ m.name }}</div>
+            </div>
+
+            <div class="mon-heart-wrap">
+                <div class="mon-heart" aria-label="24 hour heartbeat">
+                    {% for seg in row.heartbeat %}
+                    <span class="mon-seg mon-seg-{{ seg.state }}" title="{{ seg.t0 }}–{{ seg.t1 }}: {{ seg.state }}"></span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="mon-card-footer">
+                <strong>{% if row.uptime_24h is not none %}{{ '%.2f'|format(row.uptime_24h) }}%{% else %}—{% endif %}</strong> last 24 hours
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+    // Close dropdown if clicking outside
+    window.addEventListener('click', function(e) {
+        if (!document.querySelector('.subscribe-wrapper').contains(e.target)) {
+            document.getElementById('subscribeDropdown').classList.remove('show');
+        }
+    });
+
+    // Set the "As of" time to current local time
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+    document.getElementById('status-time').textContent = 'As of ' + timeStr;
+
+    function subscribe() {
+        const email = document.getElementById('emailInput').value;
+        const resultEl = document.getElementById('subscribeResult');
+        const btn = document.querySelector('#subscribeForm button');
+
+        btn.disabled = true;
+        btn.textContent = 'Subscribing...';
+
+        fetch('{{ request.script_root }}/api/status/subscribe', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: email })
+        })
+        .then(res => res.json().then(data => ({ status: res.status, body: data })))
+        .then(({ status, body }) => {
+            if (status === 201 || body.success) {
+                resultEl.textContent = 'Subscribed successfully!';
+                resultEl.style.color = '#15803d';
+                document.getElementById('emailInput').value = '';
+            } else {
+                resultEl.textContent = body.error || 'Failed to subscribe.';
+                resultEl.style.color = '#b91c1c';
+            }
+        })
+        .catch(err => {
+            resultEl.textContent = 'An error occurred. Please try again.';
+            resultEl.style.color = '#b91c1c';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = 'Subscribe';
+        });
+    }
+</script>
+{% endblock %}

@@ -82,6 +82,10 @@
                 <i class="ph ph-mask-happy"></i>
                 <span>Anonymous Access</span>
             </a>
+            <a href="{{ request.script_root }}/settings/status_page" class="settings-nav-item {% if section == 'status_page' %}active{% endif %}">
+                <i class="ph ph-broadcast"></i>
+                <span>Status Page</span>
+            </a>
         </div>
 
         <div class="settings-nav-section">
@@ -1034,6 +1038,102 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        {% elif section == 'status_page' %}
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Status Page</h1>
+                <p class="section-description">Configure the public system status page</p>
+            </div>
+
+            <div class="settings-card">
+                <form id="statusPageForm" class="settings-form" onsubmit="event.preventDefault(); updateStatusPageSettings();">
+                    <div class="card-section">
+                        <h3>General Settings</h3>
+
+                        <div class="form-group">
+                            <label class="form-label" for="status_title">Page Title</label>
+                            <input type="text" id="status_title" class="form-input" value="{{ status_page_settings.title }}" required>
+                        </div>
+                    </div>
+
+                    <div class="card-section">
+                        <h3>Maintenance Note</h3>
+                        <p class="card-description">Display a banner about ongoing or upcoming maintenance.</p>
+
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="is_maintenance_active" {% if status_page_settings.is_maintenance_active %}checked{% endif %}>
+                                Show Maintenance Banner
+                            </label>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="maintenance_message">Message</label>
+                            <textarea id="maintenance_message" class="form-input" rows="3">{{ status_page_settings.maintenance_message }}</textarea>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Settings</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+             <div class="settings-card">
+                <div class="card-section">
+                    <h3>Public Link</h3>
+                    <p class="card-description">Link to your public status page</p>
+
+                    <div class="webhook-url-section">
+                        <div class="dsn-url-wrapper">
+                            <code class="dsn-url">{{ request.host_url }}status</code>
+                            <button type="button" class="btn-icon copy-btn" onclick="copyToClipboard(this)" data-url="{{ request.host_url }}status">
+                                <i class="ph ph-copy"></i>
+                            </button>
+                            <a href="{{ request.script_root }}/status" target="_blank" class="btn-icon">
+                                <i class="ph ph-arrow-square-out"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                async function updateStatusPageSettings() {
+                    const btn = document.querySelector('#statusPageForm button[type="submit"]');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Saving...';
+                    btn.disabled = true;
+
+                    try {
+                        const response = await fetch('{{ request.script_root }}/api/settings/status-page', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                title: document.getElementById('status_title').value,
+                                is_maintenance_active: document.getElementById('is_maintenance_active').checked,
+                                maintenance_message: document.getElementById('maintenance_message').value
+                            })
+                        });
+
+                        if (response.ok) {
+                            showToast('Settings saved successfully', 'success');
+                        } else {
+                            const data = await response.json();
+                            showToast(data.error || 'Failed to save settings', 'error');
+                        }
+                    } catch (error) {
+                        showToast('An error occurred', 'error');
+                    } finally {
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }
+                }
+            </script>
         </div>
 
         {% elif section == 'branding' %}

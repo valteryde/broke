@@ -51,6 +51,12 @@
                 <label for="mon-timeout">Timeout (s)</label>
                 <input type="number" id="mon-timeout" class="form-input" min="1" max="60" value="10">
             </div>
+            <div class="form-group">
+                <label class="checkbox-label" for="mon-public">
+                    <input type="checkbox" id="mon-public">
+                    Public
+                </label>
+            </div>
             <div class="mon-add-actions">
                 <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Create</button>
             </div>
@@ -166,7 +172,8 @@
             interval_seconds: parseInt(document.getElementById('mon-interval').value, 10) || 60,
             expected_status: parseInt(document.getElementById('mon-expected').value, 10) || 200,
             timeout_seconds: parseInt(document.getElementById('mon-timeout').value, 10) || 10,
-            enabled: true
+            enabled: true,
+            public: document.getElementById('mon-public').checked
         };
         try {
             const r = await fetch(brokeAppUrl('/api/monitors'), {

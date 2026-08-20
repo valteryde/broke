@@ -266,6 +266,16 @@ def _handle_notification_event_impl(**event):
     channels_for_event = settings["event_channels"].get(event_type, [])
     recipients = _build_recipients(event)
 
+    if event_type in (EventTypes.MONITOR_DOWN, EventTypes.MONITOR_UP):
+        monitor_id = event.get("monitor_id")
+        if monitor_id:
+            from .models import Monitor, StatusSubscriber
+
+            monitor = Monitor.get_or_none(Monitor.id == monitor_id)
+            if monitor and getattr(monitor, "public", 0) == 1:
+                subscribers = [sub.email for sub in StatusSubscriber.select()]
+                recipients = list(set(recipients + subscribers))
+
     for channel_name in channels_for_event:
         try:
             if channel_name == "email":

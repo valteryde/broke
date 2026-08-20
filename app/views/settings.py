@@ -135,6 +135,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         "updates": "Updates",
         "trash": "Trash",
         "anonymous": "Anonymous Access",
+        "status_page": "Status Page",
         "danger": "Danger Zone",
         "ai": "AI Integration",
         "branding": "Branding",
@@ -288,6 +289,17 @@ def settings_section_view(user: User, section: str):  # noqa: C901
                 "projects": [],
             }
         context["projects"] = list(active_projects_ordered())
+
+    elif section == "status_page":
+        try:
+            setting = GlobalSetting.get(GlobalSetting.key == "status_page_settings")
+            context["status_page_settings"] = json.loads(setting.value)
+        except DoesNotExist:
+            context["status_page_settings"] = {
+                "title": "System Status",
+                "maintenance_message": "",
+                "is_maintenance_active": False,
+            }
 
     elif section == "ai":
         default_ai_settings = {
@@ -540,6 +552,31 @@ def api_update_anonymous(user: User):
         setting.save()
     except DoesNotExist:
         GlobalSetting.create(key="anonymous_settings", value=json.dumps(settings))
+
+    return json.dumps({"success": True}), 200
+
+
+@settings_bp.route("/api/settings/status-page", methods=["POST"])
+@protected
+def api_update_status_page(user: User):
+    """Update public status page settings"""
+    if user.admin != 1:
+        return json.dumps({"error": "Unauthorized. Admins only."}), 403
+
+    data = request.get_json()
+
+    settings = {
+        "title": data.get("title", "System Status").strip(),
+        "maintenance_message": data.get("maintenance_message", "").strip(),
+        "is_maintenance_active": bool(data.get("is_maintenance_active", False)),
+    }
+
+    try:
+        setting = GlobalSetting.get(GlobalSetting.key == "status_page_settings")
+        setting.value = json.dumps(settings)
+        setting.save()
+    except DoesNotExist:
+        GlobalSetting.create(key="status_page_settings", value=json.dumps(settings))
 
     return json.dumps({"success": True}), 200
 

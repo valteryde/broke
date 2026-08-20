@@ -2,6 +2,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import sys
+sys.modules['eventlet'] = None
+sys.modules['eventlet.patcher'] = None
+
 from app.server import run_test_app
 from app.utils.app import create_app
 

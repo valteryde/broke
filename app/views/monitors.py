@@ -40,6 +40,7 @@ def _monitor_dict(m: Monitor, *, include_stats: bool = True) -> dict[str, Any]:
         "timeout_seconds": m.timeout_seconds,
         "expected_status": m.expected_status,
         "enabled": bool(m.enabled),
+        "public": bool(getattr(m, "public", 0)),
         "status": m.status,
         "last_checked_at": m.last_checked_at,
         "last_status_change_at": m.last_status_change_at,
@@ -162,6 +163,9 @@ def api_create_monitor(user: User):
     enabled_raw = data.get("enabled", True)
     enabled = 1 if enabled_raw in (True, 1, "1", "true", "True") else 0
 
+    public_raw = data.get("public", False)
+    public = 1 if public_raw in (True, 1, "1", "true", "True") else 0
+
     monitor = Monitor.create(
         project=project,
         name=name,
@@ -170,6 +174,7 @@ def api_create_monitor(user: User):
         timeout_seconds=clamp_timeout(data.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
         expected_status=expected_status,
         enabled=enabled,
+        public=public,
         status="unknown",
         created_at=int(time.time()),
     )
@@ -233,6 +238,10 @@ def api_patch_monitor(user: User, monitor_id: int):
     if "enabled" in data:
         enabled_raw = data.get("enabled")
         monitor.enabled = 1 if enabled_raw in (True, 1, "1", "true", "True") else 0
+
+    if "public" in data:
+        public_raw = data.get("public")
+        monitor.public = 1 if public_raw in (True, 1, "1", "true", "True") else 0
 
     monitor.save()
     return jsonify({"monitor": _monitor_dict(monitor)}), 200

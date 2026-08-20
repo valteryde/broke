@@ -419,6 +419,7 @@ class Monitor(BaseModel):
     timeout_seconds = IntegerField(default=10)
     expected_status = IntegerField(default=200)
     enabled = IntegerField(default=1)
+    public = IntegerField(default=0)
     status = CharField(default="unknown")  # unknown, up, down
     last_checked_at = IntegerField(null=True)
     last_status_change_at = IntegerField(null=True)
@@ -515,6 +516,12 @@ class MetricsChart(BaseModel):
         indexes = ((("hostname", "measurement", "field", "tags", "kind"), True),)
 
 
+class StatusSubscriber(BaseModel):
+    id = AutoField(primary_key=True)
+    email = CharField(unique=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+
+
 MODELS = [
     User,
     WorkCycle,
@@ -552,6 +559,7 @@ MODELS = [
     MetricsToken,
     MetricsHost,
     MetricsChart,
+    StatusSubscriber,
 ]
 
 
@@ -569,7 +577,14 @@ def initialize_db():
     _ensure_errorgroup_escalation_spike_column()
     _ensure_errorgroup_event_meta_column()
     _ensure_monitor_last_response_ms_column()
+    _ensure_monitor_public_column()
     database.close()
+
+
+def _ensure_monitor_public_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(monitor);").fetchall()]
+    if columns and "public" not in columns:
+        database.execute_sql("ALTER TABLE monitor ADD COLUMN public INTEGER DEFAULT 0;")
 
 
 def _ensure_ticket_parent_column() -> None:
