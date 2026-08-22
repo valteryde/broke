@@ -13,6 +13,7 @@ _ENV_KEY = "BROKE_DISABLED_FEATURES"
 FEATURE_UPDATER = "updater"
 FEATURE_MONITORS = "monitors"
 FEATURE_METRICS = "metrics"
+FEATURE_USAGE = "usage"
 
 
 def get_disabled_features() -> frozenset[str]:

@@ -866,6 +866,52 @@ function revokeDSNToken() {
         });
 }
 
+function generateUsageToken() {
+    fetch(brokeAppUrl('/api/settings/usage-token'), {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': window.BROKE_CSRF_TOKEN || '' }
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.token) {
+                Modal.show('Usage site key', `
+                    <p>Copy this key now — it will not be shown again. Put it in the snippet as <code>data-key</code>.</p>
+                    <br>
+                    <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; word-break: break-all; margin-bottom: 16px;">${data.token}</div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" onclick="Modal.close(); location.reload();">Close</button>
+                    </div>
+                `);
+            } else {
+                showToast('Failed to generate site key', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('Failed to generate site key', 'error');
+        });
+}
+
+function revokeUsageToken() {
+    if (!confirm('Revoke the usage site key? The snippet will stop sending events until you generate a new one.')) {
+        return;
+    }
+    fetch(brokeAppUrl('/api/settings/usage-token'), {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': window.BROKE_CSRF_TOKEN || '' }
+    })
+        .then(response => {
+            if (response.ok) {
+                showToast('Site key revoked', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Failed to revoke site key', 'error');
+            }
+        })
+        .catch(() => {
+            showToast('Failed to revoke site key', 'error');
+        });
+}
+
 // ============ Metrics Token Functions ============
 
 function generateMetricsToken() {

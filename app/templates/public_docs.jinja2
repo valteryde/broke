@@ -303,6 +303,7 @@
                 <li><a href="#projects">Projects</a></li>
                 <li><a href="#tickets">Tickets</a></li>
                 <li><a href="#error-tracking">Error Tracking</a></li>
+                <li><a href="#usage">Usage</a></li>
                 <li><a href="#importing-from-linear">Importing from Linear</a></li>
                 <li><a href="#settings">Settings</a></li>
                 <li><a href="#updating-broke">Updating Broke</a></li>
@@ -353,6 +354,10 @@
                     <div class="feature-card">
                         <h4><i class="ph ph-bug"></i> Error Tracking</h4>
                         <p>Sentry-compatible error ingestion with grouping and stack traces</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4><i class="ph ph-chart-line-up"></i> Usage</h4>
+                        <p>Unique visitors, paths, and journeys from a first-party snippet</p>
                     </div>
                     <div class="feature-card">
                         <h4><i class="ph ph-users"></i> Multi-user</h4>
@@ -518,6 +523,38 @@ Sentry.init({
                     <li><strong>Resolved</strong> — Errors that have been fixed</li>
                     <li><strong>Ignored</strong> — Errors you've chosen to ignore</li>
                 </ul>
+            </section>
+
+            <section id="usage" class="doc-section">
+                <h2 class="flex-aligned"><i class="ph ph-chart-line-up"></i> Usage</h2>
+                <p>
+                    Usage is a first-party snippet for unique visitors, pages, journeys, and city.
+                    It is not Google Analytics. Errors still go through the Sentry SDK.
+                </p>
+
+                <h3>Setup</h3>
+                <ol>
+                    <li>Go to <strong>Settings → Usage</strong></li>
+                    <li>Generate a site key</li>
+                    <li>Add the snippet to your product</li>
+                </ol>
+                <pre><code class="language-html">&lt;script defer src="https://your-broke/usage.js" data-key="YOUR_SITE_KEY"&gt;&lt;/script&gt;</code></pre>
+                <p>Named actions: <code>BrokeUsage.track('invite_sent')</code>.</p>
+
+                <h3>What is stored</h3>
+                <p>
+                    Anonymous visitor and session ids, path, route, sector, event name, country,
+                    region, and city. The IP is looked up then dropped. Coordinates are not stored.
+                </p>
+                <p>
+                    Self-host: the compose stack runs <code>broke-ip</code> on the internal network
+                    and sets <code>IP_URL=http://broke-ip:9998</code>. Do not point community
+                    installs at a public <code>ip.broke.dk</code>.
+                </p>
+                <p>
+                    City data comes from DB-IP City Lite.
+                    <a href="https://db-ip.com">IP Geolocation by DB-IP</a> (CC BY 4.0).
+                </p>
             </section>
 
             <!-- Importing from Linear Section -->

@@ -20,8 +20,16 @@ services:
       - DATA_PATH=/data
       - REDIS_URL=redis://redis:6379
       - UPDATER_URL=http://broke-updater:9999
+      - IP_URL=http://broke-ip:9998
       # Optional: disable in-app updater UI/API/background checks (comma-separated ids):
-      # - BROKE_DISABLED_FEATURES=updater
+      # - BROKE_DISABLED_FEATURES=updater,usage
+      # Usage city lookup talks to broke-ip on the compose network. Do not default
+      # community installs at a public ip.broke.dk — that would send visitor IPs off-box.
+      # SaaS: IP_URL=https://ip.broke.dk and IP_TOKEN=<service token>
+      # - IP_TOKEN=
+      # Usage lake: how long events are kept, and the distinct-route cap.
+      # - USAGE_RETENTION_DAYS=365
+      # - USAGE_MAX_ROUTES=5000
       # Telegraf metrics: how long full-resolution points are kept, and the per-host
       # series cap that stops a misconfigured agent flooding the lake.
       # - METRICS_RETENTION_DAYS=365
@@ -33,6 +41,16 @@ services:
       # - METRICS_ALLOW_QUERY_TOKEN=0
     depends_on:
       - redis
+
+  broke-ip:
+    build: ./ip
+    restart: always
+    volumes:
+      - ip_data:/data
+    environment:
+      - IP_DATA_DIR=/data
+      # Set IP_SERVICE_TOKEN when this process is published on the internet.
+      # - IP_SERVICE_TOKEN=
 
   broke-updater:
     build: ./updater
@@ -79,3 +97,4 @@ services:
 volumes:
   data:
   redis_data:
+  ip_data:

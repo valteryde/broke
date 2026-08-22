@@ -125,7 +125,9 @@ def create_app():  # noqa: C901
     }
     public_base_url = (os.environ.get("BROKE_PUBLIC_BASE_URL") or "").strip().rstrip("/")
 
-    application_prefix = normalize_application_prefix(os.environ.get("BROKE_APPLICATION_PREFIX", ""))
+    application_prefix = normalize_application_prefix(
+        os.environ.get("BROKE_APPLICATION_PREFIX", "")
+    )
     # Path must match RFC6265 prefix rules: ``/prefix/`` does not cover the URL ``/prefix``
     # (no trailing slash), so the session cookie would be missing and users look logged out.
     session_cookie_path = application_prefix if application_prefix else "/"
@@ -403,10 +405,11 @@ def create_app():  # noqa: C901
         monitors_bp,
         news_bp,
         settings_bp,
+        status_bp,
         tickets_bp,
+        usage_bp,
         webhooks_bp,
         work_cycles_bp,
-        status_bp,
     )
 
     app.register_blueprint(auth_bp)
@@ -414,6 +417,7 @@ def create_app():  # noqa: C901
     app.register_blueprint(work_cycles_bp)
     app.register_blueprint(monitors_bp)
     app.register_blueprint(metrics_bp)
+    app.register_blueprint(usage_bp)
     app.register_blueprint(agent_bp)
     app.register_blueprint(status_bp)
     app.register_blueprint(bug_bp)
@@ -436,6 +440,7 @@ def create_app():  # noqa: C901
             FEATURE_METRICS,
             FEATURE_MONITORS,
             FEATURE_UPDATER,
+            FEATURE_USAGE,
             is_feature_enabled,
         )
 
@@ -445,6 +450,7 @@ def create_app():  # noqa: C901
             "feature_updater_enabled": updater_on,
             "feature_monitors_enabled": monitors_on,
             "feature_metrics_enabled": is_feature_enabled(FEATURE_METRICS),
+            "feature_usage_enabled": is_feature_enabled(FEATURE_USAGE),
             "update_info": None,
         }
         if updater_on and os.environ.get("FLASK_ENV") != "testing":
@@ -457,11 +463,13 @@ def create_app():  # noqa: C901
         from .features import FEATURE_UPDATER, is_feature_enabled
         from .metrics_worker import start_metrics_worker
         from .updater import start_update_checker
+        from .usage_worker import start_usage_worker
 
         if is_feature_enabled(FEATURE_UPDATER):
             start_update_checker()
 
         start_metrics_worker()
+        start_usage_worker()
 
     # Register core routes
     @app.route("/favicon.ico")

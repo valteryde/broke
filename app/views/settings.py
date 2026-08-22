@@ -16,11 +16,16 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from peewee import DoesNotExist
 
 from ..utils import mail
-from ..utils.mail import EMAIL_TRANSPORT_SETTINGS_KEY, effective_relay_base_url, effective_relay_token
-from ..utils.mail_relay import relay_base_url_from_environment, relay_token_from_environment
-from ..utils.email_branding import render_email
 from ..utils.agent_auth import DEFAULT_AGENT_TTL_SECONDS
 from ..utils.ai_changelog import get_ai_config
+from ..utils.email_branding import render_email
+from ..utils.features import FEATURE_METRICS, FEATURE_UPDATER, FEATURE_USAGE, is_feature_enabled
+from ..utils.mail import (
+    EMAIL_TRANSPORT_SETTINGS_KEY,
+    effective_relay_base_url,
+    effective_relay_token,
+)
+from ..utils.mail_relay import relay_base_url_from_environment, relay_token_from_environment
 from ..utils.models import (
     AgentToken,
     APIToken,
@@ -32,6 +37,7 @@ from ..utils.models import (
     Project,
     ProjectPart,
     Ticket,
+    UsageToken,
     User,
     UserCreateToken,
     UserSettings,
@@ -47,7 +53,6 @@ from ..utils.notifications import (
     save_notification_engine_settings,
 )
 from ..utils.reltime import time_ago
-from ..utils.features import FEATURE_METRICS, FEATURE_UPDATER, is_feature_enabled
 from ..utils.security import protected
 
 # Create blueprint
@@ -104,7 +109,7 @@ def docs_agent_integration(user: User):
 def settings_section_view(user: User, section: str):  # noqa: C901
     """Render settings page for a specific section"""
 
-    admin_only_sections = {"email", "webhooks", "sentry", "ai", "branding", "metrics"}
+    admin_only_sections = {"email", "webhooks", "sentry", "ai", "branding", "metrics", "usage"}
     if section in admin_only_sections and user.admin != 1:
         flash("Unauthorized. Admins only.", "error")
         return redirect(url_for("settings.settings_section_view", section="profile"))
@@ -115,6 +120,10 @@ def settings_section_view(user: User, section: str):  # noqa: C901
 
     if section == "metrics" and not is_feature_enabled(FEATURE_METRICS):
         flash("Metrics are disabled on this instance.", "error")
+        return redirect(url_for("settings.settings_section_view", section="profile"))
+
+    if section == "usage" and not is_feature_enabled(FEATURE_USAGE):
+        flash("Usage is disabled on this instance.", "error")
         return redirect(url_for("settings.settings_section_view", section="profile"))
 
     # Map sections to their display titles
@@ -132,6 +141,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         "webhooks": "Webhooks",
         "sentry": "Sentry Integration",
         "metrics": "Server Metrics",
+        "usage": "Usage",
         "updates": "Updates",
         "trash": "Trash",
         "anonymous": "Anonymous Access",
@@ -171,7 +181,9 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         transport_saved = mail.load_email_transport_settings()
         context["email_transport"] = transport_saved.get("transport", "smtp")
         context["relay_base_url_saved"] = transport_saved.get("relay_base_url") or ""
-        context["relay_token_configured_saved"] = bool(str(transport_saved.get("relay_token") or "").strip())
+        context["relay_token_configured_saved"] = bool(
+            str(transport_saved.get("relay_token") or "").strip()
+        )
         context["relay_token_from_env"] = bool(relay_token_from_environment())
         context["relay_base_url_env_configured"] = bool(relay_base_url_from_environment())
         try:
@@ -266,6 +278,22 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         )
         context["metrics_hosts"] = list(MetricsHost.select().order_by(MetricsHost.hostname))
         context["metrics_stats"] = metrics_store.store_stats()
+
+    elif section == "usage":
+        from ..utils import ip_lookup, usage_store
+        from .metrics import ingest_base_url
+
+        context["base_url"] = ingest_base_url()
+        context["usage_stats"] = usage_store.store_stats()
+        context["ip_status"] = ip_lookup.sidecar_status()
+        context["ip_url_configured"] = bool(ip_lookup.ip_url())
+        try:
+            usage_token = UsageToken.get()
+            context["usage_token"] = usage_token
+            context["usage_token_preview"] = str(usage_token.token_preview or "").strip()
+        except DoesNotExist:
+            context["usage_token"] = None
+            context["usage_token_preview"] = ""
 
     elif section == "branding":
         from ..utils.public_site import show_public_home
@@ -644,7 +672,9 @@ def api_update_email_settings(user: User):
     if transport not in ("smtp", "relay"):
         transport = "smtp"
 
-    transport_existing = GlobalSetting.get_or_none(GlobalSetting.key == EMAIL_TRANSPORT_SETTINGS_KEY)
+    transport_existing = GlobalSetting.get_or_none(
+        GlobalSetting.key == EMAIL_TRANSPORT_SETTINGS_KEY
+    )
     existing_transport: dict = {}
     if transport_existing and transport_existing.value:
         try:
@@ -656,7 +686,9 @@ def api_update_email_settings(user: User):
 
     raw_relay_base = data.get("relay_base_url")
     if raw_relay_base is None:
-        relay_base_url_input = str(existing_transport.get("relay_base_url") or "").strip().rstrip("/")
+        relay_base_url_input = (
+            str(existing_transport.get("relay_base_url") or "").strip().rstrip("/")
+        )
     else:
         relay_base_url_input = str(raw_relay_base).strip().rstrip("/")
 
@@ -671,9 +703,21 @@ def api_update_email_settings(user: User):
 
     if transport == "relay":
         if not effective_relay_base_url(tentative_transport):
-            return json.dumps({"error": "Relay base URL is required (saved value or BROKE_MAIL_RELAY_BASE_URL)."}), 400
+            return (
+                json.dumps(
+                    {
+                        "error": "Relay base URL is required (saved value or BROKE_MAIL_RELAY_BASE_URL)."
+                    }
+                ),
+                400,
+            )
         if not effective_relay_token(tentative_transport):
-            return json.dumps({"error": "Relay token is required (saved value or BROKE_MAIL_RELAY_TOKEN)."}), 400
+            return (
+                json.dumps(
+                    {"error": "Relay token is required (saved value or BROKE_MAIL_RELAY_TOKEN)."}
+                ),
+                400,
+            )
     else:
         host = str(data.get("host", "")).strip()
         if not host:
@@ -1241,6 +1285,42 @@ def api_revoke_dsn_token(user: User):
         return json.dumps({"error": "No DSN token exists"}), 404
 
 
+# ============ Usage site key ============
+
+
+@settings_bp.route("/api/settings/usage-token", methods=["POST"])
+@protected
+def api_create_usage_token(user: User):
+    if user.admin != 1:
+        return jsonify({"error": "Unauthorized. Admins only."}), 403
+    if not is_feature_enabled(FEATURE_USAGE):
+        return jsonify({"error": "Usage is disabled on this instance"}), 404
+
+    from ..utils.usage_auth import generate_token, hash_token
+
+    UsageToken.delete().execute()
+    token = generate_token()
+    row = UsageToken.create(
+        token_hash=hash_token(token),
+        token_preview=token[:8],
+        created_at=int(time.time()),
+    )
+    return jsonify({"success": True, "token": token, "token_id": row.id}), 200
+
+
+@settings_bp.route("/api/settings/usage-token", methods=["DELETE"])
+@protected
+def api_revoke_usage_token(user: User):
+    if user.admin != 1:
+        return jsonify({"error": "Unauthorized. Admins only."}), 403
+    if not is_feature_enabled(FEATURE_USAGE):
+        return jsonify({"error": "Usage is disabled on this instance"}), 404
+    count = UsageToken.delete().execute()
+    if count > 0:
+        return jsonify({"success": True}), 200
+    return jsonify({"error": "No usage site key exists"}), 404
+
+
 # ============ Metrics Token Endpoints ============
 
 
@@ -1555,7 +1635,9 @@ def api_check_update(user: User):
     """Manually trigger an update check"""
     if not is_feature_enabled(FEATURE_UPDATER):
         return (
-            json.dumps({"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}),
+            json.dumps(
+                {"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}
+            ),
             403,
         )
 
@@ -1571,7 +1653,9 @@ def api_apply_update(user: User):
     """Trigger the updater sidecar to pull and restart"""
     if not is_feature_enabled(FEATURE_UPDATER):
         return (
-            json.dumps({"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}),
+            json.dumps(
+                {"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}
+            ),
             403,
         )
 
@@ -1589,7 +1673,9 @@ def api_toggle_auto_check(user: User):
     """Toggle automatic update checking"""
     if not is_feature_enabled(FEATURE_UPDATER):
         return (
-            json.dumps({"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}),
+            json.dumps(
+                {"error": "Updater is disabled on this instance", "feature": FEATURE_UPDATER}
+            ),
             403,
         )
 

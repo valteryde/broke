@@ -57,6 +57,7 @@ dump.rdb
 *.backup
 *.tmp
 *.temp
+*.mmdb
 *.log
 *.log.*
 logs/

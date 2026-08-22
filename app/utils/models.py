@@ -448,6 +448,16 @@ class MonitorCheck(BaseModel):
 # lake (see app/utils/metrics_store.py), never to app.db.
 
 
+class UsageToken(BaseModel):
+    """Single site key the usage beacon presents — only one can exist at a time."""
+
+    id = AutoField(primary_key=True)
+    token_hash = CharField(index=True)
+    token_preview = CharField()
+    created_at = IntegerField(default=lambda: int(time.time()))
+    last_used = IntegerField(null=True)
+
+
 class MetricsToken(BaseModel):
     """Bearer token a Telegraf agent presents when writing metrics.
 
@@ -559,6 +569,7 @@ MODELS = [
     MetricsToken,
     MetricsHost,
     MetricsChart,
+    UsageToken,
     StatusSubscriber,
 ]
 
@@ -834,3 +845,11 @@ def setup_test_data():  # noqa: C901
         except Exception as e:
             print(e)
             continue
+
+    from .usage_demo import seed_demo_usage
+
+    try:
+        written = seed_demo_usage()
+        print(f"Seeded {written} usage events")
+    except Exception as e:
+        print(f"Usage demo seed skipped: {e}")

@@ -5,7 +5,12 @@ from unittest.mock import patch
 
 from ward import test
 
-from app.utils.features import FEATURE_UPDATER, get_disabled_features, is_feature_enabled
+from app.utils.features import (
+    FEATURE_UPDATER,
+    FEATURE_USAGE,
+    get_disabled_features,
+    is_feature_enabled,
+)
 
 
 @test("get_disabled_features is empty when unset")
@@ -30,3 +35,9 @@ def _():
 def _():
     with patch.dict(os.environ, {"BROKE_DISABLED_FEATURES": "something_else"}):
         assert is_feature_enabled(FEATURE_UPDATER) is True
+
+
+@test("is_feature_enabled is false for disabled usage")
+def _():
+    with patch.dict(os.environ, {"BROKE_DISABLED_FEATURES": FEATURE_USAGE}):
+        assert is_feature_enabled(FEATURE_USAGE) is False

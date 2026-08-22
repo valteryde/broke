@@ -1,4 +1,4 @@
-.PHONY: help install install-dev test coverage lint security clean docker-build docker-up docker-down checks format electron-install electron-dev electron-build electron-package-mac electron-package-win
+.PHONY: help install install-dev test coverage lint security clean docker-build docker-up docker-down checks format electron-install electron-dev electron-build electron-package-mac electron-package-win populate
 
 # Default target
 help:
@@ -20,6 +20,8 @@ help:
 	@echo "  make electron-build   - Build desktop installers"
 	@echo "  make electron-package-mac - Build macOS dmg"
 	@echo "  make electron-package-win - Build Windows installer"
+	@echo "  make run           - Seed demo data and start the Flask app"
+	@echo "  make populate      - Seed tickets + usage demo data (no server)"
 
 # Installation
 install:
@@ -114,6 +116,10 @@ run-dev:
 # Database
 db-migrate:
 	python -m scripts.migrate
+
+populate:
+	python -c "from app.utils.models import initialize_db, setup_test_data; initialize_db(); setup_test_data()"
+	@echo "Demo data ready (user / code). Start the app with: make run"
 
 # Dependencies
 deps-check:

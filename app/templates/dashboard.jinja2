@@ -98,6 +98,13 @@
             </div>
             {% endif %}
 
+            {% if feature_usage_enabled %}
+            <div class="sb-element {% if page == 'usage' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/usage'">
+                <i class="ph ph-chart-line-up"></i>
+                <span>Usage</span>
+            </div>
+            {% endif %}
+
             <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="openUrlWithArgs('/errors')">
                 <i class="ph ph-bug-beetle"></i>
                 <span>Errors</span>

@@ -16,3 +16,6 @@ services:
       - MONITOR_POLL_SECONDS=10
     depends_on:
       - broke-server
+
+  broke-ip:
+    build: ./ip

@@ -40,6 +40,7 @@ It supports multiple teams but only one organization. It's designed to be small 
 - **Intake Inbox** — Route incoming issues before they hit active work
 - **Optional AI-Assisted Intake** — Draft and route tickets faster when AI settings are configured
 - **Error Tracking** — Sentry-compatible error ingestion and management
+- **Product Usage** — Unique visitors, paths, journeys, and city from a first-party snippet
 - **Server Metrics** — Telegraf agents push host metrics over the InfluxDB write API
 - **Multi-user Support** — Multiple users can collaborate on tickets
 - **Reports + Timeline** — Activity and operational insights in one place
@@ -167,6 +168,26 @@ sentry_sdk.init(
     traces_sample_rate=1.0,
 )
 ```
+
+## Product Usage
+
+Broke can count unique visitors, pages, and short journeys without a third-party analytics product.
+
+1. Go to Settings → Usage and generate a site key.
+2. Add the snippet to your product (the key is public; it can only write events):
+
+```html
+<script defer src="https://broke.example.com/usage.js" data-key="YOUR_SITE_KEY"></script>
+```
+
+3. Optional named actions: `BrokeUsage.track('invite_sent')`.
+4. Open **Usage** in Broke. Errors still go through the Sentry DSN — this snippet is pageviews and events only.
+
+Visitor IPs are resolved to country/region/city via the `broke-ip` sidecar (DB-IP City Lite) and then discarded. Compose points `IP_URL` at `http://broke-ip:9998` on the internal network. Do not point a self-hosted install at a public `ip.broke.dk` — that would send visitor IPs off your box. If the sidecar is down, ingest still succeeds and city stays empty.
+
+Pages that show cities include the required attribution: IP Geolocation by [DB-IP](https://db-ip.com) (CC BY 4.0). Do not vendor the MMDB in git; the sidecar downloads City Lite on start.
+
+Disable with `BROKE_DISABLED_FEATURES=usage`.
 
 ## Server Metrics (Telegraf)
 
