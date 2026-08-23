@@ -13,9 +13,7 @@ def run_migration():
     columns = [row[1] for row in rows]
 
     if "last_escalation_spike_email_at" not in columns:
-        db.execute_sql(
-            "ALTER TABLE errorgroup ADD COLUMN last_escalation_spike_email_at INTEGER;"
-        )
+        db.execute_sql("ALTER TABLE errorgroup ADD COLUMN last_escalation_spike_email_at INTEGER;")
         print("Added last_escalation_spike_email_at column to errorgroup table.")
     else:
         print("Column last_escalation_spike_email_at already exists on errorgroup table.")

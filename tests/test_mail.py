@@ -13,7 +13,9 @@ _SMTP_TRANSPORT = {"transport": "smtp", "relay_base_url": "", "relay_token": ""}
 @contextmanager
 def _force_smtp_transport(mail_module):
     """Keep SMTP path tests independent of BROKE_MAIL_RELAY_* in the process env."""
-    with patch.object(mail_module, "load_email_transport_settings", return_value=dict(_SMTP_TRANSPORT)):
+    with patch.object(
+        mail_module, "load_email_transport_settings", return_value=dict(_SMTP_TRANSPORT)
+    ):
         yield
 
 
@@ -23,7 +25,9 @@ def _():
     from app.utils.models import GlobalSetting, database
 
     with database.connection_context():
-        GlobalSetting.delete().where(GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+        GlobalSetting.delete().where(
+            GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY
+        ).execute()
 
     env = {
         "BROKE_MAIL_RELAY_BASE_URL": "https://app.broke.dk",
@@ -42,7 +46,9 @@ def _():
     from app.utils.models import GlobalSetting, database
 
     with database.connection_context():
-        GlobalSetting.delete().where(GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+        GlobalSetting.delete().where(
+            GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY
+        ).execute()
 
     env = {
         "BROKE_MAIL_RELAY_BASE_URL": "https://app.broke.dk",
@@ -59,7 +65,9 @@ def _():
     from app.utils.models import GlobalSetting, database
 
     with database.connection_context():
-        GlobalSetting.delete().where(GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+        GlobalSetting.delete().where(
+            GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY
+        ).execute()
         GlobalSetting.create(
             key=mail.EMAIL_TRANSPORT_SETTINGS_KEY,
             value=json.dumps({"transport": "smtp", "relay_base_url": "", "relay_token": ""}),
@@ -80,7 +88,9 @@ def _():
     from app.utils.models import GlobalSetting, database
 
     with database.connection_context():
-        GlobalSetting.delete().where(GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY).execute()
+        GlobalSetting.delete().where(
+            GlobalSetting.key == mail.EMAIL_TRANSPORT_SETTINGS_KEY
+        ).execute()
 
     env = {
         "BROKE_MAIL_RELAY_BASE_URL": "https://app.broke.dk",
@@ -89,7 +99,10 @@ def _():
     with patch.dict(os.environ, env, clear=False):
         with patch.object(mail, "_load_smtp_settings", return_value={"from": "noreply@broke.dk"}):
             with patch.object(mail, "send_via_relay", return_value=True) as relay:
-                assert mail.send_email("dest@example.com", "Subject", "<p>x</p>", text_content="x") is True
+                assert (
+                    mail.send_email("dest@example.com", "Subject", "<p>x</p>", text_content="x")
+                    is True
+                )
                 relay.assert_called_once()
                 assert relay.call_args.args[0] == "https://app.broke.dk"
                 assert relay.call_args.args[1] == "tok-secret"
@@ -212,6 +225,7 @@ def _():
 def _():
     from email import policy
     from email.parser import Parser
+
     from app.utils import mail
 
     settings = {
@@ -267,7 +281,9 @@ def _():
     with patch.object(mail, "load_email_transport_settings", return_value=transport):
         with patch.object(mail, "_load_smtp_settings", return_value=smtp_for_from):
             with patch.object(mail, "send_via_relay", return_value=True) as relay_fn:
-                ok = mail.send_email("dest@example.com", "Subject", "<p>x</p>", text_content="plain")
+                ok = mail.send_email(
+                    "dest@example.com", "Subject", "<p>x</p>", text_content="plain"
+                )
                 assert ok is True
                 relay_fn.assert_called_once_with(
                     "https://panel.example.com",

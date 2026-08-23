@@ -31,7 +31,8 @@ from __future__ import annotations
 import json
 import math
 import time
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any, Iterable
 
 from . import metrics_store
@@ -451,7 +452,7 @@ def rate(points: list[dict[str, Any]], *, step_ms: int) -> list[dict[str, Any]]:
 
 
 def _increase_by_bucket(
-    buckets: list[tuple[float, list[dict[str, Any]]]]
+    buckets: list[tuple[float, list[dict[str, Any]]]],
 ) -> dict[int, list[tuple[float, float]]]:
     """Turn cumulative bucket counters into per-timestamp increases.
 
@@ -579,13 +580,17 @@ def suggest(host: str, *, limit: int = 8, now: int | None = None) -> list[Family
 def _varying_series(host: str, *, now: int) -> set[tuple[str, str, str]]:
     """Series whose value changed inside the hot window, keyed by (measurement, field, tags)."""
     start_ms = (now - metrics_store.hot_window_seconds()) * 1000
-    rows = metrics_store.hot_connection().execute(
-        "SELECT measurement, field, tags FROM hot_point"
-        " WHERE host = ? AND ts >= ? AND value IS NOT NULL"
-        " GROUP BY measurement, field, tags"
-        " HAVING MAX(value) > MIN(value)",
-        (host, start_ms),
-    ).fetchall()
+    rows = (
+        metrics_store.hot_connection()
+        .execute(
+            "SELECT measurement, field, tags FROM hot_point"
+            " WHERE host = ? AND ts >= ? AND value IS NOT NULL"
+            " GROUP BY measurement, field, tags"
+            " HAVING MAX(value) > MIN(value)",
+            (host, start_ms),
+        )
+        .fetchall()
+    )
     return {(row[0], row[1], row[2] or "{}") for row in rows}
 
 

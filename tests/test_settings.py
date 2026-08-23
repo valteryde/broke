@@ -1,16 +1,17 @@
 """Tests for settings and configuration"""
 
-from ward import test
-from tests.fixtures import app, client, fake, test_project, auth_client, auth_user
-import json
 import io
+import json
 import time
-
-from app.utils.models import User, create_user, UserSettings, GlobalSetting, DSNToken
-from app.utils.mail import EMAIL_TRANSPORT_SETTINGS_KEY
-from app.utils.path import data_path
-import pyargon2
 from unittest.mock import patch
+
+import pyargon2
+from ward import test
+
+from app.utils.mail import EMAIL_TRANSPORT_SETTINGS_KEY
+from app.utils.models import DSNToken, GlobalSetting, User, UserSettings, create_user
+from app.utils.path import data_path
+from tests.fixtures import app, auth_client, auth_user, client, fake, test_project
 
 
 @test("/settings GET requires authentication")
@@ -43,7 +44,7 @@ def _(c=auth_client, user=auth_user):
     assert response.status_code in [200, 302]
     if response.status_code == 200:
         assert f'data-jdenticon-value="{user.username}"'.encode() in response.data
-        assert f'/avatar/{user.username}'.encode() in response.data
+        assert f"/avatar/{user.username}".encode() in response.data
 
 
 @test("/settings/projects GET shows projects")
@@ -253,7 +254,7 @@ def _(c=client, f=fake):
 
 @test("/api/settings/profile/avatar requires authentication")
 def _(c=client):
-    c.get('/logout', follow_redirects=False)
+    c.get("/logout", follow_redirects=False)
     response = c.post(
         "/api/settings/profile/avatar",
         data={"avatar": (io.BytesIO(b"fake"), "avatar.png")},
@@ -468,11 +469,14 @@ def _(c=client, f=fake):
     admin_email = f"admin_relay_{int(time.time() * 1000000)}@example.com"
     create_user(admin_username, "password123", admin_email, admin=1)
 
-    assert c.post(
-        "/callback",
-        data={"username": admin_username, "password": "password123"},
-        follow_redirects=False,
-    ).status_code == 302
+    assert (
+        c.post(
+            "/callback",
+            data={"username": admin_username, "password": "password123"},
+            follow_redirects=False,
+        ).status_code
+        == 302
+    )
 
     payload = {
         "transport": "relay",
@@ -502,11 +506,14 @@ def _(c=client, f=fake):
     admin_email = f"admin_relay_bad_{int(time.time() * 1000000)}@example.com"
     create_user(admin_username, "password123", admin_email, admin=1)
 
-    assert c.post(
-        "/callback",
-        data={"username": admin_username, "password": "password123"},
-        follow_redirects=False,
-    ).status_code == 302
+    assert (
+        c.post(
+            "/callback",
+            data={"username": admin_username, "password": "password123"},
+            follow_redirects=False,
+        ).status_code
+        == 302
+    )
 
     with patch.dict(
         os.environ,
@@ -515,9 +522,7 @@ def _(c=client, f=fake):
     ):
         response = c.post(
             "/api/settings/email",
-            data=json.dumps(
-                {"transport": "relay", "relay_base_url": "", "relay_token": ""}
-            ),
+            data=json.dumps({"transport": "relay", "relay_base_url": "", "relay_token": ""}),
             content_type="application/json",
         )
     assert response.status_code == 400
@@ -533,11 +538,14 @@ def _(c=client, f=fake):
     admin_email = f"admin_relay_env_{int(time.time() * 1000000)}@example.com"
     create_user(admin_username, "password123", admin_email, admin=1)
 
-    assert c.post(
-        "/callback",
-        data={"username": admin_username, "password": "password123"},
-        follow_redirects=False,
-    ).status_code == 302
+    assert (
+        c.post(
+            "/callback",
+            data={"username": admin_username, "password": "password123"},
+            follow_redirects=False,
+        ).status_code
+        == 302
+    )
 
     with patch.dict(
         os.environ,
@@ -549,9 +557,7 @@ def _(c=client, f=fake):
     ):
         response = c.post(
             "/api/settings/email",
-            data=json.dumps(
-                {"transport": "relay", "relay_base_url": "", "relay_token": ""}
-            ),
+            data=json.dumps({"transport": "relay", "relay_base_url": "", "relay_token": ""}),
             content_type="application/json",
         )
     assert response.status_code == 200

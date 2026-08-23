@@ -9,8 +9,7 @@ from app.utils.models import database as db
 def run_migration():
     print("Running migration: 006 Work cycles")
 
-    db.execute_sql(
-        """
+    db.execute_sql("""
         CREATE TABLE IF NOT EXISTS workcycle (
             id INTEGER NOT NULL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
@@ -20,8 +19,7 @@ def run_migration():
             ends_at INTEGER,
             created_at INTEGER NOT NULL
         );
-        """
-    )
+        """)
     db.execute_sql("CREATE INDEX IF NOT EXISTS workcycle_project ON workcycle(project);")
 
     rows = db.execute_sql("PRAGMA table_info(ticket);").fetchall()

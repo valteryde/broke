@@ -1,8 +1,10 @@
-from ward import fixture, Scope
-from app.utils.app import create_app
-import faker
 import time
-from app.utils.models import Ticket, Project, initialize_db, create_user
+
+import faker
+from ward import Scope, fixture
+
+from app.utils.app import create_app
+from app.utils.models import Project, Ticket, create_user, initialize_db
 
 
 def create_test_project(project_id, name="Test Project", _unused_description=None):
@@ -27,8 +29,8 @@ def app():
     initialize_db()
 
     test_app = create_app()
-    test_app.config['TESTING'] = True
-    test_app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for testing
+    test_app.config["TESTING"] = True
+    test_app.config["WTF_CSRF_ENABLED"] = False  # Disable CSRF for testing
     return test_app
 
 
@@ -57,14 +59,17 @@ def auth_client(app=app, auth_user=auth_user):
     """Authenticated test client with logged-in user"""
     with app.test_client() as client:
         # Login the user via the callback endpoint
-        response = client.post('/callback', data={
-            'username': auth_user.username,
-            'password': auth_user.password
-        }, follow_redirects=False)
+        response = client.post(
+            "/callback",
+            data={"username": auth_user.username, "password": auth_user.password},
+            follow_redirects=False,
+        )
         # Verify login succeeded (should redirect)
         if response.status_code not in [302]:
             raise Exception(f"Login failed with status {response.status_code}")
         yield client
+
+
 @fixture(scope=Scope.Test)
 def test_project(fake: faker.Faker = fake):
     project = Project.create(

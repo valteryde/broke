@@ -1,6 +1,7 @@
 """Tests for notification utilities."""
 
 from unittest.mock import patch
+
 from ward import test
 
 

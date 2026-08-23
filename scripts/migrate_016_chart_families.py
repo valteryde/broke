@@ -41,9 +41,7 @@ def run_migration():
         name, unique = index[1], index[2]
         if not unique:
             continue
-        columns = tuple(
-            row[2] for row in db.execute_sql(f"PRAGMA index_info({name});").fetchall()
-        )
+        columns = tuple(row[2] for row in db.execute_sql(f"PRAGMA index_info({name});").fetchall())
         if columns == stale:
             db.execute_sql(f"DROP INDEX IF EXISTS {name};")
             print(f"Dropped stale unique index {name}.")

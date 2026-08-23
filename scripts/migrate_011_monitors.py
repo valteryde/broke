@@ -9,8 +9,7 @@ from app.utils.models import database as db
 def run_migration():
     print("Running migration: 011 Monitors")
 
-    db.execute_sql(
-        """
+    db.execute_sql("""
         CREATE TABLE IF NOT EXISTS monitor (
             id INTEGER NOT NULL PRIMARY KEY,
             project_id VARCHAR(255) NOT NULL,
@@ -27,8 +26,7 @@ def run_migration():
             created_at INTEGER NOT NULL,
             FOREIGN KEY (project_id) REFERENCES project (id)
         );
-        """
-    )
+        """)
     db.execute_sql("CREATE INDEX IF NOT EXISTS monitor_project_id ON monitor(project_id);")
     db.execute_sql("CREATE INDEX IF NOT EXISTS monitor_enabled ON monitor(enabled);")
 

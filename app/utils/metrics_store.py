@@ -562,11 +562,15 @@ def resolve_series(
     both tiers matching on plain equality, which keeps the hot query on its index and
     avoids needing JSON functions on the DuckDB side.
     """
-    rows = hot_connection().execute(
-        "SELECT field, tags FROM series WHERE host = ? AND measurement = ?"
-        " ORDER BY field, tags",
-        (host, measurement),
-    ).fetchall()
+    rows = (
+        hot_connection()
+        .execute(
+            "SELECT field, tags FROM series WHERE host = ? AND measurement = ?"
+            " ORDER BY field, tags",
+            (host, measurement),
+        )
+        .fetchall()
+    )
 
     wanted_fields = set(fields) if fields else None
     exact = encode_tags(tag_filter or {}) if tag_mode == "exact" else None
@@ -801,9 +805,7 @@ def _query_cold_buckets(
         f" WHERE host = ? AND measurement = ? AND field IN ({_placeholders(fields)})"
         " AND ts >= ? AND ts < ? AND value IS NOT NULL"
     )  # nosec B608 - placeholders only, every value is bound
-    params: list[Any] = [
-        step_ms, step_ms, pattern, host, measurement, *fields, start_ms, end_ms
-    ]
+    params: list[Any] = [step_ms, step_ms, pattern, host, measurement, *fields, start_ms, end_ms]
     if tag_values is not None:
         sql += f" AND tags IN ({_placeholders(tag_values)})"  # nosec B608 - placeholders only
         params.extend(tag_values)
@@ -858,13 +860,17 @@ def text_only_series(host: str, *, now: int | None = None) -> set[tuple[str, str
     now = int(now if now is not None else time.time())
     start_ms = (now - hot_window_seconds()) * 1000
 
-    rows = hot_connection().execute(
-        "SELECT measurement, field, tags FROM hot_point"
-        " WHERE host = ? AND ts >= ?"
-        " GROUP BY measurement, field, tags"
-        " HAVING SUM(CASE WHEN value IS NOT NULL THEN 1 ELSE 0 END) = 0",
-        (host, start_ms),
-    ).fetchall()
+    rows = (
+        hot_connection()
+        .execute(
+            "SELECT measurement, field, tags FROM hot_point"
+            " WHERE host = ? AND ts >= ?"
+            " GROUP BY measurement, field, tags"
+            " HAVING SUM(CASE WHEN value IS NOT NULL THEN 1 ELSE 0 END) = 0",
+            (host, start_ms),
+        )
+        .fetchall()
+    )
     return {(r[0], r[1], r[2] or "{}") for r in rows}
 
 
@@ -930,9 +936,7 @@ def aggregate_latest(
         "        WHERE host = ? AND measurement = ? AND field = ? AND ts >= ?) o"
         ") WHERE v IS NOT NULL"
     )
-    row = hot_connection().execute(
-        sql, (start_ms, host, measurement, field, start_ms)
-    ).fetchone()
+    row = hot_connection().execute(sql, (start_ms, host, measurement, field, start_ms)).fetchone()
     return float(row[0]) if row and row[0] is not None else None
 
 

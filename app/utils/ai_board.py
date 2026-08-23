@@ -215,8 +215,11 @@ def arrange(
     """
     catalogue = [entry for entry in catalogue if entry.get("key")][:MAX_CATALOGUE]
     if not catalogue:
-        return {"sections": [], "note": "This host has nothing that can be charted yet.",
-                "source": "fallback"}
+        return {
+            "sections": [],
+            "note": "This host has nothing that can be charted yet.",
+            "source": "fallback",
+        }
 
     accents = list(accents) or ["blue"]
     instruction = _clean(instruction)[:400]
@@ -272,7 +275,9 @@ def arrange(
             parsed, catalogue=catalogue, accents=accents, max_charts=max_charts
         )
         if not sections:
-            return fallback("The model did not pick any charts, so they were grouped by measurement.")
+            return fallback(
+                "The model did not pick any charts, so they were grouped by measurement."
+            )
 
         return {
             "sections": sections,

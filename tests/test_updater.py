@@ -2,14 +2,18 @@
 
 import json
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from ward import test
 
-from tests.fixtures import auth_client
-
-from app.utils.updater import check_for_update, get_update_info, is_auto_check_enabled, set_auto_check_enabled
 from app.utils.models import GlobalSetting
+from app.utils.updater import (
+    check_for_update,
+    get_update_info,
+    is_auto_check_enabled,
+    set_auto_check_enabled,
+)
+from tests.fixtures import auth_client
 
 
 @test("check_for_update detects newer version")
@@ -37,7 +41,9 @@ def _():
 @test("check_for_update handles API failure gracefully")
 def _():
     """Test graceful handling when GHCR is unreachable"""
-    with patch("app.utils.updater._get_ghcr_tags", side_effect=ConnectionError("Network unreachable")):
+    with patch(
+        "app.utils.updater._get_ghcr_tags", side_effect=ConnectionError("Network unreachable")
+    ):
         info = check_for_update()
 
     assert info is not None

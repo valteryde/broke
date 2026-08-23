@@ -1,10 +1,21 @@
 """Extended tests for settings and configuration"""
 
-from ward import test, fixture
-from tests.fixtures import client, auth_client, auth_user, create_test_project
-from app.utils.models import User, Project, Label, APIToken, DSNToken, GlobalSetting, UserSettings, create_user
 import json
 import time
+
+from ward import fixture, test
+
+from app.utils.models import (
+    APIToken,
+    DSNToken,
+    GlobalSetting,
+    Label,
+    Project,
+    User,
+    UserSettings,
+    create_user,
+)
+from tests.fixtures import auth_client, auth_user, client, create_test_project
 
 
 @test("/api/settings/profile POST updates profile")
@@ -145,6 +156,7 @@ def _(c=auth_client):
 def _(c=auth_client):
     """Test deleting a project leaves workspace parts intact"""
     import time
+
     from app.utils.models import Project, ProjectPart
 
     project_id = f"to-delete-{int(time.time() * 1000)}"
@@ -278,6 +290,7 @@ def _(c=client):
 @test("Admin can update notification engine settings")
 def _(c=client, f=None):
     import time
+
     username = f"notify_admin_{int(time.time() * 1000000)}"
     email = f"{username}@example.com"
     admin = create_user(username, "password123", email, admin=1)

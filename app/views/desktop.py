@@ -1,13 +1,14 @@
 """Desktop client handshake and device-token authentication endpoints."""
 
-from flask import Blueprint, jsonify, request, send_file, session
-from peewee import DoesNotExist
 import hashlib
 import os
 import secrets
 import time
 import uuid
 from urllib.parse import urlencode
+
+from flask import Blueprint, jsonify, request, send_file, session
+from peewee import DoesNotExist
 
 from ..utils.app import get_app_codename_from_toml, get_app_version_from_toml
 from ..utils.branding import DEFAULT_INSTANCE_LOGO_STATIC, resolve_instance_logo_path
@@ -17,7 +18,6 @@ from ..utils.models import (
     GlobalSetting,
 )
 from ..utils.security import authenticate
-
 
 desktop_bp = Blueprint("desktop", __name__)
 
@@ -256,8 +256,7 @@ def desktop_restore_session():
     token_hash = _sha256(raw_device_token)
 
     token = DeviceToken.get_or_none(
-        (DeviceToken.token_hash == token_hash)
-        & (DeviceToken.revoked == 0)
+        (DeviceToken.token_hash == token_hash) & (DeviceToken.revoked == 0)
     )
     if not token or token.expires_at < now:
         return jsonify({"error": "Invalid or expired device token"}), 401

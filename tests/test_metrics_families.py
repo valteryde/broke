@@ -180,8 +180,7 @@ def _(home=metrics_home):
 def _(home=metrics_home):
     now = int(time.time())
     _write(
-        f"net,host=h,interface=eth0 bytes_recv=1000 {now}"
-        f"\nmem,host=h used_percent=40.0 {now}",
+        f"net,host=h,interface=eth0 bytes_recv=1000 {now}" f"\nmem,host=h used_percent=40.0 {now}",
         now=now,
     )
 

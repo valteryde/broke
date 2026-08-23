@@ -9,8 +9,7 @@ from app.utils.models import database as db
 def run_migration():
     print("Running migration: 012 Monitor checks")
 
-    db.execute_sql(
-        """
+    db.execute_sql("""
         CREATE TABLE IF NOT EXISTS monitorcheck (
             id INTEGER NOT NULL PRIMARY KEY,
             monitor_id INTEGER NOT NULL,
@@ -21,8 +20,7 @@ def run_migration():
             error TEXT,
             FOREIGN KEY (monitor_id) REFERENCES monitor (id) ON DELETE CASCADE
         );
-        """
-    )
+        """)
     db.execute_sql(
         "CREATE INDEX IF NOT EXISTS monitorcheck_checked_at ON monitorcheck(checked_at);"
     )

@@ -9,8 +9,7 @@ from app.utils.models import database as db
 def run_migration():
     print("Running migration: 014 Metrics (Telegraf) tokens and hosts")
 
-    db.execute_sql(
-        """
+    db.execute_sql("""
         CREATE TABLE IF NOT EXISTS metricstoken (
             id INTEGER NOT NULL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
@@ -19,14 +18,12 @@ def run_migration():
             created_at INTEGER NOT NULL,
             last_used INTEGER
         );
-        """
-    )
+        """)
     db.execute_sql(
         "CREATE INDEX IF NOT EXISTS metricstoken_token_hash ON metricstoken(token_hash);"
     )
 
-    db.execute_sql(
-        """
+    db.execute_sql("""
         CREATE TABLE IF NOT EXISTS metricshost (
             id INTEGER NOT NULL PRIMARY KEY,
             hostname VARCHAR(255) NOT NULL,
@@ -34,8 +31,7 @@ def run_migration():
             last_seen INTEGER NOT NULL,
             series_count INTEGER NOT NULL
         );
-        """
-    )
+        """)
     db.execute_sql(
         "CREATE UNIQUE INDEX IF NOT EXISTS metricshost_hostname ON metricshost(hostname);"
     )

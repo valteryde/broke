@@ -1,16 +1,34 @@
-from werkzeug import Response
-from ..utils.models import GlobalSetting, Project, Ticket, TicketUpdateMessage
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
-import time
 import json
-import secrets
-from ..utils.app import limiter
-from typing import Literal
-from flask import flash, send_from_directory
-from ..utils.models import User, PasswordResetToken, data_path
-from ..utils.events import EventTypes, bus
-import pyargon2
 import os
+import secrets
+import time
+from typing import Literal
+
+import pyargon2
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
+from werkzeug import Response
+
+from ..utils.app import limiter
+from ..utils.events import EventTypes, bus
+from ..utils.models import (
+    GlobalSetting,
+    PasswordResetToken,
+    Project,
+    Ticket,
+    TicketUpdateMessage,
+    User,
+    data_path,
+)
 
 anon_bp = Blueprint("anon", __name__)
 
@@ -25,11 +43,7 @@ def _build_external_base_url() -> str:
 def _external_app_root_url() -> str:
     """Public origin plus optional BROKE_APPLICATION_PREFIX (for outbound email links)."""
     base = _build_external_base_url()
-    pref = (
-        str(current_app.config.get("BROKE_APPLICATION_PREFIX") or "")
-        .strip()
-        .rstrip("/")
-    )
+    pref = str(current_app.config.get("BROKE_APPLICATION_PREFIX") or "").strip().rstrip("/")
     return f"{base}{pref}" if pref else base
 
 
@@ -133,7 +147,11 @@ def api_anon_submit():
     duplicate_note = ""
     if has_duplicate_match:
         duplicate_ids = ", ".join(
-            [str(match.get("id", "")).strip() for match in possible_duplicates[:3] if match.get("id")]
+            [
+                str(match.get("id", "")).strip()
+                for match in possible_duplicates[:3]
+                if match.get("id")
+            ]
         )
         if duplicate_ids:
             duplicate_note = f" Potential duplicate candidates: {duplicate_ids}."

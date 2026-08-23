@@ -1,15 +1,18 @@
 """Tests for security utilities"""
-from ward import test
-from tests.fixtures import fake
+
 import os
 from pathlib import Path
 from unittest.mock import patch
+
+from ward import test
+
+from tests.fixtures import fake
 
 
 @test("create_user creates user with hashed password")
 def _(f=fake):
     """Test user creation with password hashing"""
-    from app.utils.models import create_user, User
+    from app.utils.models import User, create_user
 
     username = f.user_name()
     password = f.password()
@@ -27,6 +30,7 @@ def _(f=fake):
 def _(f=fake):
     """Test password hashing and verification"""
     import pyargon2
+
     from app.utils.models import create_user
 
     username = f.user_name()
@@ -43,11 +47,12 @@ def _(f=fake):
 @test("get_current_user returns None without session")
 def _():
     """Test get_current_user without authentication"""
-    from app.utils.security import get_current_user
     from flask import Flask
 
+    from app.utils.security import get_current_user
+
     app = Flask(__name__)
-    app.secret_key = 'test'
+    app.secret_key = "test"
 
     with app.test_request_context():
         user = get_current_user()
@@ -57,8 +62,9 @@ def _():
 @test("Users have unique usernames")
 def _(f=fake):
     """Test username uniqueness constraint"""
-    from app.utils.models import create_user, User
     from peewee import IntegrityError
+
+    from app.utils.models import User, create_user
 
     username = f.user_name()
     create_user(username, f.password(), f.email())
@@ -232,8 +238,9 @@ def _():
 @test("Users have unique emails")
 def _(f=fake):
     """Test email uniqueness constraint"""
-    from app.utils.models import create_user
     from peewee import IntegrityError
+
+    from app.utils.models import create_user
 
     email = f.email()
     create_user(f.user_name(), f.password(), email)

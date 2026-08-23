@@ -92,7 +92,9 @@ def send_via_relay(
     detail = f"{code} {message}".strip() or response.text[:500]
 
     if response.status_code in (401, 403):
-        logger.warning("Mail relay rejected send (non-retriable): HTTP %s %s", response.status_code, detail)
+        logger.warning(
+            "Mail relay rejected send (non-retriable): HTTP %s %s", response.status_code, detail
+        )
     else:
         logger.error("Mail relay send failed: HTTP %s %s", response.status_code, detail)
     return False

@@ -60,10 +60,13 @@ def _():
 
 @test("sanitize_next_app_path strips leading application prefix from next param")
 def _():
-    from app.utils.security import sanitize_next_app_path
     from flask import Flask
 
+    from app.utils.security import sanitize_next_app_path
+
     app = Flask(__name__)
-    with app.test_request_context(environ_overrides={"SCRIPT_NAME": "/broke", "PATH_INFO": "/login"}):
+    with app.test_request_context(
+        environ_overrides={"SCRIPT_NAME": "/broke", "PATH_INFO": "/login"}
+    ):
         assert sanitize_next_app_path("/news") == "/news"
         assert sanitize_next_app_path("/broke/news") == "/news"

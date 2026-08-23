@@ -1,25 +1,27 @@
-from ..utils.security import protected, redirect_with_script_root
-from peewee import prefetch
-from ..utils.models import (
-    User,
-    Ticket,
-    UserTicketJoin,
-    ErrorGroup,
-    Project,
-    ProjectPart,
-    Comment,
-    TicketUpdateMessage,
-    TicketLabelJoin,
-    Label,
-    active_projects_ordered,
-)
-from flask import Blueprint, redirect, render_template, request, Response, url_for
-from urllib.parse import urlencode
-import json
-import time
 import csv
 import io
+import json
+import time
+from urllib.parse import urlencode
+
+from flask import Blueprint, Response, redirect, render_template, request, url_for
+from peewee import prefetch
+
+from ..utils.models import (
+    Comment,
+    ErrorGroup,
+    Label,
+    Project,
+    ProjectPart,
+    Ticket,
+    TicketLabelJoin,
+    TicketUpdateMessage,
+    User,
+    UserTicketJoin,
+    active_projects_ordered,
+)
 from ..utils.path import data_path, path
+from ..utils.security import protected, redirect_with_script_root
 from ..utils.user_display import build_display_name_map_for
 
 # Create blueprint
@@ -116,9 +118,11 @@ def news_view(user: User):
             {
                 "type": "comment",
                 "icon": "ph-chat-circle",
-                "user": "Agent"
-                if agent_comment
-                else comment_display_names.get(comment.user.username, comment.user.username),
+                "user": (
+                    "Agent"
+                    if agent_comment
+                    else comment_display_names.get(comment.user.username, comment.user.username)
+                ),
                 "action": f"commented on {comment.ticket}",
                 "text": comment.body,
                 "time_ago": time_ago(comment.created_at),
@@ -179,14 +183,14 @@ def build_timeline_events(  # noqa: C901
     days: int = 30,
     detailed: bool = False,
     offset: int = 0,
-    limit: int = 50
+    limit: int = 50,
 ) -> dict:
     """
     Build a comprehensive timeline of events across tickets, comments, errors, and updates.
     Uses manual batching to avoid N+1 query problems.
     """
-    from datetime import datetime
     from collections import defaultdict
+    from datetime import datetime
 
     now = int(time.time())
     cutoff = now - (days * 86400) if days > 0 else 0
@@ -217,7 +221,7 @@ def build_timeline_events(  # noqa: C901
 
     # We fetch them to a list for manual batching
     tickets = list(ticket_query)
-    ticket_dict = {t.id: t for t in tickets if getattr(t, 'id', None)}
+    ticket_dict = {t.id: t for t in tickets if getattr(t, "id", None)}
     ticket_ids = list(ticket_dict.keys())
 
     # Bulk Assignees
@@ -277,13 +281,19 @@ def build_timeline_events(  # noqa: C901
         # Fetch tickets and users for comments in bulk
         c_ticket_ids = [c.ticket for c in comments if c.ticket]
         if c_ticket_ids:
-            c_tickets = {t.id: t for t in Ticket.select(Ticket.id, Ticket.project).where(Ticket.id.in_(c_ticket_ids))}
+            c_tickets = {
+                t.id: t
+                for t in Ticket.select(Ticket.id, Ticket.project).where(Ticket.id.in_(c_ticket_ids))
+            }
         else:
             c_tickets = {}
 
         c_user_ids = [c.user_id for c in comments if c.user_id]
         if c_user_ids:
-            c_users = {u.username: u for u in User.select(User.username).where(User.username.in_(c_user_ids))}
+            c_users = {
+                u.username: u
+                for u in User.select(User.username).where(User.username.in_(c_user_ids))
+            }
         else:
             c_users = {}
 
@@ -303,7 +313,11 @@ def build_timeline_events(  # noqa: C901
             username = (
                 "Agent"
                 if via_agent
-                else (c_users[comment.user_id].username if comment.user_id in c_users else str(comment.user_id))
+                else (
+                    c_users[comment.user_id].username
+                    if comment.user_id in c_users
+                    else str(comment.user_id)
+                )
             )
             user_activity[username] += 1
 
@@ -329,7 +343,10 @@ def build_timeline_events(  # noqa: C901
     updates = list(update_query)
     u_ticket_ids = [u.ticket for u in updates if u.ticket]
     if u_ticket_ids:
-        u_tickets = {t.id: t for t in Ticket.select(Ticket.id, Ticket.project).where(Ticket.id.in_(u_ticket_ids))}
+        u_tickets = {
+            t.id: t
+            for t in Ticket.select(Ticket.id, Ticket.project).where(Ticket.id.in_(u_ticket_ids))
+        }
     else:
         u_tickets = {}
 
@@ -423,7 +440,17 @@ def build_timeline_events(  # noqa: C901
                         "project": event.get("meta", {}).get("project"),
                     },
                     "events": [event],
-                    **{k: event[k] for k in ["date_str", "date_day", "date_month", "date_full", "time_str", "date_key"]}
+                    **{
+                        k: event[k]
+                        for k in [
+                            "date_str",
+                            "date_day",
+                            "date_month",
+                            "date_full",
+                            "time_str",
+                            "date_key",
+                        ]
+                    },
                 }
                 grouped_events.append(current_group)
         else:
@@ -455,7 +482,11 @@ def build_timeline_events(  # noqa: C901
     if offset == 0:
         # Only calc full stats on first page
         tickets_all = tickets
-        tickets_created = len([t for t in tickets_all if t.created_at >= cutoff]) if cutoff > 0 else len(tickets_all)
+        tickets_created = (
+            len([t for t in tickets_all if t.created_at >= cutoff])
+            if cutoff > 0
+            else len(tickets_all)
+        )
         tickets_closed = len([t for t in tickets_all if t.status == "closed"])
         tickets_in_progress = len([t for t in tickets_all if t.status == "in-progress"])
 
@@ -466,14 +497,17 @@ def build_timeline_events(  # noqa: C901
         active_users = len(set(user_activity.keys()))
 
         # Effort breakdown
-        total = tickets_created # Use created in window
+        total = tickets_created  # Use created in window
         bug_tickets = 0
         feature_tickets = 0
         for t in tickets_all:
-            if t.created_at < cutoff and cutoff > 0: continue
+            if t.created_at < cutoff and cutoff > 0:
+                continue
             labels = [l.name for l in t.labels]
-            if "bug" in labels: bug_tickets += 1
-            elif "feature" in labels: feature_tickets += 1
+            if "bug" in labels:
+                bug_tickets += 1
+            elif "feature" in labels:
+                feature_tickets += 1
 
         other_tickets = total - bug_tickets - feature_tickets
         effort_bugs = (bug_tickets / total * 100) if total > 0 else 0
@@ -484,11 +518,13 @@ def build_timeline_events(  # noqa: C901
         top_contributors = []
         max_activity = max(user_activity.values()) if user_activity else 1
         for username, count in sorted(user_activity.items(), key=lambda x: x[1], reverse=True)[:5]:
-            top_contributors.append({
-                "username": username,
-                "activity_count": count,
-                "percentage": (count / max_activity) * 100,
-            })
+            top_contributors.append(
+                {
+                    "username": username,
+                    "activity_count": count,
+                    "percentage": (count / max_activity) * 100,
+                }
+            )
 
         # Calculate date range
         date_range = "No data"
@@ -496,11 +532,16 @@ def build_timeline_events(  # noqa: C901
             oldest = min(e["timestamp"] for e in final_events)
             newest = max(e["timestamp"] for e in final_events)
             days_span = (newest - oldest) // 86400
-            if days_span == 0: date_range = "Today"
-            elif days_span == 1: date_range = "2 days"
-            elif days_span < 7: date_range = f"{days_span} days"
-            elif days_span < 30: date_range = f"{days_span // 7} weeks"
-            else: date_range = f"{days_span // 30} months"
+            if days_span == 0:
+                date_range = "Today"
+            elif days_span == 1:
+                date_range = "2 days"
+            elif days_span < 7:
+                date_range = f"{days_span} days"
+            elif days_span < 30:
+                date_range = f"{days_span // 7} weeks"
+            else:
+                date_range = f"{days_span // 30} months"
 
         stats = {
             "total_events": total_events_count,
@@ -523,7 +564,7 @@ def build_timeline_events(  # noqa: C901
         "events": paginated_events,
         "has_more": (offset + limit) < total_events_count,
         "total": total_events_count,
-        **stats
+        **stats,
     }
 
 
@@ -537,11 +578,7 @@ def api_timeline_events(user: User):
     limit = int(request.args.get("limit", 50))
 
     data = build_timeline_events(
-        project_id=project_id,
-        days=days,
-        detailed=detail_mode,
-        offset=offset,
-        limit=limit
+        project_id=project_id, days=days, detailed=detail_mode, offset=offset, limit=limit
     )
     return Response(json.dumps(data), mimetype="application/json")
 
@@ -590,14 +627,26 @@ def build_reports_summary(days: int = 30) -> dict:
     intake_statuses = {"intake", "triage"}
 
     # 1. Global counts
-    tickets_created = Ticket.select().where((Ticket.active == 1) & (Ticket.created_at >= cutoff)).count()
-    tickets_closed = Ticket.select().where((Ticket.active == 1) & (Ticket.status.in_(closed_statuses)) & (Ticket.created_at >= cutoff)).count()
+    tickets_created = (
+        Ticket.select().where((Ticket.active == 1) & (Ticket.created_at >= cutoff)).count()
+    )
+    tickets_closed = (
+        Ticket.select()
+        .where(
+            (Ticket.active == 1)
+            & (Ticket.status.in_(closed_statuses))
+            & (Ticket.created_at >= cutoff)
+        )
+        .count()
+    )
 
     unresolved_errors = ErrorGroup.select().where(ErrorGroup.status == "unresolved").count()
     resolved_errors = ErrorGroup.select().where(ErrorGroup.status == "resolved").count()
 
     # 2. Triage / Intake Backlog
-    triage_tickets = list(Ticket.select().where((Ticket.active == 1) & (Ticket.status.in_(intake_statuses))))
+    triage_tickets = list(
+        Ticket.select().where((Ticket.active == 1) & (Ticket.status.in_(intake_statuses)))
+    )
     triage_backlog = len(triage_tickets)
     avg_triage_age_days = 0.0
     if triage_tickets:
@@ -609,12 +658,16 @@ def build_reports_summary(days: int = 30) -> dict:
     from peewee import fn
 
     def get_project_counts(filter_expr):
-        query = (Ticket.select(Ticket.project, fn.COUNT(Ticket.id).alias('count'))
-                .where((Ticket.active == 1) & filter_expr)
-                .group_by(Ticket.project))
+        query = (
+            Ticket.select(Ticket.project, fn.COUNT(Ticket.id).alias("count"))
+            .where((Ticket.active == 1) & filter_expr)
+            .group_by(Ticket.project)
+        )
         return {str(r.project): r.count for r in query}
 
-    active_counts = get_project_counts((~Ticket.status.in_(closed_statuses)) & (~Ticket.status.in_(intake_statuses)))
+    active_counts = get_project_counts(
+        (~Ticket.status.in_(closed_statuses)) & (~Ticket.status.in_(intake_statuses))
+    )
     closed_counts = get_project_counts(Ticket.status.in_(closed_statuses))
     triage_counts = get_project_counts(Ticket.status.in_(intake_statuses))
 
@@ -622,13 +675,15 @@ def build_reports_summary(days: int = 30) -> dict:
     project_rows = []
     for project in Project.select().order_by(Project.name):
         pid = str(project.id)
-        project_rows.append({
-            "project_id": project.id,
-            "project_name": project.name,
-            "active_tickets": active_counts.get(pid, 0),
-            "closed_tickets": closed_counts.get(pid, 0),
-            "triage_tickets": triage_counts.get(pid, 0),
-        })
+        project_rows.append(
+            {
+                "project_id": project.id,
+                "project_name": project.name,
+                "active_tickets": active_counts.get(pid, 0),
+                "closed_tickets": closed_counts.get(pid, 0),
+                "triage_tickets": triage_counts.get(pid, 0),
+            }
+        )
 
     return {
         "window_days": days,

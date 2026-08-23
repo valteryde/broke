@@ -6,13 +6,15 @@ Tests based on official Sentry documentation:
 - https://develop.sentry.dev/sdk/data-model/event-payloads/
 """
 
-from ward import test, fixture, Scope
-from tests.fixtures import app, client, create_test_project
-from app.utils.models import Project, ProjectPart, ErrorGroup, ErrorOccurrence, DSNToken
-import json
 import gzip
+import json
 import time
 import uuid
+
+from ward import Scope, fixture, test
+
+from app.utils.models import DSNToken, ErrorGroup, ErrorOccurrence, Project, ProjectPart
+from tests.fixtures import app, client, create_test_project
 
 
 @fixture(scope=Scope.Test)
@@ -666,7 +668,12 @@ def _(c=client, part=sentry_project_part, token=dsn_token):
     assert len(attachment_bytes) == 10
 
     event_body = json.dumps(
-        {"event_id": event_id, "timestamp": "2024-10-01T10:12:17Z", "level": "error", "message": "x"}
+        {
+            "event_id": event_id,
+            "timestamp": "2024-10-01T10:12:17Z",
+            "level": "error",
+            "message": "x",
+        }
     )
     event_len = len(event_body.encode("utf-8"))
 

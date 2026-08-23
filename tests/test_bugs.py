@@ -1,8 +1,10 @@
 """Tests for bug/error tracking functionality"""
+
 import json
 
 from ward import test
-from tests.fixtures import client, fake, auth_client, create_test_project
+
+from tests.fixtures import auth_client, client, create_test_project, fake
 
 
 @test("/errors GET requires authentication")

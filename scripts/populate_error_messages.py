@@ -2,10 +2,11 @@
 Send error messages to the sentry sdk
 """
 
-import sentry_sdk
-import sys
 import random
+import sys
+
 import faker
+import sentry_sdk
 
 sys.path.append(".")
 

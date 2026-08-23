@@ -194,9 +194,7 @@ def github_webhook():
     repo_name = repo.get("name", "")
 
     # Find a matching project by name, or use the first non-archived project
-    project = Project.get_or_none(
-        (Project.name == repo_name) & (Project.archived == 0)
-    )
+    project = Project.get_or_none((Project.name == repo_name) & (Project.archived == 0))
     if not project:
         project = Project.select().where(Project.archived == 0).first()
     if not project:

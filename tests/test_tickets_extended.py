@@ -1,10 +1,12 @@
 """Extended tests for ticket operations and edge cases"""
 
-from ward import test, fixture, Scope
-from tests.fixtures import app, client, auth_client, auth_user, create_test_project
-from app.utils.models import Ticket, Project, Comment, Label, TicketLabelJoin
 import json
 import time
+
+from ward import Scope, fixture, test
+
+from app.utils.models import Comment, Label, Project, Ticket, TicketLabelJoin
+from tests.fixtures import app, auth_client, auth_user, client, create_test_project
 
 
 @fixture(scope=Scope.Test)

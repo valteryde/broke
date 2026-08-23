@@ -9,8 +9,7 @@ from app.utils.models import database as db
 def run_migration():
     print("Running migration: 007 Agent tokens")
 
-    db.execute_sql(
-        """
+    db.execute_sql("""
         CREATE TABLE IF NOT EXISTS agenttoken (
             id INTEGER NOT NULL PRIMARY KEY,
             user_id VARCHAR(255) NOT NULL REFERENCES user (username),
@@ -22,8 +21,7 @@ def run_migration():
             work_cycle_id INTEGER,
             created_at INTEGER NOT NULL
         );
-        """
-    )
+        """)
     db.execute_sql("CREATE INDEX IF NOT EXISTS agenttoken_token_hash ON agenttoken(token_hash);")
     db.execute_sql("CREATE INDEX IF NOT EXISTS agenttoken_expires_at ON agenttoken(expires_at);")
     db.execute_sql("CREATE INDEX IF NOT EXISTS agenttoken_project ON agenttoken(project);")

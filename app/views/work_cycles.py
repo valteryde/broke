@@ -236,20 +236,11 @@ def api_work_cycle_backlog_tickets(user: User, cycle_id: int):
     limit = max(1, min(limit, 300))
 
     q = request.args.get("q", "").strip()
-    cond = (
-        (Ticket.active == 1)
-        & (Ticket.work_cycle_id.is_null())
-        & (Ticket.status == "backlog")
-    )
+    cond = (Ticket.active == 1) & (Ticket.work_cycle_id.is_null()) & (Ticket.status == "backlog")
     if q:
         cond = cond & ((Ticket.id.contains(q)) | (Ticket.title.contains(q)))
 
-    rows = list(
-        Ticket.select()
-        .where(cond)
-        .order_by(Ticket.created_at.desc())
-        .limit(limit + 1)
-    )
+    rows = list(Ticket.select().where(cond).order_by(Ticket.created_at.desc()).limit(limit + 1))
     truncated = len(rows) > limit
     rows = rows[:limit]
 

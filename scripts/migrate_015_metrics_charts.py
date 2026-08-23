@@ -9,8 +9,7 @@ from app.utils.models import database as db
 def run_migration():
     print("Running migration: 015 Metrics chart boards")
 
-    db.execute_sql(
-        """
+    db.execute_sql("""
         CREATE TABLE IF NOT EXISTS metricschart (
             id INTEGER NOT NULL PRIMARY KEY,
             hostname VARCHAR(255) NOT NULL,
@@ -20,8 +19,7 @@ def run_migration():
             position INTEGER NOT NULL,
             created_at INTEGER NOT NULL
         );
-        """
-    )
+        """)
     db.execute_sql("CREATE INDEX IF NOT EXISTS metricschart_hostname ON metricschart(hostname);")
     # One row per series per host: adding a chart twice is a no-op, not a duplicate panel.
     db.execute_sql(

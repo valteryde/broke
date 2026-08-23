@@ -1,6 +1,7 @@
-from ward import test
 import json
+
 from fixtures import client
+from ward import test
 
 
 @test("/api/webhooks/github/ Ping event", tags=["webhooks"])

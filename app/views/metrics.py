@@ -18,14 +18,13 @@ from typing import Any
 
 from flask import Blueprint, abort, jsonify, render_template, request
 
-from ..utils import ai_board
+from ..utils import ai_board, metrics_families, metrics_store
 from ..utils.ai_changelog import is_ai_enabled
 from ..utils.features import FEATURE_METRICS, is_feature_enabled
 from ..utils.lineprotocol import LineProtocolError, parse
 from ..utils.metrics_auth import verify_metrics_token
 from ..utils.models import MetricsChart, MetricsHost, User, database
 from ..utils.security import protected
-from ..utils import metrics_families, metrics_store
 
 metrics_bp = Blueprint("metrics", __name__)
 
@@ -95,6 +94,7 @@ DEFAULT_STYLE = ("blue", "ph-chart-line", "")
 def _style_for(measurement: str) -> tuple[str, str, str]:
     accent, icon, label = MEASUREMENT_STYLE.get(measurement, DEFAULT_STYLE)
     return accent, icon, label or measurement.replace("_", " ").title()
+
 
 # The colours a section can be given, which are the same tokens a measurement uses. An
 # unrecognised one falls back rather than being rejected: a board is presentation, and a
@@ -240,9 +240,7 @@ def _read_body() -> tuple[str | None, tuple[Any, int] | None]:
         except (OSError, EOFError, zlib.error):
             return None, _influx_error(f"could not decompress {label} body", 400)
         if len(raw) > MAX_BODY_BYTES or decompressor.unconsumed_tail:
-            return None, _influx_error(
-                "decompressed body too large", 413, code="request too large"
-            )
+            return None, _influx_error("decompressed body too large", 413, code="request too large")
 
     try:
         return raw.decode("utf-8"), None
@@ -530,9 +528,9 @@ def server_detail_view(user: User, hostname: str):
         current_range=range_key,
         measurements=measurements,
         series_count=len(series),
-        first_seen_display=datetime.fromtimestamp(
-            int(host.first_seen), tz=timezone.utc
-        ).strftime("%Y-%m-%d %H:%M UTC"),
+        first_seen_display=datetime.fromtimestamp(int(host.first_seen), tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M UTC"
+        ),
     )
 
 

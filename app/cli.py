@@ -7,23 +7,24 @@ import shutil
 import sys
 import tarfile
 import time
+import tomllib
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
-import tomllib
 from utils.models import (
-    User,
-    create_user,
+    Label,
     Project,
     Ticket,
-    Label,
     TicketLabelJoin,
+    User,
     UserTicketJoin,
+    create_user,
     database,
 )
-from utils.path import data_path, path as app_path
+from utils.path import data_path
+from utils.path import path as app_path
 
 
 def _read_broke_version() -> str:

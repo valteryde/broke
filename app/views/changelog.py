@@ -3,18 +3,20 @@ Changelog Views and API Endpoints
 Public changelog page + admin editor with AI-native changelog generation.
 """
 
-from ..utils.security import protected
+import json
+import time
+
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+
+from ..utils.ai_changelog import generate_full_changelog, get_ai_config, is_ai_enabled
 from ..utils.models import (
-    User,
-    Ticket,
     ChangelogRelease,
+    Ticket,
+    User,
     UserTicketJoin,
     WorkCycle,
 )
-from flask import render_template, request, jsonify, Blueprint, redirect, url_for
-from ..utils.ai_changelog import is_ai_enabled, generate_full_changelog, get_ai_config
-import time
-import json
+from ..utils.security import protected
 
 # Create blueprint
 changelog_bp = Blueprint("changelog", __name__)
@@ -28,6 +30,7 @@ SPRINT_DONE_STATUSES = ("done", "closed", "duplicate")
 def _get_current_user_or_none():
     """Try to get the current user without requiring auth."""
     from ..utils.security import get_current_user
+
     try:
         return get_current_user()
     except Exception:
@@ -70,20 +73,24 @@ def _get_last_published_timestamp():
 
 def _get_available_tickets(since_timestamp=0, limit=50):
     """Get tickets that were created or updated since a given timestamp."""
-    from ..utils.models import TicketUpdateMessage, Comment
+    from ..utils.models import Comment, TicketUpdateMessage
 
     query = Ticket.select().where(Ticket.active == 1)
 
     if since_timestamp > 0:
         # Get IDs of tickets that have recent updates or comments
-        recent_updates = TicketUpdateMessage.select(TicketUpdateMessage.ticket).where(TicketUpdateMessage.created_at >= since_timestamp)
-        recent_comments = Comment.select(Comment.ticket).where(Comment.created_at >= since_timestamp)
+        recent_updates = TicketUpdateMessage.select(TicketUpdateMessage.ticket).where(
+            TicketUpdateMessage.created_at >= since_timestamp
+        )
+        recent_comments = Comment.select(Comment.ticket).where(
+            Comment.created_at >= since_timestamp
+        )
 
         # Filter tickets to those created recently OR having recent updates/comments
         query = query.where(
-            (Ticket.created_at >= since_timestamp) |
-            (Ticket.id.in_(recent_updates)) |
-            (Ticket.id.in_(recent_comments))
+            (Ticket.created_at >= since_timestamp)
+            | (Ticket.id.in_(recent_updates))
+            | (Ticket.id.in_(recent_comments))
         )
 
     return list(query.order_by(Ticket.created_at.desc()).limit(limit))
@@ -91,12 +98,13 @@ def _get_available_tickets(since_timestamp=0, limit=50):
 
 # ============ Public Changelog Page ============
 
+
 @changelog_bp.route("/changelog")
 def changelog_view():
     """Public standalone changelog page — no auth required. Only shows published releases."""
     releases = list(
         ChangelogRelease.select()
-        .where(ChangelogRelease.status == 'published')
+        .where(ChangelogRelease.status == "published")
         .order_by(ChangelogRelease.created_at.desc())
     )
 
@@ -109,23 +117,23 @@ def changelog_view():
         for entry in parsed["entries"]:
             ticket_id = entry.get("ticket_id")
             if ticket_id:
-                query = (UserTicketJoin
-
-
-                         .select(UserTicketJoin.user)
-                         .where(UserTicketJoin.ticket == ticket_id))
+                query = UserTicketJoin.select(UserTicketJoin.user).where(
+                    UserTicketJoin.ticket == ticket_id
+                )
                 entry["contributors"] = [row.user for row in query]
             else:
                 entry["contributors"] = []
 
-        parsed_releases.append({
-            "id": release.id,
-            "version": release.version,
-            "title": release.title,
-            "created_at": release.created_at,
-            "grouped": parsed["grouped"],
-            "notes": parsed["notes"],
-        })
+        parsed_releases.append(
+            {
+                "id": release.id,
+                "version": release.version,
+                "title": release.title,
+                "created_at": release.created_at,
+                "grouped": parsed["grouped"],
+                "notes": parsed["notes"],
+            }
+        )
 
     return render_template(
         "changelog.jinja2",
@@ -138,14 +146,9 @@ def changelog_view():
 @protected
 def changelog_manage_view(user: User):
     """Admin dashboard view — shows all releases (drafts + published)."""
-    releases = list(
-        ChangelogRelease.select()
-        .order_by(ChangelogRelease.created_at.desc())
-    )
+    releases = list(ChangelogRelease.select().order_by(ChangelogRelease.created_at.desc()))
 
     return render_template(
-
-
         "changelog_manage.jinja2",
         user=user,
         page="changelog",
@@ -216,9 +219,7 @@ def api_get_available_tickets(user: User):
         tickets = _get_available_tickets(since_ts, limit=50)
 
     # Format for JSON response
-    result = [
-        {"id": t.id, "title": t.title} for t in tickets
-    ]
+    result = [{"id": t.id, "title": t.title} for t in tickets]
     return jsonify({"success": True, "tickets": result})
 
 

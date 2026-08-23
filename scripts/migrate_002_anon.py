@@ -1,12 +1,13 @@
-
-from playhouse.migrate import SqliteMigrator, migrate 
-import sys
 import os
+import sys
+
+from playhouse.migrate import SqliteMigrator, migrate
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.models import database, CharField, GlobalSetting
+from app.utils.models import CharField, GlobalSetting, database
+
 
 def run_migration():
     print("Running migration 002: Add anonymous_secret to Ticket")
@@ -17,14 +18,12 @@ def run_migration():
     cursor.execute("PRAGMA table_info(ticket)")
     columns = [info[1] for info in cursor.fetchall()]
 
-    if 'anonymous_secret' not in columns:
+    if "anonymous_secret" not in columns:
         print("Adding anonymous_secret column...")
         # Define the field exactly as in the model
         secret_field = CharField(null=True, unique=True)
-        
-        migrate(
-            migrator.add_column('ticket', 'anonymous_secret', secret_field)
-        )
+
+        migrate(migrator.add_column("ticket", "anonymous_secret", secret_field))
         print("Column added.")
     else:
         print("Column anonymous_secret already exists.")
@@ -32,5 +31,6 @@ def run_migration():
     # Ensure global settings are updated if needed
     GlobalSetting.create_table(safe=True)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     run_migration()

@@ -12,7 +12,7 @@ import threading
 import time
 
 import requests
-from packaging.version import Version, InvalidVersion
+from packaging.version import InvalidVersion, Version
 
 from .features import FEATURE_UPDATER, is_feature_enabled
 from .models import GlobalSetting
@@ -32,6 +32,7 @@ UPDATER_URL = os.environ.get("UPDATER_URL", "http://broke-updater:9999")
 def _get_current_version():
     """Read current version from pyproject.toml."""
     from .app import get_app_version_from_toml
+
     return get_app_version_from_toml()
 
 

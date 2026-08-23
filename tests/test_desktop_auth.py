@@ -1,13 +1,14 @@
 """Tests for desktop handshake and device authentication endpoints."""
 
-from ward import test
-from tests.fixtures import client, auth_user
-from urllib.parse import unquote
-from unittest.mock import patch
 import time
+from unittest.mock import patch
+from urllib.parse import unquote
+
+from ward import test
 
 from app.utils.models import DeviceToken
 from app.utils.path import data_path
+from tests.fixtures import auth_user, client
 
 
 @test("/api/desktop/handshake returns broke metadata and challenge token")

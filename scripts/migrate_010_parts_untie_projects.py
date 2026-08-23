@@ -33,24 +33,22 @@ def run_migration():
     db.execute_sql("PRAGMA foreign_keys=OFF")
     try:
         with db.atomic():
-            db.execute_sql(
-                """
+            db.execute_sql("""
                 CREATE TABLE projectpart_new (
                     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                     name VARCHAR(255) NOT NULL,
                     description VARCHAR(255) NOT NULL
                 )
-                """
-            )
-            db.execute_sql(
-                """
+                """)
+            db.execute_sql("""
                 INSERT INTO projectpart_new (id, name, description)
                 SELECT id, name, description FROM projectpart
-                """
-            )
+                """)
             db.execute_sql("DROP TABLE projectpart")
             db.execute_sql("ALTER TABLE projectpart_new RENAME TO projectpart")
-            db.execute_sql("CREATE UNIQUE INDEX IF NOT EXISTS projectpart_name ON projectpart (name)")
+            db.execute_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS projectpart_name ON projectpart (name)"
+            )
     finally:
         db.execute_sql("PRAGMA foreign_keys=ON")
 

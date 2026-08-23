@@ -1,4 +1,4 @@
-from ..utils.models import ErrorGroup, Comment, TicketUpdateMessage, Ticket
+from ..utils.models import Comment, ErrorGroup, Ticket, TicketUpdateMessage
 
 
 def get_sidebar_data(user):

@@ -9,7 +9,8 @@ all AI features are hidden from the UI.
 import json
 import logging
 import os
-from .models import GlobalSetting, Ticket, Comment
+
+from .models import Comment, GlobalSetting, Ticket
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +90,7 @@ def summarize_single_ticket(ticket: Ticket, language: str = "English") -> str:
 
     # Add labels if populated
     if hasattr(ticket, "labels") and ticket.labels:
-        ticket_info["labels"] = [
-            label.name for label in ticket.labels if label is not None
-        ]
+        ticket_info["labels"] = [label.name for label in ticket.labels if label is not None]
 
     prompt = f"""You are a technical writer helping to build a public changelog.
 I will give you the raw details of an internal development ticket (title, description, and comments).
@@ -118,7 +117,10 @@ Ticket Details:
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are a concise technical writer. Output exactly one sentence."},
+                {
+                    "role": "system",
+                    "content": "You are a concise technical writer. Output exactly one sentence.",
+                },
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
@@ -181,7 +183,7 @@ def generate_full_changelog(tickets_with_categories: list[dict], language: str =
             "title": ticket.title,
             "description": (ticket.description[:500] if ticket.description else ""),
             "status": ticket.status,
-            "type": ticket.category if hasattr(ticket, 'category') else "unknown"
+            "type": ticket.category if hasattr(ticket, "category") else "unknown",
         }
         if comment_texts:
             info["comments"] = comment_texts[:3]

@@ -2,13 +2,15 @@
 Pull request webhook tests
 """
 
-from ward import test
-import hmac
 import hashlib
+import hmac
 import json
+
 from fixtures import client, test_ticket
-from app.views.webhooks import get_github_webhook_secret
+from ward import test
+
 from app.utils.models import Ticket, TicketUpdateMessage
+from app.views.webhooks import get_github_webhook_secret
 
 
 @test("/api/webhooks/github/ Pull request merged event with valid signature", tags=["webhooks"])

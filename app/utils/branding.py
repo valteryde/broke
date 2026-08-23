@@ -65,7 +65,11 @@ def _logo_magic_is_valid(content_type: str, header_bytes: bytes) -> bool:
     if content_type == "image/jpeg":
         return header_bytes.startswith(b"\xff\xd8\xff")
     if content_type == "image/webp":
-        return len(header_bytes) >= 12 and header_bytes.startswith(b"RIFF") and header_bytes[8:12] == b"WEBP"
+        return (
+            len(header_bytes) >= 12
+            and header_bytes.startswith(b"RIFF")
+            and header_bytes[8:12] == b"WEBP"
+        )
     return False
 
 

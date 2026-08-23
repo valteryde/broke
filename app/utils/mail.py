@@ -1,13 +1,17 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import os
-import logging
 import json
+import logging
+import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from .events import bus
+from .mail_relay import (
+    relay_base_url_from_environment,
+    relay_token_from_environment,
+    send_via_relay,
+)
 from .models import GlobalSetting, database
-from .mail_relay import relay_base_url_from_environment, relay_token_from_environment, send_via_relay
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +90,9 @@ def load_email_transport_settings() -> dict:
                     # A saved preference always wins over the env-based default.
                     transport = str(stored.get("transport") or "smtp").strip().lower()
                     out["transport"] = transport if transport in ("smtp", "relay") else "smtp"
-                    out["relay_base_url"] = str(stored.get("relay_base_url") or "").strip().rstrip("/")
+                    out["relay_base_url"] = (
+                        str(stored.get("relay_base_url") or "").strip().rstrip("/")
+                    )
                     out["relay_token"] = str(stored.get("relay_token") or "").strip()
     except Exception:
         pass
@@ -159,9 +165,11 @@ def send_email(to_email, subject, html_content, text_content=None):
         )
         return False
 
-    smtp_from = (smtp_from or "").strip() or (smtp_user if "@" in smtp_user else "") or os.environ.get(
-        "SMTP_FROM", "noreply@broke.dk"
-    ).strip()
+    smtp_from = (
+        (smtp_from or "").strip()
+        or (smtp_user if "@" in smtp_user else "")
+        or os.environ.get("SMTP_FROM", "noreply@broke.dk").strip()
+    )
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject

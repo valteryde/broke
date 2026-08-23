@@ -18,8 +18,8 @@ import threading
 import time
 import uuid
 
-from .features import FEATURE_METRICS, is_feature_enabled
 from . import metrics_store
+from .features import FEATURE_METRICS, is_feature_enabled
 
 logger = logging.getLogger(__name__)
 

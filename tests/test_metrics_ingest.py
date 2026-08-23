@@ -8,8 +8,8 @@ import re
 import shutil
 import sys
 import tempfile
-import zlib
 import time
+import zlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -17,11 +17,11 @@ from urllib.parse import quote
 
 from ward import Scope, fixture, test
 
-from tests.fixtures import app, auth_client, auth_user, client, fake
 from app.utils import ai_board, metrics_store
 from app.utils.metrics_auth import generate_token, hash_token
 from app.utils.models import MetricsChart, MetricsHost, MetricsToken, database
 from app.views.metrics import ingest_base_url
+from tests.fixtures import app, auth_client, auth_user, client, fake
 
 
 @fixture(scope=Scope.Test)
@@ -296,9 +296,11 @@ def _(c=client, home=metrics_home, raw=metrics_token, host=ingest_host):
         data=f"cpu,host={host} usage_idle=50.0 {now}\n".encode(),
         headers=_auth(raw),
     )
-    stored = metrics_store.hot_connection().execute(
-        "SELECT ts FROM hot_point WHERE host = ?", (host,)
-    ).fetchone()
+    stored = (
+        metrics_store.hot_connection()
+        .execute("SELECT ts FROM hot_point WHERE host = ?", (host,))
+        .fetchone()
+    )
     assert stored[0] == now * 1000
 
 
@@ -310,9 +312,11 @@ def _(c=client, home=metrics_home, raw=metrics_token, host=ingest_host):
         data=f"cpu,host={host} usage_idle=50.0\n".encode(),
         headers=_auth(raw),
     )
-    stored = metrics_store.hot_connection().execute(
-        "SELECT ts FROM hot_point WHERE host = ?", (host,)
-    ).fetchone()
+    stored = (
+        metrics_store.hot_connection()
+        .execute("SELECT ts FROM hot_point WHERE host = ?", (host,))
+        .fetchone()
+    )
     assert stored[0] >= before
 
 
@@ -434,9 +438,9 @@ def _(ac=auth_client, u=auth_user, home=metrics_home):
     u.admin = 1
     u.save()
 
-    body = ac.get(
-        "/settings/metrics", headers={"X-Forwarded-Proto": "https"}
-    ).get_data(as_text=True)
+    body = ac.get("/settings/metrics", headers={"X-Forwarded-Proto": "https"}).get_data(
+        as_text=True
+    )
     assert 'urls = ["https://localhost"]' in body
     assert "308 Permanent Redirect" in body
 
@@ -474,9 +478,7 @@ def _(ac=auth_client, home=metrics_home, raw=metrics_token, host=ingest_host):
     now = int(time.time())
     ac.post("/api/v2/write?precision=s", data=_body(host, now), headers=_auth(raw))
 
-    response = ac.get(
-        f"/api/metrics/query?host={host}&measurement=mem&field=used_percent&range=1h"
-    )
+    response = ac.get(f"/api/metrics/query?host={host}&measurement=mem&field=used_percent&range=1h")
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["range"] == "1h"
@@ -520,9 +522,7 @@ def _(ac=auth_client, home=metrics_home, raw=metrics_token, host=ingest_host):
     for step in range(4):
         ts = now - (3 - step) * 30
         for edge, growth in edges.items():
-            lines.append(
-                f"prometheus,host={host},le={edge} lat_bucket={growth * step} {ts}"
-            )
+            lines.append(f"prometheus,host={host},le={edge} lat_bucket={growth * step} {ts}")
     ac.post("/api/v2/write?precision=s", data="\n".join(lines).encode(), headers=_auth(raw))
 
     options = quote('{"bucket_by": "tag", "quantiles": [0.5]}', safe="")
@@ -733,11 +733,7 @@ def _(ac=auth_client, home=metrics_home, host=board_host):
 def _(ac=auth_client, home=metrics_home, host=board_host):
     ac.put(
         _charts_url(host),
-        json={
-            "charts": [
-                {"key": _family_key("cpu", "usage_idle"), "section": "n" * 200}
-            ]
-        },
+        json={"charts": [{"key": _family_key("cpu", "usage_idle"), "section": "n" * 200}]},
         headers=_csrf(ac),
     )
 
@@ -829,9 +825,7 @@ def _(ac=auth_client, home=metrics_home, host=board_host):
     run_migration()
 
     assert MetricsChart.select().where(MetricsChart.hostname == host).count() == 1
-    indexes = [
-        r[1] for r in database.execute_sql("PRAGMA index_list(metricschart);").fetchall()
-    ]
+    indexes = [r[1] for r in database.execute_sql("PRAGMA index_list(metricschart);").fetchall()]
     assert INDEX in indexes
 
     # The point of the repair: a board that could not be saved can be saved again.
@@ -871,12 +865,30 @@ def _arrange_url(host: str) -> str:
 
 def _catalogue() -> list[dict]:
     return [
-        {"key": "cpu|usage_idle|{}|gauge", "label": "CPU idle", "detail": "cpu, gauge, %",
-         "group": "cpu", "group_label": "CPU", "accent": "blue"},
-        {"key": "cpu|usage_iowait|{}|gauge", "label": "CPU iowait", "detail": "cpu, gauge, %",
-         "group": "cpu", "group_label": "CPU", "accent": "blue"},
-        {"key": "mem|used_percent|{}|gauge", "label": "Memory used", "detail": "mem, gauge, %",
-         "group": "mem", "group_label": "Memory", "accent": "violet"},
+        {
+            "key": "cpu|usage_idle|{}|gauge",
+            "label": "CPU idle",
+            "detail": "cpu, gauge, %",
+            "group": "cpu",
+            "group_label": "CPU",
+            "accent": "blue",
+        },
+        {
+            "key": "cpu|usage_iowait|{}|gauge",
+            "label": "CPU iowait",
+            "detail": "cpu, gauge, %",
+            "group": "cpu",
+            "group_label": "CPU",
+            "accent": "blue",
+        },
+        {
+            "key": "mem|used_percent|{}|gauge",
+            "label": "Memory used",
+            "detail": "mem, gauge, %",
+            "group": "mem",
+            "group_label": "Memory",
+            "accent": "violet",
+        },
     ]
 
 
@@ -886,13 +898,9 @@ def _fake_openai(reply: str, seen: dict | None = None):
     def create(**kwargs):
         if seen is not None:
             seen.update(kwargs)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=reply))]
-        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=reply))])
 
-    client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=create))
-    )
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     return SimpleNamespace(OpenAI=lambda **kwargs: client)
 
 
@@ -1031,7 +1039,10 @@ def _():
 
     assert result["source"] == "fallback"
     assert "not configured" in result["note"]
-    assert [(s["name"], len(s["charts"])) for s in result["sections"]] == [("CPU", 2), ("Memory", 1)]
+    assert [(s["name"], len(s["charts"])) for s in result["sections"]] == [
+        ("CPU", 2),
+        ("Memory", 1),
+    ]
 
 
 @test("arranging proposes a board for the host without saving it")

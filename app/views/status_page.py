@@ -4,7 +4,7 @@ import json
 import time
 
 from flask import Blueprint, jsonify, render_template, request
-from peewee import IntegrityError, DoesNotExist
+from peewee import DoesNotExist, IntegrityError
 
 from ..utils.models import GlobalSetting, Monitor, StatusSubscriber
 from ..utils.monitors import monitor_stats
@@ -29,7 +29,11 @@ def status_page_view():
     """Render the public status page."""
     settings = get_status_page_settings()
     # Fetch public monitors
-    monitors = list(Monitor.select().where((Monitor.public == 1) & (Monitor.enabled == 1)).order_by(Monitor.name))
+    monitors = list(
+        Monitor.select()
+        .where((Monitor.public == 1) & (Monitor.enabled == 1))
+        .order_by(Monitor.name)
+    )
 
     # Check overall status
     all_operational = True
@@ -37,10 +41,7 @@ def status_page_view():
     for m in monitors:
         if m.status != "up":
             all_operational = False
-        board_rows.append({
-            "monitor": m,
-            **monitor_stats(m)
-        })
+        board_rows.append({"monitor": m, **monitor_stats(m)})
 
     return render_template(
         "status_page.jinja2",

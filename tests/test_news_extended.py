@@ -1,9 +1,12 @@
 """Extended tests for news and timeline functionality"""
-from ward import test, fixture, Scope
-from tests.fixtures import app, client, auth_client, auth_user, create_test_project
-from app.utils.models import Project, Ticket, Comment, TicketUpdateMessage
+
 import json
 import time
+
+from ward import Scope, fixture, test
+
+from app.utils.models import Comment, Project, Ticket, TicketUpdateMessage
+from tests.fixtures import app, auth_client, auth_user, client, create_test_project
 
 
 @fixture(scope=Scope.Test)
@@ -27,7 +30,7 @@ def sample_ticket_for_news(app=app, project=sample_project_for_timeline, user=au
         author=user.username,
         status="open",
         priority="medium",
-        active=1
+        active=1,
     )
     yield ticket
     ticket.delete_instance()
@@ -36,21 +39,21 @@ def sample_ticket_for_news(app=app, project=sample_project_for_timeline, user=au
 @test("/timeline/<project_id> GET shows project timeline")
 def _(c=auth_client, project=sample_project_for_timeline):
     """Test viewing timeline for specific project"""
-    response = c.get(f'/timeline/{project.id}')
+    response = c.get(f"/timeline/{project.id}")
     assert response.status_code == 200
 
 
 @test("/news POST with JSON creates news entry")
 def _(c=auth_client, ticket=sample_ticket_for_news):
     """Test news page shows recent activity"""
-    response = c.get('/news')
+    response = c.get("/news")
     assert response.status_code == 200
 
 
 @test("/news POST with form data creates news entry")
 def _(c=auth_client, ticket=sample_ticket_for_news):
     """Test news displays ticket activity"""
-    response = c.get('/news')
+    response = c.get("/news")
     assert response.status_code == 200
 
 
@@ -59,15 +62,15 @@ def _(c=auth_client):
     """Test news page with no entries"""
     # Delete all tickets
     Ticket.delete().execute()
-    
-    response = c.get('/news')
+
+    response = c.get("/news")
     assert response.status_code == 200
 
 
 @test("/timeline GET with no activity shows empty state")
 def _(c=auth_client):
     """Test timeline with no activity"""
-    response = c.get('/timeline')
+    response = c.get("/timeline")
     assert response.status_code == 200
 
 
@@ -76,15 +79,12 @@ def _(c=auth_client, ticket=sample_ticket_for_news, user=auth_user):
     """Test that news shows comment activity"""
     # Create a comment
     comment = Comment.create(
-        ticket=ticket.id,
-        user=user,
-        body="Test comment for news",
-        created_at=1234567890
+        ticket=ticket.id, user=user, body="Test comment for news", created_at=1234567890
     )
-    
-    response = c.get('/news')
+
+    response = c.get("/news")
     assert response.status_code == 200
-    
+
     comment.delete_instance()
 
 
@@ -92,11 +92,11 @@ def _(c=auth_client, ticket=sample_ticket_for_news, user=auth_user):
 def _(c=auth_client):
     """Test timeline with special characters"""
     timestamp = int(time.time() * 1000000)
-    proj = create_test_project(f"special-proj-{timestamp}", "Special <>&\" Project", "Test")
-    
-    response = c.get(f'/timeline/{proj.id}')
+    proj = create_test_project(f"special-proj-{timestamp}", 'Special <>&" Project', "Test")
+
+    response = c.get(f"/timeline/{proj.id}")
     assert response.status_code == 200
-    
+
     proj.delete_instance()
 
 
@@ -106,14 +106,32 @@ def _(c=auth_client):
     timestamp = int(time.time() * 1000000)
     proj1 = create_test_project(f"p1-{timestamp}", "P1", "Test")
     proj2 = create_test_project(f"p2-{timestamp}", "P2", "Test")
-    
+
     # Create tickets in both projects
-    Ticket.create(id=f"P1-1-{timestamp}", title="T1", description="D1", project=proj1.id, author="test", status="open", priority="medium", active=1)
-    Ticket.create(id=f"P2-1-{timestamp}", title="T2", description="D2", project=proj2.id, author="test", status="open", priority="medium", active=1)
-    
-    response = c.get('/timeline')
+    Ticket.create(
+        id=f"P1-1-{timestamp}",
+        title="T1",
+        description="D1",
+        project=proj1.id,
+        author="test",
+        status="open",
+        priority="medium",
+        active=1,
+    )
+    Ticket.create(
+        id=f"P2-1-{timestamp}",
+        title="T2",
+        description="D2",
+        project=proj2.id,
+        author="test",
+        status="open",
+        priority="medium",
+        active=1,
+    )
+
+    response = c.get("/timeline")
     assert response.status_code == 200
-    
+
     # Cleanup
     Ticket.delete().where(Ticket.id.in_([f"P1-1-{timestamp}", f"P2-1-{timestamp}"])).execute()
     proj1.delete_instance()
@@ -125,7 +143,7 @@ def _(c=auth_client, user=auth_user):
     """Test news page with many ticket activities"""
     timestamp = int(time.time() * 1000000)
     project = create_test_project(f"busy-proj-{timestamp}", "Busy", "Test")
-    
+
     # Create multiple tickets
     tickets = []
     for i in range(10):
@@ -137,13 +155,13 @@ def _(c=auth_client, user=auth_user):
             author=user.username,
             status="open",
             priority="medium",
-            active=1
+            active=1,
         )
         tickets.append(ticket)
-    
-    response = c.get('/news')
+
+    response = c.get("/news")
     assert response.status_code == 200
-    
+
     # Cleanup
     for ticket in tickets:
         ticket.delete_instance()
