@@ -1,32 +1,33 @@
-import os
-
-from ..utils.security import protected
-from ..utils.events import EventTypes, bus
-from ..utils.models import (
-    User,
-    Project,
-    ProjectPart,
-    ErrorGroup,
-    ErrorOccurrence,
-    Ticket,
-    Attachment,
-    Session,
-    Transaction,
-    DSNToken,
-    active_projects_ordered,
-)
-from flask import Blueprint, render_template, request
-from peewee import Case, DoesNotExist, fn
+import base64
 import gzip
-import json
 import hashlib
 import hmac
-import time
+import json
+import os
 import re
-import base64
+import time
 from logging import getLogger
 from urllib.parse import urlparse
 
+from flask import Blueprint, jsonify, render_template, request
+from peewee import Case, DoesNotExist, fn
+
+from ..utils.error_markdown import build_error_export_payload, error_payload_to_markdown
+from ..utils.events import EventTypes, bus
+from ..utils.models import (
+    Attachment,
+    DSNToken,
+    ErrorGroup,
+    ErrorOccurrence,
+    Project,
+    ProjectPart,
+    Session,
+    Ticket,
+    Transaction,
+    User,
+    active_projects_ordered,
+)
+from ..utils.security import protected
 from ..utils.sentry_meta import annotate_frame_var_truncations
 
 logger = getLogger(__name__)
@@ -60,10 +61,7 @@ def _batch_recent_counts(group_ids: list[int]) -> dict[int, int]:
             ErrorOccurrence.error_group,
             fn.COUNT(ErrorOccurrence.id).alias("cnt"),
         )
-        .where(
-            (ErrorOccurrence.error_group.in_(group_ids))
-            & (ErrorOccurrence.timestamp >= cutoff)
-        )
+        .where((ErrorOccurrence.error_group.in_(group_ids)) & (ErrorOccurrence.timestamp >= cutoff))
         .group_by(ErrorOccurrence.error_group)
     )
     for row in recent_rows:
@@ -124,10 +122,7 @@ def _daily_occurrence_counts(start_date, end_date) -> dict[str, int]:
     day_expr = fn.strftime("%Y-%m-%d", ErrorOccurrence.timestamp, "unixepoch")
     rows = (
         ErrorOccurrence.select(day_expr.alias("day"), fn.COUNT(ErrorOccurrence.id).alias("cnt"))
-        .where(
-            (ErrorOccurrence.timestamp >= cutoff)
-            & (ErrorOccurrence.timestamp <= end_ts)
-        )
+        .where((ErrorOccurrence.timestamp >= cutoff) & (ErrorOccurrence.timestamp <= end_ts))
         .group_by(day_expr)
     )
     counts: dict[str, int] = defaultdict(int)
@@ -285,9 +280,7 @@ def _emit_error_notifications_after_occurrence(
     cutoff = timestamp - ERROR_SPIKE_WINDOW_SEC
     n_spike = (
         ErrorOccurrence.select()
-        .where(
-            (ErrorOccurrence.error_group == error_group) & (ErrorOccurrence.timestamp >= cutoff)
-        )
+        .where((ErrorOccurrence.error_group == error_group) & (ErrorOccurrence.timestamp >= cutoff))
         .count()
     )
     if n_spike >= ERROR_SPIKE_MIN_OCCURRENCES:
@@ -776,9 +769,7 @@ def error_detail_view(user: User, part_id: int, error_id: int):
             event_meta = None
 
     if stacktrace_frames:
-        annotate_frame_var_truncations(
-            stacktrace_frames, event_meta, reversed_for_display=True
-        )
+        annotate_frame_var_truncations(stacktrace_frames, event_meta, reversed_for_display=True)
 
     # Parse contexts JSON
     contexts = {}
@@ -805,8 +796,8 @@ def error_detail_view(user: User, part_id: int, error_id: int):
     )
 
     # Build occurrence chart (last 14 days)
-    from datetime import datetime, timedelta
     from collections import defaultdict
+    from datetime import datetime, timedelta
 
     today = datetime.now().date()
     day_counts = defaultdict(int)
@@ -864,6 +855,25 @@ def update_error_status(user: User, error_id: int):
     error.save()
 
     return json.dumps({"success": True, "status": new_status}), 200
+
+
+@bug_bp.route("/api/errors/<int:error_id>/export", methods=["GET"])
+@protected
+def export_error(user: User, error_id: int):
+    """Export an error group as Markdown (default) or JSON — no agent token."""
+    payload = build_error_export_payload(error_id)
+    if not payload:
+        return jsonify({"error": "Error not found"}), 404
+
+    export_format = str(request.args.get("format", "markdown")).strip().lower()
+    if export_format in {"json", "application/json"}:
+        return jsonify(payload), 200
+
+    if export_format not in {"md", "markdown", "text/markdown"}:
+        return jsonify({"error": "Unsupported export format"}), 400
+
+    content = error_payload_to_markdown(payload)
+    return content, 200, {"Content-Type": "text/markdown; charset=utf-8"}
 
 
 def _ingest_content_type_allowed() -> bool:
@@ -1245,7 +1255,9 @@ def delete_all_part_errors(user: User, part_id: int):
     except DoesNotExist:
         return json.dumps({"error": "Part not found"}), 404
 
-    error_ids = [row.id for row in ErrorGroup.select(ErrorGroup.id).where(ErrorGroup.part == part_id)]
+    error_ids = [
+        row.id for row in ErrorGroup.select(ErrorGroup.id).where(ErrorGroup.part == part_id)
+    ]
     if not error_ids:
         return json.dumps({"success": True, "deleted": 0}), 200
 

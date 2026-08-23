@@ -1,19 +1,21 @@
 """Extended tests for bug/error tracking functionality"""
+
+import hashlib
+import json
+import time
 from unittest.mock import patch
 
-from ward import test, fixture, Scope
-from tests.fixtures import app, client, auth_client, auth_user, create_test_project
-from app.utils.models import Project, ProjectPart, ErrorGroup, ErrorOccurrence, DSNToken
+from ward import Scope, fixture, test
+
+from app.utils.models import DSNToken, ErrorGroup, ErrorOccurrence, Project, ProjectPart
 from app.views.bug import (
-    normalize_message,
+    extract_culprit,
+    extract_exception_info,
     extract_frame_signatures,
     generate_fingerprint,
-    extract_exception_info,
-    extract_culprit
+    normalize_message,
 )
-import json
-import hashlib
-import time
+from tests.fixtures import app, auth_client, auth_user, client, create_test_project
 
 
 @fixture(scope=Scope.Test)
@@ -126,13 +128,15 @@ def _():
 @test("extract_frame_signatures parses stacktrace")
 def _():
     """Test extracting function signatures from stacktrace"""
-    stacktrace_json = json.dumps({
-        "frames": [
-            {"module": "myapp.views", "function": "index"},
-            {"module": "myapp.models", "function": "get_user"},
-            {"filename": "utils.py", "function": "helper"}
-        ]
-    })
+    stacktrace_json = json.dumps(
+        {
+            "frames": [
+                {"module": "myapp.views", "function": "index"},
+                {"module": "myapp.models", "function": "get_user"},
+                {"filename": "utils.py", "function": "helper"},
+            ]
+        }
+    )
 
     signatures = extract_frame_signatures(stacktrace_json)
     assert len(signatures) == 3
@@ -185,11 +189,7 @@ def _():
     payload = {
         "exception": {
             "values": [
-                {
-                    "type": "ValueError",
-                    "value": "Invalid input",
-                    "stacktrace": {"frames": []}
-                }
+                {"type": "ValueError", "value": "Invalid input", "stacktrace": {"frames": []}}
             ]
         }
     }
@@ -226,13 +226,7 @@ def _():
             "values": [
                 {
                     "stacktrace": {
-                        "frames": [
-                            {
-                                "filename": "views.py",
-                                "function": "handler",
-                                "lineno": 42
-                            }
-                        ]
+                        "frames": [{"filename": "views.py", "function": "handler", "lineno": 42}]
                     }
                 }
             ]
@@ -269,23 +263,17 @@ def _(c=client, token=dsn_token_fixture, part=error_project_part):
     """Test receiving error event via DSN"""
     event_data = {
         "exception": {
-            "values": [
-                {
-                    "type": "ValueError",
-                    "value": "Test error",
-                    "stacktrace": {"frames": []}
-                }
-            ]
+            "values": [{"type": "ValueError", "value": "Test error", "stacktrace": {"frames": []}}]
         },
         "platform": "python",
-        "event_id": "abc123"
+        "event_id": "abc123",
     }
 
     response = c.post(
-        f'/api/bugs/dsn/{token.token}',
+        f"/api/bugs/dsn/{token.token}",
         data=json.dumps(event_data),
-        content_type='application/json',
-        headers={'X-Sentry-Auth': f'Sentry sentry_key={token.token}'}
+        content_type="application/json",
+        headers={"X-Sentry-Auth": f"Sentry sentry_key={token.token}"},
     )
 
     # May succeed or fail depending on implementation
@@ -303,16 +291,12 @@ def _(part=error_project_part):
                 {
                     "type": "RuntimeError",
                     "value": "Test runtime error",
-                    "stacktrace": {
-                        "frames": [
-                            {"module": "test", "function": "test_func"}
-                        ]
-                    }
+                    "stacktrace": {"frames": [{"module": "test", "function": "test_func"}]},
                 }
             ]
         },
         "platform": "python",
-        "event_id": "test-event-123"
+        "event_id": "test-event-123",
     }
 
     with patch("app.views.bug.bus.emit"):
@@ -338,7 +322,7 @@ def _(part=error_project_part):
                 {
                     "type": "KeyError",
                     "value": "missing_key",
-                    "stacktrace": {"frames": [{"module": "test", "function": "func"}]}
+                    "stacktrace": {"frames": [{"module": "test", "function": "func"}]},
                 }
             ]
         }
@@ -598,6 +582,85 @@ def _(c=auth_client, error_group=error_group_fixture):
     assert response.status_code == 200
 
 
+@test("/api/errors/<id>/export requires authentication")
+def _(c=client, error_group=error_group_fixture):
+    response = c.get(f"/api/errors/{error_group.id}/export", follow_redirects=False)
+    assert response.status_code in [302, 401]
+
+
+@test("/api/errors/<id>/export returns Markdown with stacktrace")
+def _(c=auth_client, part=error_project_part):
+    stacktrace = {
+        "frames": [
+            {
+                "filename": "app.py",
+                "function": "explode",
+                "lineno": 12,
+                "in_app": True,
+                "pre_context": ["x = 1"],
+                "context_line": "raise ValueError('boom')",
+                "post_context": ["return x"],
+                "vars": {"x": 1},
+            }
+        ]
+    }
+    error = ErrorGroup.create(
+        part=part,
+        fingerprint=f"export-md-{int(time.time() * 1000000)}",
+        exception_type="ValueError",
+        exception_value="boom",
+        culprit="app.py in explode",
+        platform="python",
+        environment="test",
+        stacktrace=json.dumps(stacktrace),
+        event_count=3,
+        status="unresolved",
+    )
+    ErrorOccurrence.create(error_group=error, timestamp=int(time.time()), event_id="abc123")
+    try:
+        response = c.get(f"/api/errors/{error.id}/export?format=markdown")
+        assert response.status_code == 200
+        assert response.headers.get("Content-Type", "").startswith("text/markdown")
+        body = response.data.decode("utf-8")
+        assert "# ValueError" in body
+        assert "boom" in body
+        assert "explode" in body
+        assert "app.py:12" in body
+        assert "raise ValueError('boom')" in body
+        assert "`x`: `1`" in body
+        assert "YOUR_TOKEN" not in body
+        assert "Bearer" not in body
+    finally:
+        ErrorOccurrence.delete().where(ErrorOccurrence.error_group == error).execute()
+        error.delete_instance()
+
+
+@test("/api/errors/<id>/export returns JSON payload")
+def _(c=auth_client, error_group=error_group_fixture):
+    response = c.get(f"/api/errors/{error_group.id}/export?format=json")
+    assert response.status_code == 200
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    payload = json.loads(response.data)
+    assert payload.get("id") == error_group.id
+    assert payload.get("exception_type") == "ValueError"
+    assert payload.get("exception_value") == "Fixture error"
+
+
+@test("/api/errors/<id>/export rejects unknown format")
+def _(c=auth_client, error_group=error_group_fixture):
+    response = c.get(f"/api/errors/{error_group.id}/export?format=xml")
+    assert response.status_code == 400
+
+
+@test("error detail page has copy markdown control")
+def _(c=auth_client, error_group=error_group_fixture):
+    response = c.get(f"/errors/{error_group.part_id}/{error_group.id}")
+    assert response.status_code == 200
+    body = response.data.decode("utf-8")
+    assert "copyErrorMarkdown" in body
+    assert "Copy markdown" in body
+
+
 @test("/api/errors/<id>/create_ticket requires authentication")
 def _(c=client, error_group=error_group_fixture):
     response = c.post(
@@ -681,12 +744,7 @@ def _(c=auth_client, part=error_project_part):
         data = json.loads(response.data.decode("utf-8"))
         assert data.get("success") is True
         assert data.get("deleted") == 2
-        assert (
-            ErrorGroup.select()
-            .where(ErrorGroup.part == part)
-            .count()
-            == 0
-        )
+        assert ErrorGroup.select().where(ErrorGroup.part == part).count() == 0
     finally:
         for eg in (e1, e2):
             if ErrorGroup.select().where(ErrorGroup.id == eg.id).count():
@@ -787,7 +845,7 @@ def _(c=auth_client, part=error_project_part):
         assert response.status_code == 200
         body = response.data.decode("utf-8")
         assert "js/error_list.js" in body
-        assert "status: \"unresolved\"" in body
+        assert 'status: "unresolved"' in body
         assert "errorList.handleUpdate" in body or "onUpdate:" in body
         js = c.get("/static/js/error_list.js")
         assert js.status_code == 200
@@ -829,9 +887,7 @@ def _(part=error_project_part):
                         "stacktrace": {
                             "frames": {
                                 "0": {
-                                    "vars": {
-                                        "items": {"": {"len": 25, "rem": [["!limit", "x"]]}}
-                                    }
+                                    "vars": {"items": {"": {"len": 25, "rem": [["!limit", "x"]]}}}
                                 }
                             }
                         }
@@ -917,11 +973,7 @@ def _(c=auth_client, part=error_project_part):
                 "0": {
                     "stacktrace": {
                         "frames": {
-                            "0": {
-                                "vars": {
-                                    "items": {"": {"len": 42, "rem": [["!limit", "x"]]}}
-                                }
-                            }
+                            "0": {"vars": {"items": {"": {"len": 42, "rem": [["!limit", "x"]]}}}}
                         }
                     }
                 }

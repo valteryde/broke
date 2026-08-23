@@ -538,6 +538,53 @@ function copyVarValue(value) {
 }
 
 /**
+ * Copy this error as Markdown (stacktrace + metadata, no token).
+ */
+async function copyErrorMarkdown() {
+    if (!errorData || !errorData.id) {
+        console.error('Error data not available');
+        return;
+    }
+
+    const btn = document.querySelector('.error-copy-md');
+    const label = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-circle-notch"></i> Copying…';
+    }
+
+    try {
+        const response = await fetch(
+            brokeAppUrl('/api/errors/' + errorData.id + '/export?format=markdown'),
+            { credentials: 'same-origin', headers: { Accept: 'text/markdown' } }
+        );
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            if (window.showToast) window.showToast(err.error || 'Could not copy markdown', 'error');
+            else alert(err.error || 'Could not copy markdown');
+            return;
+        }
+        const text = await response.text();
+        try {
+            await navigator.clipboard.writeText(text);
+            if (window.showToast) window.showToast('Copied markdown', 'success');
+        } catch (_clipErr) {
+            if (window.showToast) window.showToast('Could not copy to clipboard', 'error');
+            else alert('Could not copy to clipboard');
+        }
+    } catch (err) {
+        console.error(err);
+        if (window.showToast) window.showToast('Could not load markdown', 'error');
+        else alert('Could not load markdown');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = label;
+        }
+    }
+}
+
+/**
  * Update error status via API
  */
 async function updateStatus(newStatus) {

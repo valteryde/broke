@@ -26,9 +26,15 @@
 
         <!-- Error Header -->
         <div class="error-header">
-            <div class="error-status-badge status-{{ error.status }}">
-                <i class="ph ph-{% if error.status == 'resolved' %}check-circle{% elif error.status == 'ignored' %}eye-slash{% else %}warning-circle{% endif %}"></i>
-                {{ error.status | capitalize }}
+            <div class="error-header-top">
+                <div class="error-status-badge status-{{ error.status }}">
+                    <i class="ph ph-{% if error.status == 'resolved' %}check-circle{% elif error.status == 'ignored' %}eye-slash{% else %}warning-circle{% endif %}"></i>
+                    {{ error.status | capitalize }}
+                </div>
+                <button type="button" class="error-copy-md" onclick="copyErrorMarkdown()" title="Copy this error as markdown">
+                    <i class="ph ph-copy"></i>
+                    Copy markdown
+                </button>
             </div>
             <h1 class="error-title">{{ error.exception_type or 'Error' }}</h1>
             <p class="error-message">{{ error.exception_value or 'No message available' }}</p>
