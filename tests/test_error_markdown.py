@@ -57,6 +57,29 @@ def _():
     assert "Bearer" not in md
 
 
+@test("compact stacktrace omits locals")
+def _():
+    from app.utils.error_markdown import compact_stacktrace_text
+
+    text = compact_stacktrace_text(
+        {
+            "frames": [
+                {
+                    "filename": "handlers.py",
+                    "function": "run",
+                    "lineno": 9,
+                    "context_line": "fn()",
+                    "vars": {"password": "secret"},
+                }
+            ]
+        }
+    )
+    assert "handlers.py:9" in text
+    assert "fn()" in text
+    assert "password" not in text
+    assert "secret" not in text
+
+
 @test("error markdown handles missing stacktrace")
 def _():
     md = error_payload_to_markdown(

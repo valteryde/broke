@@ -6,7 +6,11 @@ import time
 
 from flask import Blueprint, jsonify, request
 
-from ..utils.agent_auth import agent_api_protected, agent_token_allows_ticket, authenticate_agent_bearer
+from ..utils.agent_auth import (
+    agent_api_protected,
+    agent_token_allows_ticket,
+    authenticate_agent_bearer,
+)
 from ..utils.events import EventTypes, bus
 from ..utils.models import Comment, Ticket, TicketUpdateMessage, User
 from ..utils.ticket_markdown import build_ticket_export_payload
@@ -73,7 +77,9 @@ def agent_post_comment(user: User, agent_token, ticket_id: str):
         project=ticket.project,
         status=ticket.status,
         actor=user.username,
-        details="Agent API comment",
+        comment_id=comment.id,
+        comment_body=processed,
+        comment_via_agent=True,
     )
 
     return (

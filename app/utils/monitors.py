@@ -88,7 +88,14 @@ def perform_http_check(
     return True, None, response.status_code, ms
 
 
-def _monitor_event_kwargs(monitor: Monitor, *, status: str, details: str) -> dict[str, Any]:
+def _monitor_event_kwargs(
+    monitor: Monitor,
+    *,
+    status: str,
+    details: str,
+    status_code: int | None = None,
+    response_ms: int | None = None,
+) -> dict[str, Any]:
     base = email_base_url().strip().rstrip("/")
     monitor_url = f"{base}/monitors/{monitor.id}" if base else None
     project_id = monitor.project_id if hasattr(monitor, "project_id") else str(monitor.project)
@@ -100,6 +107,11 @@ def _monitor_event_kwargs(monitor: Monitor, *, status: str, details: str) -> dic
         "monitor_id": monitor.id,
         "monitor_name": monitor.name,
         "monitor_url": monitor_url,
+        "checked_url": monitor.url,
+        "last_error": monitor.last_error,
+        "response_ms": response_ms if response_ms is not None else monitor.last_response_ms,
+        "status_code": status_code,
+        "expected_status": monitor.expected_status,
     }
 
 
@@ -157,14 +169,26 @@ def apply_check_result(
                 details = f"{monitor.name} ({monitor.url}): {monitor.last_error}"
                 bus.emit(
                     EventTypes.MONITOR_DOWN,
-                    **_monitor_event_kwargs(monitor, status="down", details=details),
+                    **_monitor_event_kwargs(
+                        monitor,
+                        status="down",
+                        details=details,
+                        status_code=status_code,
+                        response_ms=response_ms,
+                    ),
                 )
                 emitted = EventTypes.MONITOR_DOWN
             elif new_status == "up" and previous == "down":
                 details = f"{monitor.name} ({monitor.url}): recovered"
                 bus.emit(
                     EventTypes.MONITOR_UP,
-                    **_monitor_event_kwargs(monitor, status="up", details=details),
+                    **_monitor_event_kwargs(
+                        monitor,
+                        status="up",
+                        details=details,
+                        status_code=status_code,
+                        response_ms=response_ms,
+                    ),
                 )
                 emitted = EventTypes.MONITOR_UP
     else:

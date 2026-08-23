@@ -1,6 +1,6 @@
 {% extends "email/base.jinja2" %}
 {% block email_title %}{{ headline }} · Broke{% endblock %}
-{% block preheader %}{{ headline }} — {% if event.ticket_title %}{{ event.ticket_title }}{% elif event.ticket_id %}Ticket #{{ event.ticket_id }}{% else %}Broke notification{% endif %}{% endblock %}
+{% block preheader %}{{ preheader }}{% endblock %}
 {% block content %}
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 20px;">
   <tr>
@@ -8,57 +8,41 @@
       <h1 style="margin:0 0 6px;font-family: {{ brand.heading_font }};font-size: 20px;font-weight: 600;color: #111827;line-height: 1.25;">
         {{ headline }}
       </h1>
-      {% if event.ticket_title %}
+      {% if title %}
       <p style="margin:0;font-family: {{ brand.body_font }};font-size: 17px;font-weight: 500;color: #1f2937;line-height: 1.35;">
-        {{ event.ticket_title }}
+        {{ title }}
       </p>
       {% endif %}
     </td>
   </tr>
 </table>
+{% if fields %}
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background-color: #fafafa;border: 1px dashed #9ca3af;border-radius: 10px;">
-  {% if event.ticket_id %}
+  {% for label, value in fields %}
   <tr>
-    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;border-bottom: 1px solid {{ brand.bg_light_gray }};">
-      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Ticket</span>
-      <span style="color: #111827;">#{{ event.ticket_id }}</span>
+    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;{% if not loop.last or body_html %}border-bottom: 1px solid {{ brand.bg_light_gray }};{% endif %}">
+      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">{{ label }}</span>
+      <span style="color: #111827;white-space: pre-wrap;word-break: break-word;">{{ value }}</span>
     </td>
   </tr>
-  {% endif %}
-  {% if event.project %}
-  <tr>
-    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;border-bottom: 1px solid {{ brand.bg_light_gray }};">
-      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Project</span>
-      <span style="color: #111827;">{{ event.project }}</span>
-    </td>
-  </tr>
-  {% endif %}
-  {% if event.status %}
-  <tr>
-    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;border-bottom: 1px solid {{ brand.bg_light_gray }};">
-      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Status</span>
-      <span style="color: #111827;">{{ event.status }}</span>
-    </td>
-  </tr>
-  {% endif %}
-  <tr>
-    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;{% if event.details %}border-bottom: 1px solid {{ brand.bg_light_gray }};{% endif %}">
-      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Actor</span>
-      <span style="color: #111827;">{{ event.actor or event.user or 'System' }}</span>
-    </td>
-  </tr>
-  {% if event.details %}
-  <tr>
-    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;">
-      <span style="display:block;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">Details</span>
-      <span style="color: #374151;white-space: pre-wrap;">{{ event.details }}</span>
-    </td>
-  </tr>
-  {% endif %}
+  {% endfor %}
 </table>
-{% if ticket_url %}
+{% endif %}
+{% if body_html %}
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:{% if fields %}16px{% else %}0{% endif %} 0 0;background-color: #fafafa;border: 1px dashed #9ca3af;border-radius: 10px;">
+  <tr>
+    <td style="padding: 14px 16px;font-family: {{ brand.body_font }};font-size: 14px;line-height: 1.55;color: #111827;">
+      {% if body_label %}
+      <span style="display:block;margin:0 0 8px;font-size: 11px;font-weight: 600;letter-spacing: 0.04em;text-transform: uppercase;color: {{ brand.secondary }};">{{ body_label }}</span>
+      {% endif %}
+      {{ body_html | safe }}
+    </td>
+  </tr>
+</table>
+{% endif %}
+{% if cta_url %}
 <p style="margin:20px 0 0;font-family: {{ brand.body_font }};font-size: 15px;">
-  <a href="{{ ticket_url }}" style="color: {{ brand.logo_blue }};font-weight: 600;text-decoration: none;">{{ cta_label or 'Open ticket →' }}</a>
+  <a href="{{ cta_url }}" style="color: {{ brand.logo_blue }};font-weight: 600;text-decoration: none;">{{ cta_label or 'Open in Broke →' }}</a>
 </p>
 {% endif %}
 {% endblock %}

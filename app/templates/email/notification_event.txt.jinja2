@@ -1,11 +1,12 @@
 {{ headline }}
 
-{% if event.ticket_id %}Ticket: #{{ event.ticket_id }}
-{% endif %}{% if event.ticket_title %}Title: {{ event.ticket_title }}
-{% endif %}{% if event.project %}Project: {{ event.project }}
-{% endif %}{% if event.status %}Status: {{ event.status }}
-{% endif %}Actor: {{ event.actor or event.user or 'System' }}
-{% if event.details %}Details: {{ event.details }}
+{% if title %}{{ title }}
+
+{% endif %}{% for label, value in fields %}{{ label }}: {{ value }}
+{% endfor %}
+{% if body_text %}
+{% if body_label %}{{ body_label }}
+{% endif %}{{ body_text }}
 {% endif %}
-{% if ticket_url %}{{ cta_label or 'Open ticket' }}: {{ ticket_url }}
+{% if cta_url %}{{ cta_label or 'Open' }}: {{ cta_url }}
 {% endif %}

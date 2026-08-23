@@ -152,7 +152,7 @@ def _format_frame_vars(frame: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _format_stacktrace(stacktrace: Any) -> list[str]:
+def _format_stacktrace(stacktrace: Any, *, include_vars: bool = True) -> list[str]:
     frames = _stacktrace_frames(stacktrace)
     if not frames:
         return ["No stacktrace available.", ""]
@@ -174,11 +174,20 @@ def _format_stacktrace(stacktrace: Any) -> list[str]:
         if code:
             lines.extend(code)
             lines.append("")
-        var_lines = _format_frame_vars(frame)
-        if var_lines:
-            lines.extend(var_lines)
-            lines.append("")
+        if include_vars:
+            var_lines = _format_frame_vars(frame)
+            if var_lines:
+                lines.extend(var_lines)
+                lines.append("")
     return lines
+
+
+def compact_stacktrace_text(stacktrace: Any, *, max_chars: int = 12_000) -> str:
+    """Stack frames and code context without locals (safer for email)."""
+    text = "\n".join(_format_stacktrace(stacktrace, include_vars=False)).strip()
+    if max_chars and len(text) > max_chars:
+        return text[:max_chars] + "\n\n…(truncated)\n"
+    return text
 
 
 def _format_contexts(contexts: Any) -> list[str]:

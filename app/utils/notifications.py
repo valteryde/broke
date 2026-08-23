@@ -7,10 +7,15 @@ from urllib.parse import urlparse
 
 import requests
 
-from .email_branding import email_base_url, event_accent_hex, render_email
-from .events import bus, EventTypes
+from .email_branding import event_accent_hex, render_email
+from .events import EventTypes, bus
 from .mail import send_email
 from .models import GlobalSetting, NotificationEventLog, User, database
+from .notification_email import (
+    build_notification_email,
+    hydrate_notification_event,
+    notification_plain_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,20 +37,6 @@ DEFAULT_ENGINE_SETTINGS = {
         EventTypes.MONITOR_UP: ["email"],
     },
 }
-
-EVENT_SUBJECTS = {
-    EventTypes.TICKET_CREATED: "Ticket created",
-    EventTypes.TICKET_TRIAGED: "Ticket sent to triage",
-    EventTypes.TICKET_STATUS_CHANGED: "Ticket status changed",
-    EventTypes.TICKET_COMMENTED: "New ticket comment",
-    EventTypes.ANON_TICKET_SUBMITTED: "Anonymous ticket submitted",
-    EventTypes.ERROR_NEW: "New error group",
-    EventTypes.ERROR_REGRESSION: "Error regressed",
-    EventTypes.ERROR_ESCALATING: "Error escalating",
-    EventTypes.MONITOR_DOWN: "Monitor down",
-    EventTypes.MONITOR_UP: "Monitor recovered",
-}
-
 
 _ENGINE_INITIALIZED = False
 
@@ -127,93 +118,21 @@ def _build_recipients(event: dict) -> list[str]:
     return [email for email in admins if email]
 
 
-def _build_event_text(event: dict) -> str:
-    event_type = event.get("event_type", "Unknown Event")
-    ticket_id = event.get("ticket_id")
-    ticket_title = event.get("ticket_title")
-    error_group_id = event.get("error_group_id")
-    part_name = event.get("part_name")
-    error_url = event.get("error_url")
-    environment = event.get("environment")
-    release = event.get("release")
-    actor = event.get("actor") or event.get("user") or "System"
-    details = event.get("details") or ""
-    project = event.get("project")
-    status = event.get("status")
-
-    lines = [f"Event: {event_type}"]
-    if ticket_id:
-        lines.append(f"Ticket: {ticket_id}")
-    if ticket_title:
-        lines.append(f"Title: {ticket_title}")
-    if error_group_id is not None:
-        lines.append(f"Error group: {error_group_id}")
-    if part_name:
-        lines.append(f"Part: {part_name}")
-    if project:
-        lines.append(f"Project: {project}")
-    if environment:
-        lines.append(f"Environment: {environment}")
-    if release:
-        lines.append(f"Release: {release}")
-    if status:
-        lines.append(f"Status: {status}")
-    if details:
-        lines.append(f"Details: {details}")
-    monitor_url = event.get("monitor_url")
-    if error_url:
-        lines.append(f"Link: {error_url}")
-    elif monitor_url:
-        lines.append(f"Link: {monitor_url}")
-    lines.append(f"Actor: {actor}")
-
-    return "\n".join(lines)
-
-
-def _ticket_link(event: dict) -> str | None:
-    base = email_base_url().strip().rstrip("/")
-    tid = event.get("ticket_id")
-    proj = event.get("project")
-    if not base or tid is None or proj is None:
-        return None
-    return f"{base}/tickets/{proj}/{tid}"
-
-
-def _cta_link(event: dict) -> tuple[str | None, str | None]:
-    """Return (url, label) for the email CTA."""
-    ticket_url = _ticket_link(event)
-    if ticket_url:
-        return ticket_url, "Open ticket →"
-    monitor_url = event.get("monitor_url")
-    if monitor_url:
-        return str(monitor_url), "Open monitor →"
-    return None, None
-
-
 def _dispatch_email(event: dict, recipients: Iterable[str]):
-    subject = EVENT_SUBJECTS.get(event.get("event_type"), event.get("event_type", "Broke notification"))
-    headline = subject
+    view = build_notification_email(event, hydrated=True)
     accent = event_accent_hex(event.get("event_type"))
-    ticket_url, cta_label = _cta_link(event)
-
     html = render_email(
         "email/notification_event.jinja2",
-        event=event,
-        headline=headline,
         accent=accent,
-        ticket_url=ticket_url,
-        cta_label=cta_label,
+        **view,
     )
     text = render_email(
         "email/notification_event.txt.jinja2",
-        event=event,
-        headline=headline,
-        ticket_url=ticket_url,
-        cta_label=cta_label,
+        **view,
     )
 
     for email in recipients:
-        if not send_email(email, f"Broke: {subject}", html, text_content=text):
+        if not send_email(email, view["subject"], html, text_content=text):
             raise RuntimeError(f"Failed to send notification email to {email}")
 
 
@@ -230,7 +149,7 @@ def _dispatch_slack(event: dict, webhook_url: str):
     ):
         return
 
-    text = _build_event_text(event)
+    text = notification_plain_text(build_notification_email(event, hydrated=True))
     response = requests.post(
         webhook_url,
         json={"text": text},
@@ -264,6 +183,7 @@ def _handle_notification_event_impl(**event):
         return
 
     channels_for_event = settings["event_channels"].get(event_type, [])
+    event = hydrate_notification_event(event)
     recipients = _build_recipients(event)
 
     if event_type in (EventTypes.MONITOR_DOWN, EventTypes.MONITOR_UP):

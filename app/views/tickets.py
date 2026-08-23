@@ -29,7 +29,6 @@ from ..utils.models import (
 from ..utils.path import data_path
 from ..utils.reltime import time_ago
 from ..utils.security import protected, redirect_with_script_root
-from ..utils.user_display import build_all_display_name_map
 from ..utils.stale_tickets import (
     clamp_inactive_days,
     close_ticket_as_stale,
@@ -38,6 +37,7 @@ from ..utils.stale_tickets import (
     ticket_matches_stale_rule,
 )
 from ..utils.ticket_markdown import build_ticket_export_payload, ticket_payload_to_markdown
+from ..utils.user_display import build_all_display_name_map
 
 # Create blueprint
 tickets_bp = Blueprint("tickets", __name__)
@@ -267,7 +267,10 @@ def api_close_stale_ticket(user: User, ticket_id: str):
     if not ok:
         return jsonify({"error": "Ticket is not stale under this inactivity threshold."}), 400
     if has_open_subtickets(ticket_id):
-        return jsonify({"error": "Finish or close open subtickets before closing this ticket."}), 409
+        return (
+            jsonify({"error": "Finish or close open subtickets before closing this ticket."}),
+            409,
+        )
 
     close_ticket_as_stale(ticket, user, inactive_days)
     return jsonify({"success": True, "ticket_id": ticket.id})
@@ -478,7 +481,9 @@ def _rename_ticket_leaving_triage(old_id: str, new_project_id: str) -> str:
     new_id = generate_unique_ticket_id(new_project_id)
     with database.atomic():
         Comment.update(ticket=new_id).where(Comment.ticket == old_id).execute()
-        TicketUpdateMessage.update(ticket=new_id).where(TicketUpdateMessage.ticket == old_id).execute()
+        TicketUpdateMessage.update(ticket=new_id).where(
+            TicketUpdateMessage.ticket == old_id
+        ).execute()
         UserTicketJoin.update(ticket=new_id).where(UserTicketJoin.ticket == old_id).execute()
         TicketLabelJoin.update(ticket=new_id).where(TicketLabelJoin.ticket == old_id).execute()
         Ticket.update(parent_ticket_id=new_id).where(Ticket.parent_ticket_id == old_id).execute()
@@ -893,10 +898,7 @@ def chat_ai_intake_ticket(user: User):
     history = history_raw if isinstance(history_raw, list) else []
     chat_context = _collect_chat_user_context(history, message)
 
-    projects = [
-        {"id": project.id, "name": project.name}
-        for project in active_projects_ordered()
-    ]
+    projects = [{"id": project.id, "name": project.name} for project in active_projects_ordered()]
     draft = suggest_intake_from_message(chat_context, projects)
 
     missing_fields = _chat_missing_fields(chat_context, draft)
@@ -944,10 +946,7 @@ def suggest_intake_ticket(user: User):
     if not message:
         return jsonify({"error": "Message is required"}), 400
 
-    projects = [
-        {"id": project.id, "name": project.name}
-        for project in active_projects_ordered()
-    ]
+    projects = [{"id": project.id, "name": project.name} for project in active_projects_ordered()]
     suggestion = suggest_intake_from_message(message, projects)
 
     return jsonify({"success": True, "suggestion": suggestion}), 200
@@ -1190,6 +1189,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
             ticket_title=ticket.title,
             project=ticket.project,
             status=value,
+            old_status=old_status,
             actor=user.username,
             details=f"Status changed from {old_status} to {value}",
         )
@@ -1237,9 +1237,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
             created_at=int(time.time()),
         )
 
-        return jsonify(
-            {"success": True, "ticket": {"id": ticket.id, "project": ticket.project}}
-        )
+        return jsonify({"success": True, "ticket": {"id": ticket.id, "project": ticket.project}})
     elif field == "priority":
         old_priority = ticket.priority
         ticket.priority = value
@@ -1322,6 +1320,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                     ticket_title=ticket.title,
                     project=ticket.project,
                     status="todo",
+                    old_status=old_status,
                     actor=user.username,
                     details="Moved to todo for external AI handoff",
                 )
@@ -1423,9 +1422,9 @@ def add_comment(user: User, ticket_id: str):
         project=ticket.project,
         status=ticket.status,
         actor=user.username,
-        details=(processed_content[:180] + "...")
-        if len(processed_content) > 180
-        else processed_content,
+        comment_id=comment.id,
+        comment_body=processed_content,
+        comment_via_agent=False,
     )
 
     return (

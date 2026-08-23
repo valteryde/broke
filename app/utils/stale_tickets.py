@@ -174,6 +174,7 @@ def close_ticket_as_stale(
         ticket_title=ticket.title,
         project=ticket.project,
         status="closed",
+        old_status=old_status,
         actor=user.username,
         details=f"Closed from stale overview ({inactive_days}d rule)",
     )

@@ -21,33 +21,39 @@ def _():
     assert "Ada" in html
 
 
-@test("notification email template surfaces ticket data and accent color")
+@test("notification email includes ticket description, fields, and CTA")
 def _():
     from app.utils.app import create_app
     from app.utils.email_branding import event_accent_hex, render_email
     from app.utils.events import EventTypes
+    from app.utils.notification_email import build_notification_email
 
     app = create_app()
     event = {
         "event_type": EventTypes.TICKET_CREATED,
-        "ticket_id": 42,
+        "ticket_id": "42",
         "ticket_title": "Fix the widget",
         "project": 3,
         "actor": "bob",
-        "details": "New intake",
+        "priority": "high",
+        "status": "todo",
+        "description": "<p>The widget is stuck on the conveyor.</p>",
+        "ticket_url": "https://broke.example/tickets/3/42",
     }
+    view = build_notification_email(event, hydrated=True)
     with app.app_context():
         html = render_email(
             "email/notification_event.jinja2",
-            event=event,
-            headline="Ticket created",
             accent=event_accent_hex(EventTypes.TICKET_CREATED),
-            ticket_url="https://broke.example/tickets/3/42",
+            **view,
         )
     assert "8b5cf6" in html
     assert "Fix the widget" in html
     assert "https://broke.example/tickets/3/42" in html
     assert "bob" in html
+    assert "The widget is stuck on the conveyor." in html
+    assert "high" in html
+    assert "Broke: Ticket created: Fix the widget" == view["subject"]
 
 
 @test("render_email raises when Flask app is not initialized")

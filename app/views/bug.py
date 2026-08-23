@@ -3,7 +3,6 @@ import gzip
 import hashlib
 import hmac
 import json
-import os
 import re
 import time
 from logging import getLogger
@@ -12,6 +11,7 @@ from urllib.parse import urlparse
 from flask import Blueprint, jsonify, render_template, request
 from peewee import Case, DoesNotExist, fn
 
+from ..utils.email_branding import email_base_url
 from ..utils.error_markdown import build_error_export_payload, error_payload_to_markdown
 from ..utils.events import EventTypes, bus
 from ..utils.models import (
@@ -228,17 +228,33 @@ def _format_error_core_details(error_group: ErrorGroup) -> str:
     return "\n".join(lines)
 
 
-def _error_event_kwargs(part: ProjectPart, error_group: ErrorGroup, details: str) -> dict:
-    base_url = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
+def _error_event_kwargs(
+    part: ProjectPart,
+    error_group: ErrorGroup,
+    details: str,
+    *,
+    reason: str | None = None,
+) -> dict:
+    base_url = email_base_url()
     kwargs: dict = {
         "part_name": part.name,
+        "part_id": part.id,
         "error_group_id": error_group.id,
         "actor": "ingest",
         "status": error_group.status,
         "details": details,
         "environment": error_group.environment,
         "release": error_group.release,
+        "exception_type": error_group.exception_type,
+        "exception_value": error_group.exception_value,
+        "culprit": error_group.culprit,
+        "platform": error_group.platform,
+        "event_count": error_group.event_count,
+        "first_seen": error_group.first_seen,
+        "last_seen": error_group.last_seen,
     }
+    if reason:
+        kwargs["reason"] = reason
     if base_url:
         kwargs["error_url"] = f"{base_url}/errors/{part.id}/{error_group.id}"
     return kwargs
@@ -260,8 +276,15 @@ def _emit_error_notifications_after_occurrence(
         return
 
     if was_resolved:
-        reg_details = f"{core}\nPreviously resolved; reopened on new occurrence."
-        bus.emit(EventTypes.ERROR_REGRESSION, **_error_event_kwargs(part, error_group, reg_details))
+        bus.emit(
+            EventTypes.ERROR_REGRESSION,
+            **_error_event_kwargs(
+                part,
+                error_group,
+                core,
+                reason="Previously resolved; reopened on new occurrence.",
+            ),
+        )
 
     if was_ignored or error_group.status == "ignored":
         return
@@ -292,8 +315,15 @@ def _emit_error_notifications_after_occurrence(
             spike_notifies = True
 
     if escalation_reasons:
-        details = f"{core}\n" + "\n".join(escalation_reasons)
-        bus.emit(EventTypes.ERROR_ESCALATING, **_error_event_kwargs(part, error_group, details))
+        bus.emit(
+            EventTypes.ERROR_ESCALATING,
+            **_error_event_kwargs(
+                part,
+                error_group,
+                core,
+                reason="\n".join(escalation_reasons),
+            ),
+        )
         if spike_notifies:
             error_group.last_escalation_spike_email_at = timestamp
             error_group.save(only=[ErrorGroup.last_escalation_spike_email_at])
