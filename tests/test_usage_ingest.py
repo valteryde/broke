@@ -161,6 +161,50 @@ def _(c=auth_client, home=usage_home):
     assert b"Usage" in response.data
 
 
+@test("GET /usage shows flow, gates, journeys, and a country map")
+def _(c=auth_client, home=usage_home):
+    now = int(time.time() * 1000) - 2000
+    usage_store.write_events(
+        [
+            {
+                "ts": now,
+                "visitor": "visitor-aaaaaaa",
+                "session": "session-aaaaaa",
+                "kind": "pageview",
+                "path": "/",
+                "route": "/",
+                "sector": "(root)",
+                "country": "DK",
+                "region": "Hovedstaden",
+                "city": "Copenhagen",
+            },
+            {
+                "ts": now + 10,
+                "visitor": "visitor-aaaaaaa",
+                "session": "session-aaaaaa",
+                "kind": "pageview",
+                "path": "/tickets",
+                "route": "/tickets",
+                "sector": "tickets",
+                "country": "DK",
+                "region": "Hovedstaden",
+                "city": "Copenhagen",
+            },
+        ]
+    )
+    response = c.get("/usage")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'id="usage-pages"' in body
+    assert 'id="usage-flow"' in body
+    assert "Where they start and stop" in body
+    assert "Journeys" in body
+    assert 'id="usage-map"' in body
+    assert "world-110m.json" in body
+    assert "use-journey-step" in body
+    assert ">/tickets</span>" in body
+
+
 @test("GET /usage.js serves the beacon")
 def _(c=client):
     response = c.get("/usage.js")

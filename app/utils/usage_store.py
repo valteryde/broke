@@ -589,11 +589,14 @@ def dashboard(start_ms: int, end_ms: int, *, step_ms: int) -> dict[str, Any]:
         "SELECT sector, COUNT(*) FROM usage_events WHERE kind = 'pageview'"
         " GROUP BY 1 ORDER BY 2 DESC LIMIT 20",
     )
-    pages = _fetch_pairs(
-        duck,
-        "SELECT path, COUNT(*) FROM usage_events WHERE kind = 'pageview'"
-        " GROUP BY 1 ORDER BY 2 DESC LIMIT 20",
-    )
+    page_rows = duck.execute(
+        "SELECT route, COUNT(*), COUNT(DISTINCT visitor) FROM usage_events"
+        " WHERE kind = 'pageview' GROUP BY 1 ORDER BY 2 DESC LIMIT 20"
+    ).fetchall()
+    pages = [
+        {"label": row[0] or "/", "count": int(row[1] or 0), "users": int(row[2] or 0)}
+        for row in page_rows
+    ]
     routes = _fetch_pairs(
         duck,
         "SELECT route, COUNT(*) FROM usage_events WHERE kind = 'pageview'"
@@ -603,8 +606,8 @@ def dashboard(start_ms: int, end_ms: int, *, step_ms: int) -> dict[str, Any]:
     entries = _fetch_pairs(
         duck,
         """
-        SELECT path, COUNT(*) FROM (
-            SELECT path, row_number() OVER (PARTITION BY session ORDER BY ts) AS rn
+        SELECT route, COUNT(*) FROM (
+            SELECT route, row_number() OVER (PARTITION BY session ORDER BY ts) AS rn
             FROM usage_events WHERE kind = 'pageview'
         ) WHERE rn = 1 GROUP BY 1 ORDER BY 2 DESC LIMIT 20
         """,
@@ -612,43 +615,52 @@ def dashboard(start_ms: int, end_ms: int, *, step_ms: int) -> dict[str, Any]:
     exits = _fetch_pairs(
         duck,
         """
-        SELECT path, COUNT(*) FROM (
-            SELECT path, row_number() OVER (PARTITION BY session ORDER BY ts DESC) AS rn
+        SELECT route, COUNT(*) FROM (
+            SELECT route, row_number() OVER (PARTITION BY session ORDER BY ts DESC) AS rn
             FROM usage_events WHERE kind = 'pageview'
         ) WHERE rn = 1 GROUP BY 1 ORDER BY 2 DESC LIMIT 20
         """,
     )
 
     transition_rows = duck.execute("""
-        SELECT prev, path, COUNT(*) FROM (
-            SELECT path, lag(path) OVER (PARTITION BY session ORDER BY ts) AS prev
+        SELECT prev, route, COUNT(*) FROM (
+            SELECT route, lag(route) OVER (PARTITION BY session ORDER BY ts) AS prev
             FROM usage_events WHERE kind = 'pageview'
-        ) WHERE prev IS NOT NULL
-        GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 20
+        ) WHERE prev IS NOT NULL AND prev <> route
+        GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 80
         """).fetchall()
     transitions = [{"frm": row[0], "to": row[1], "count": int(row[2])} for row in transition_rows]
 
     journey_rows = duck.execute("""
         WITH ordered AS (
-            SELECT path,
-                   lag(path, 1) OVER w AS p1,
-                   lag(path, 2) OVER w AS p2,
-                   lag(path, 3) OVER w AS p3,
-                   lag(path, 4) OVER w AS p4
+            SELECT session, route, ts,
+                   lag(route) OVER (PARTITION BY session ORDER BY ts) AS prev
             FROM usage_events WHERE kind = 'pageview'
-            WINDOW w AS (PARTITION BY session ORDER BY ts)
+        ),
+        steps AS (
+            SELECT session, route, ts,
+                   row_number() OVER (PARTITION BY session ORDER BY ts) AS rn
+            FROM ordered
+            WHERE prev IS NULL OR prev <> route
+        ),
+        totals AS (
+            SELECT session, max(rn) AS n FROM steps GROUP BY session
+        ),
+        capped AS (
+            SELECT s.session,
+                   string_agg(s.route, ' → ' ORDER BY s.rn) AS journey
+            FROM steps s
+            WHERE s.rn <= 5
+            GROUP BY s.session
         )
-        SELECT journey, COUNT(*) FROM (
-            SELECT p1 || ' → ' || path AS journey FROM ordered WHERE p1 IS NOT NULL
-            UNION ALL
-            SELECT p2 || ' → ' || p1 || ' → ' || path FROM ordered WHERE p2 IS NOT NULL
-            UNION ALL
-            SELECT p3 || ' → ' || p2 || ' → ' || p1 || ' → ' || path FROM ordered WHERE p3 IS NOT NULL
-            UNION ALL
-            SELECT p4 || ' → ' || p3 || ' → ' || p2 || ' → ' || p1 || ' → ' || path
-            FROM ordered WHERE p4 IS NOT NULL
-        )
-        GROUP BY 1 ORDER BY 2 DESC LIMIT 10
+        SELECT CASE WHEN t.n > 5 THEN c.journey || ' → …' ELSE c.journey END,
+               COUNT(*)
+        FROM capped c
+        JOIN totals t USING (session)
+        WHERE t.n >= 2
+        GROUP BY 1
+        ORDER BY 2 DESC
+        LIMIT 10
         """).fetchall()
     journeys = [{"label": row[0], "count": int(row[1])} for row in journey_rows]
 

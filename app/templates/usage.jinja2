@@ -109,21 +109,36 @@
         <div class="use-chart-body"></div>
     </section>
 
+    {% if data.pages %}
     <div class="use-grid use-grid-main">
-        {% if data.pages %}
         <section class="use-panel">
             <h2>Pages</h2>
-            {{ bar_list(data.pages[:10]) }}
+            <p class="use-panel-lead">Select a page to see how people reach it</p>
+            <div class="use-pages" id="usage-pages">
+                {% for row in data.pages[:12] %}
+                <button type="button" class="use-page-row" data-page="{{ row.label }}" aria-pressed="false">
+                    <div class="use-bar-top">
+                        <span class="use-bar-label">{{ row.label }}</span>
+                        <span class="use-bar-meta">
+                            <strong>{{ '{:,}'.format(row.count) }}</strong>
+                            {% if row.users %}<span>{{ '{:,}'.format(row.users) }} users</span>{% endif %}
+                        </span>
+                    </div>
+                    <div class="use-bar-track">
+                        <div class="use-bar-fill" style="width: {{ row.bar }}%"></div>
+                    </div>
+                </button>
+                {% endfor %}
+            </div>
         </section>
-        {% endif %}
 
-        {% if data.transitions %}
         <section class="use-panel use-panel-flow">
             <h2>User flow</h2>
+            <p class="use-panel-lead" id="usage-flow-caption">Where people came from, and where they went next</p>
             <div class="use-flow" id="usage-flow"></div>
         </section>
-        {% endif %}
     </div>
+    {% endif %}
 
     <div class="use-grid">
         {% if data.sectors %}
@@ -149,40 +164,33 @@
         {% endif %}
     </div>
 
-    {% if data.entries or data.exits %}
-    <div class="use-grid">
-        {% if data.entries %}
-        <section class="use-panel">
-            <h2>Where they start</h2>
-            {{ bar_list(data.entries[:8]) }}
-        </section>
-        {% endif %}
-        {% if data.exits %}
-        <section class="use-panel">
-            <h2>Where they stop</h2>
-            {{ bar_list(data.exits[:8]) }}
-        </section>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {% if data.journeys %}
+    {% if data.gates %}
     <section class="use-panel use-panel-wide">
-        <h2>Journeys</h2>
-        <div class="use-journeys">
-            {% for row in data.journeys %}
-            <div class="use-journey">
-                <div class="use-journey-path">
-                    {% for step in row.steps %}
-                    <span class="use-pill">{{ step }}</span>
-                    {% if not loop.last %}<i class="ph ph-caret-right"></i>{% endif %}
-                    {% endfor %}
-                </div>
-                <div class="use-journey-count">
+        <h2>Where they start and stop</h2>
+        <div class="use-gates-legend">
+            <span class="use-legend-item"><i class="use-swatch use-swatch-start"></i> Start</span>
+            <span class="use-legend-item"><i class="use-swatch use-swatch-stop"></i> Stop</span>
+        </div>
+        <div class="use-gates">
+            <div class="use-gate-head">
+                <span>Page</span>
+                <span>Start</span>
+                <span>Stop</span>
+            </div>
+            {% for row in data.gates %}
+            <div class="use-gate-row">
+                <span class="use-gate-label" title="{{ row.label }}">{{ row.label }}</span>
+                <div class="use-gate-metric">
+                    <span class="use-gate-n">{{ '{:,}'.format(row.entries) }}</span>
                     <div class="use-bar-track">
-                        <div class="use-bar-fill" style="width: {{ row.bar }}%"></div>
+                        <div class="use-bar-fill use-fill-start" style="width: {{ row.entry_bar }}%"></div>
                     </div>
-                    <span>{{ '{:,}'.format(row.count) }}</span>
+                </div>
+                <div class="use-gate-metric">
+                    <span class="use-gate-n">{{ '{:,}'.format(row.exits) }}</span>
+                    <div class="use-bar-track">
+                        <div class="use-bar-fill use-fill-stop" style="width: {{ row.exit_bar }}%"></div>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -190,19 +198,55 @@
     </section>
     {% endif %}
 
+    {% if data.journeys %}
+    <section class="use-panel use-panel-wide">
+        <h2>Journeys</h2>
+        <ol class="use-journeys">
+            {% for row in data.journeys %}
+            <li class="use-journey">
+                <span class="use-journey-count">{{ '{:,}'.format(row.count) }}</span>
+                <div class="use-journey-body">
+                    <div class="use-journey-fill" style="width: {{ row.bar }}%"></div>
+                    <div class="use-journey-steps">
+                        {% for step in row.steps %}
+                        {% if step == '…' %}
+                        <span class="use-journey-more">…</span>
+                        {% else %}
+                        <span class="use-journey-step">{{ step }}</span>
+                        {% endif %}
+                        {% if not loop.last %}<span class="use-journey-arrow" aria-hidden="true">→</span>{% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </li>
+            {% endfor %}
+        </ol>
+    </section>
+    {% endif %}
+
     {% if data.has_geo %}
+    {% if data.countries %}
+    <section class="use-panel use-panel-wide use-panel-map">
+        <h2>Countries</h2>
+        <div class="use-map" id="usage-map" data-src="{{ url_for('static', filename='js/vendor/world-110m.json') }}">
+            <div class="use-map-tip" id="usage-map-tip" hidden></div>
+        </div>
+        <div class="use-map-legend" aria-hidden="true">
+            <span>Fewer</span>
+            <span class="use-map-scale">
+                <i data-level="0"></i>
+                <i data-level="1"></i>
+                <i data-level="2"></i>
+                <i data-level="3"></i>
+            </span>
+            <span>More</span>
+        </div>
+    </section>
+    {% endif %}
     <div class="use-grid">
         {% if data.countries %}
         <section class="use-panel">
-            <h2>Countries</h2>
-            <div class="use-bubbles">
-                {% for row in data.countries[:8] %}
-                <div class="use-bubble" style="--size: {{ 1.4 + (row.bar / 100) * 2.2 }}rem">
-                    <span class="use-bubble-flag">{{ row.flag or row.label }}</span>
-                    <span class="use-bubble-code">{{ row.label }}</span>
-                </div>
-                {% endfor %}
-            </div>
+            <h2>By country</h2>
             {{ bar_list(data.countries, show_flag=true) }}
         </section>
         {% endif %}
@@ -216,6 +260,7 @@
     <p class="use-credit">
         IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0)
         {% if geo_status and geo_status.dataset %} · City Lite {{ geo_status.dataset }}{% endif %}
+        · Map outlines from <a href="https://www.naturalearthdata.com/">Natural Earth</a>
     </p>
     {% endif %}
 

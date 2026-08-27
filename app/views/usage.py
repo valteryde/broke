@@ -215,6 +215,30 @@ def _enrich_bars(rows: list[dict[str, Any]], total: int) -> list[dict[str, Any]]
     return out
 
 
+def _merge_gates(
+    entries: list[dict[str, Any]], exits: list[dict[str, Any]], *, limit: int = 10
+) -> list[dict[str, Any]]:
+    """Align start and stop counts on the same route so the two columns are comparable."""
+    by_label: dict[str, dict[str, Any]] = {}
+    for row in entries:
+        label = str(row.get("label") or "/")
+        by_label[label] = {"label": label, "entries": int(row.get("count") or 0), "exits": 0}
+    for row in exits:
+        label = str(row.get("label") or "/")
+        item = by_label.setdefault(label, {"label": label, "entries": 0, "exits": 0})
+        item["exits"] = int(row.get("count") or 0)
+    rows = sorted(
+        by_label.values(),
+        key=lambda row: row["entries"] + row["exits"],
+        reverse=True,
+    )[:limit]
+    peak = max((max(row["entries"], row["exits"]) for row in rows), default=1) or 1
+    for row in rows:
+        row["entry_bar"] = round(100.0 * row["entries"] / peak, 1)
+        row["exit_bar"] = round(100.0 * row["exits"] / peak, 1)
+    return rows
+
+
 @usage_bp.route("/usage")
 @protected
 def usage_view(user: User):
@@ -223,9 +247,8 @@ def usage_view(user: User):
     if range_key not in RANGES:
         range_key = DEFAULT_RANGE
     span, step = RANGES[range_key]
-    now = int(time.time())
-    end_ms = now * 1000
-    start_ms = (now - span) * 1000
+    end_ms = int(time.time() * 1000) + 1
+    start_ms = end_ms - span * 1000
     data = usage_store.dashboard(start_ms, end_ms, step_ms=step * 1000)
 
     bounce = data.get("bounce_rate")
@@ -250,6 +273,7 @@ def usage_view(user: User):
         data[key] = _enrich_bars(data.get(key) or [], denom)
     for row in data["countries"]:
         row["flag"] = _flag(str(row.get("label") or ""))
+    data["gates"] = _merge_gates(data.get("entries") or [], data.get("exits") or [])
     journey_peak = max((int(j["count"]) for j in data["journeys"]), default=1) or 1
     for row in data["journeys"]:
         row["steps"] = [
@@ -263,7 +287,11 @@ def usage_view(user: User):
         "views": data.get("traffic") or [],
         "users": data.get("traffic_users") or [],
         "sectors": data.get("sectors") or [],
+        "pages": data.get("pages") or [],
         "transitions": data.get("transitions") or [],
+        "entries": data.get("entries") or [],
+        "exits": data.get("exits") or [],
+        "countries": data.get("countries") or [],
     }
 
     return render_template(
