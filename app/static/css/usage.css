@@ -574,6 +574,7 @@ button.use-flow-row:hover .use-flow-name {
     position: relative;
     width: 100%;
     min-height: 380px;
+    overflow: hidden;
 }
 
 .use-map svg {
@@ -587,18 +588,39 @@ button.use-flow-row:hover .use-flow-name {
     stroke: #fff;
     stroke-width: 1;
     vector-effect: non-scaling-stroke;
+    cursor: pointer;
 }
 
 .use-map path.is-hot {
-    cursor: default;
     stroke: #fff;
     stroke-width: 1;
+}
+
+.use-map path.is-selected {
+    stroke: var(--logo-blue);
+    stroke-width: 1.5;
 }
 
 .use-map-water {
     fill: var(--bg-white);
     stroke: none;
     pointer-events: none;
+    cursor: default;
+}
+
+.use-map-back {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    background: #fff;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 0.8rem;
+    color: #222;
+    cursor: pointer;
 }
 
 .use-map-legend {

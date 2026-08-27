@@ -677,12 +677,30 @@ def dashboard(start_ms: int, end_ms: int, *, step_ms: int) -> dict[str, Any]:
     ).fetchall()
     countries = [{"label": row[0], "count": int(row[1])} for row in country_rows]
 
-    city_rows = duck.execute("""
-        SELECT city || CASE WHEN country IS NULL THEN '' ELSE ', ' || country END, COUNT(*)
-        FROM usage_events WHERE city IS NOT NULL AND city <> ''
-        GROUP BY 1 ORDER BY 2 DESC LIMIT 20
-        """).fetchall()
-    cities = [{"label": row[0], "count": int(row[1])} for row in city_rows]
+    city_rows = duck.execute(
+        """
+        SELECT city, country, cnt FROM (
+            SELECT city, country, cnt,
+                   row_number() OVER (
+                       PARTITION BY country
+                       ORDER BY cnt DESC
+                   ) AS rn
+            FROM (
+                SELECT city, country, COUNT(*) AS cnt
+                FROM usage_events
+                WHERE city IS NOT NULL AND city <> ''
+                GROUP BY city, country
+            )
+        )
+        WHERE rn <= ?
+        ORDER BY cnt DESC
+        """,
+        [MAX_DASHBOARD_ROWS],
+    ).fetchall()
+    cities = [
+        {"label": row[0], "country": row[1] or None, "count": int(row[2])}
+        for row in city_rows
+    ]
 
     return {
         "pageviews": pageviews,

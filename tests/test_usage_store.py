@@ -165,3 +165,34 @@ def _(home=usage_home):
     left = conn.execute("SELECT COUNT(*) FROM hot_event").fetchone()[0]
     assert left == 0
     assert any(home.joinpath("usage").glob("dt=*/*.parquet"))
+
+
+@test("dashboard cities keep a country next to the city name")
+def _(home=usage_home):
+    now = int(time.time() * 1000)
+    usage_store.write_events(
+        [
+            _event(ts=now, country="DK", city="Copenhagen"),
+            _event(
+                ts=now + 1,
+                visitor="visitor-bbbbbbbb",
+                session="session-bbbbbb",
+                country="DK",
+                city="Aarhus",
+            ),
+            _event(
+                ts=now + 2,
+                visitor="visitor-cccccccc",
+                session="session-cccccc",
+                country="DE",
+                city="Berlin",
+            ),
+        ]
+    )
+    data = usage_store.dashboard(now - 1000, now + 10_000, step_ms=1000)
+    cities = {(row["label"], row.get("country")): row["count"] for row in data["cities"]}
+    assert cities[("Copenhagen", "DK")] == 1
+    assert cities[("Aarhus", "DK")] == 1
+    assert cities[("Berlin", "DE")] == 1
+    countries = {row["label"] for row in data["countries"]}
+    assert countries == {"DK", "DE"}

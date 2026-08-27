@@ -18,7 +18,7 @@
             <div class="use-bar-top">
                 <span class="use-bar-label">
                     {% if show_flag and row.flag %}<span class="use-flag">{{ row.flag }}</span>{% endif %}
-                    {{ row.label }}
+                    {{ row.display or row.label }}
                 </span>
                 <span class="use-bar-meta">
                     <strong>{{ '{:,}'.format(row.count) }}</strong>
@@ -229,6 +229,7 @@
     <section class="use-panel use-panel-wide use-panel-map">
         <h2>Countries</h2>
         <div class="use-map" id="usage-map" data-src="{{ url_for('static', filename='js/vendor/world-110m.json') }}">
+            <button type="button" class="use-map-back" id="usage-map-back" hidden>World</button>
             <div class="use-map-tip" id="usage-map-tip" hidden></div>
         </div>
         <div class="use-map-legend" aria-hidden="true">
@@ -253,7 +254,7 @@
         {% if data.cities %}
         <section class="use-panel">
             <h2>Cities</h2>
-            {{ bar_list(data.cities) }}
+            {{ bar_list(data.cities[:20]) }}
         </section>
         {% endif %}
     </div>

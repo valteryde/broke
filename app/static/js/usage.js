@@ -363,11 +363,18 @@
         });
         var empty = token("--use-map-empty", "#e4e4e4");
         var tip = document.getElementById("usage-map-tip");
+        var back = document.getElementById("usage-map-back");
 
         fetch(src)
             .then(function (res) { return res.ok ? res.json() : null; })
             .then(function (world) {
                 if (!world || !world.c) return;
+                var worldW = world.w || 1400;
+                var worldH = world.h || 700;
+                var worldBox = [0, 0, worldW, worldH];
+                var selectedId = "";
+                var anim = 0;
+
                 var parts = world.c.map(function (country) {
                     var row = byCode[country.id];
                     var count = row ? row.count || 0 : 0;
@@ -381,7 +388,7 @@
                     );
                 });
                 var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                svg.setAttribute("viewBox", "0 0 " + (world.w || 1400) + " " + (world.h || 700));
+                svg.setAttribute("viewBox", worldBox.join(" "));
                 svg.setAttribute("role", "img");
                 svg.setAttribute("aria-label", "Visitors by country");
                 var lakes = world.l
@@ -390,8 +397,125 @@
                 svg.innerHTML = parts.join("") + lakes;
                 el.insertBefore(svg, el.firstChild);
 
+                function parseBox() {
+                    return (svg.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
+                }
+
+                function largestBox(path) {
+                    var d = path.getAttribute("d") || "";
+                    var parts = d.split(/(?=[Mm])/);
+                    var best = null;
+                    var bestArea = 0;
+                    parts.forEach(function (part) {
+                        if (!part) return;
+                        var probe = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        probe.setAttribute("d", part);
+                        svg.appendChild(probe);
+                        var box = probe.getBBox();
+                        svg.removeChild(probe);
+                        var area = box.width * box.height;
+                        if (area > bestArea) {
+                            best = box;
+                            bestArea = area;
+                        }
+                    });
+                    return best || path.getBBox();
+                }
+
+                function fitCountry(path) {
+                    var box = largestBox(path);
+                    if (!box.width && !box.height) return worldBox;
+                    var padX = Math.max(box.width * 0.28, 4);
+                    var padY = Math.max(box.height * 0.28, 4);
+                    var w = box.width + padX * 2;
+                    var h = box.height + padY * 2;
+                    var aspect = worldW / worldH;
+                    if (w / h < aspect) w = h * aspect;
+                    else h = w / aspect;
+                    w = Math.min(w, worldW);
+                    h = Math.min(h, worldH);
+                    return [
+                        box.x + box.width / 2 - w / 2,
+                        box.y + box.height / 2 - h / 2,
+                        w,
+                        h
+                    ];
+                }
+
+                function setBox(to, animate) {
+                    var from = parseBox();
+                    if (!animate) {
+                        svg.setAttribute("viewBox", to.join(" "));
+                        return;
+                    }
+                    var start = performance.now();
+                    var token = ++anim;
+                    function tick(now) {
+                        if (token !== anim) return;
+                        var t = Math.min(1, (now - start) / 420);
+                        var e = 1 - (1 - t) * (1 - t);
+                        svg.setAttribute(
+                            "viewBox",
+                            from.map(function (v, i) { return v + (to[i] - v) * e; }).join(" ")
+                        );
+                        if (t < 1) requestAnimationFrame(tick);
+                    }
+                    requestAnimationFrame(tick);
+                }
+
+                function prefersReduce() {
+                    return window.matchMedia &&
+                        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                }
+
+                function markSelected(id) {
+                    selectedId = id || "";
+                    svg.querySelectorAll("path[data-id]").forEach(function (path) {
+                        path.classList.toggle("is-selected", path.getAttribute("data-id") === selectedId);
+                    });
+                    if (back) back.hidden = !selectedId;
+                    var focused = selectedId
+                        ? svg.querySelector('path[data-id="' + selectedId + '"]')
+                        : null;
+                    svg.setAttribute(
+                        "aria-label",
+                        focused
+                            ? "Visitors in " + (focused.getAttribute("data-name") || selectedId)
+                            : "Visitors by country"
+                    );
+                }
+
+                function zoomTo(path) {
+                    var id = path.getAttribute("data-id");
+                    if (!id) return;
+                    if (id === selectedId) {
+                        zoomOut();
+                        return;
+                    }
+                    markSelected(id);
+                    setBox(fitCountry(path), !prefersReduce());
+                }
+
+                function zoomOut() {
+                    markSelected("");
+                    setBox(worldBox, !prefersReduce());
+                }
+
                 function hideTip() {
                     if (tip) tip.hidden = true;
+                }
+
+                svg.addEventListener("click", function (ev) {
+                    var path = ev.target.closest("path");
+                    if (!path || !path.getAttribute("data-id")) return;
+                    hideTip();
+                    zoomTo(path);
+                });
+                if (back) {
+                    back.addEventListener("click", function () {
+                        hideTip();
+                        zoomOut();
+                    });
                 }
 
                 svg.addEventListener("mouseover", function (ev) {

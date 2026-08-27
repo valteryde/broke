@@ -273,6 +273,10 @@ def usage_view(user: User):
         data[key] = _enrich_bars(data.get(key) or [], denom)
     for row in data["countries"]:
         row["flag"] = _flag(str(row.get("label") or ""))
+    for row in data["cities"]:
+        city = str(row.get("label") or "")
+        country = str(row.get("country") or "")
+        row["display"] = f"{city}, {country}" if country else city
     data["gates"] = _merge_gates(data.get("entries") or [], data.get("exits") or [])
     journey_peak = max((int(j["count"]) for j in data["journeys"]), default=1) or 1
     for row in data["journeys"]:

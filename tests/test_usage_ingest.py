@@ -201,6 +201,7 @@ def _(c=auth_client, home=usage_home):
     assert "Journeys" in body
     assert 'id="usage-map"' in body
     assert "world-110m.json" in body
+    assert "Copenhagen" in body
     assert "use-journey-step" in body
     assert ">/tickets</span>" in body
 
