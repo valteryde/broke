@@ -126,6 +126,7 @@
     <script src="{{ url_for('static', filename='js/lists.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/list_modal.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/meetings.js') }}"></script>
 
 
     <script>
@@ -332,6 +333,15 @@
                 onCreateLabel: 'Add Ticket',
                 onCreate: () => {
                     showCreateTicketModal();
+                },
+                onSecondaryCreateLabel: 'New meeting',
+                onSecondaryCreateIcon: 'ph-notebook',
+                onSecondaryCreate: (btn) => {
+                    if (window.startBrokeMeeting) {
+                        window.startBrokeMeeting(btn);
+                    } else {
+                        window.location.href = brokeAppUrl('/meetings');
+                    }
                 },
                 onClearFilters: (list) => {
                     list.clearAllFilters();

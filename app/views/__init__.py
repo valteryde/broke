@@ -4,6 +4,7 @@ from .auth import auth_bp
 from .bug import bug_bp
 from .changelog import changelog_bp
 from .desktop import desktop_bp
+from .meetings import meetings_bp
 from .metrics import metrics_bp
 from .monitors import monitors_bp
 from .news import news_bp
@@ -26,6 +27,7 @@ __all__ = [
     "changelog_bp",
     "desktop_bp",
     "work_cycles_bp",
+    "meetings_bp",
     "agent_bp",
     "monitors_bp",
     "metrics_bp",

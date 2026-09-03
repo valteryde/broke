@@ -100,22 +100,48 @@
 }
 
 
-.list-create-btn {
+.list-create-actions {
     margin-left: auto;
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.list-create-btn,
+.list-secondary-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.list-create-btn {
     background: var(--logo-blue);
     color: white;
     border: 1px solid transparent;
-    border-radius: 4px;
 }
 
 .list-create-btn:hover {
     background: lightgrey;
     color: black;
-    cursor: pointer;
+}
+
+.list-secondary-btn {
+    background: transparent;
+    color: black;
+    border: 1px dashed #444;
+}
+
+.list-secondary-btn:hover {
+    background: var(--bg-light-gray, #eaeaea);
+}
+
+.list-secondary-btn:disabled,
+.list-create-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 
 .list-search-input::placeholder {
@@ -712,7 +738,15 @@
         width: 100%;
     }
 
-    .list-create-btn {
+    .list-create-actions {
+        margin-left: 0;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .list-create-btn,
+    .list-secondary-btn {
         margin-left: 0;
         justify-content: center;
         width: 100%;

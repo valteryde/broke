@@ -15,6 +15,7 @@
  *     defaultFilters: { status: ['unresolved'] },
  *     sortFn: (a, b) => number,
  *     onCreate: () => void,
+ *     onSecondaryCreate: (button) => void,
  *     onUpdate: (item, field, value) => void
  * });
  */
@@ -53,6 +54,9 @@ class List {
         this.onCreate = options.onCreate || null;
         this.onDelete = options.onDelete || null;
         this.onCreateLabel = options.onCreateLabel || 'Add';
+        this.onSecondaryCreate = options.onSecondaryCreate || null;
+        this.onSecondaryCreateLabel = options.onSecondaryCreateLabel || 'New meeting';
+        this.onSecondaryCreateIcon = options.onSecondaryCreateIcon || 'ph-notebook';
         this.onClearFilters = options.onClearFilters || null;
         this.onClearFiltersLabel = options.onClearFiltersLabel || 'Clear Filters';
 
@@ -484,16 +488,33 @@ class List {
             filterOptionsRow.appendChild(clearFiltersButton);
         }
 
-        if (this.onCreate) {
-            const createButton = document.createElement('button');
-            createButton.className = 'list-create-btn';
-            createButton.innerHTML = `<span> <i class="ph ph-plus"></i> ${this.onCreateLabel || 'Add'} </span>`;
+        if (this.onCreate || this.onSecondaryCreate) {
+            const createActions = document.createElement('div');
+            createActions.className = 'list-create-actions';
 
-            createButton.addEventListener('click', () => {
-                this.onCreate();
-            });
+            if (this.onSecondaryCreate) {
+                const secondaryButton = document.createElement('button');
+                secondaryButton.type = 'button';
+                secondaryButton.className = 'list-secondary-btn';
+                secondaryButton.innerHTML = `<span><i class="ph ${this.onSecondaryCreateIcon}"></i> ${this.onSecondaryCreateLabel}</span>`;
+                secondaryButton.addEventListener('click', () => {
+                    this.onSecondaryCreate(secondaryButton);
+                });
+                createActions.appendChild(secondaryButton);
+            }
 
-            filterOptionsRow.appendChild(createButton);
+            if (this.onCreate) {
+                const createButton = document.createElement('button');
+                createButton.type = 'button';
+                createButton.className = 'list-create-btn';
+                createButton.innerHTML = `<span> <i class="ph ph-plus"></i> ${this.onCreateLabel || 'Add'} </span>`;
+                createButton.addEventListener('click', () => {
+                    this.onCreate();
+                });
+                createActions.appendChild(createButton);
+            }
+
+            filterOptionsRow.appendChild(createActions);
         }
 
         // Bottom row: Active filters container (chips)

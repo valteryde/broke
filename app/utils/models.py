@@ -212,6 +212,20 @@ class WorkCycle(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
 
 
+class Meeting(BaseModel):
+    """Free-form meeting notes that can be turned into project tickets."""
+
+    id = AutoField(primary_key=True)
+    title = CharField()
+    notes = TextField(default="")
+    created_by = CharField()
+    status = CharField(default="open")  # open, done
+    result_json = TextField(null=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
+    updated_at = IntegerField(default=lambda: int(time.time()))
+    done_at = IntegerField(null=True)
+
+
 class Ticket(BaseModel):
     id = CharField(primary_key=True)
 
@@ -229,6 +243,7 @@ class Ticket(BaseModel):
     active = IntegerField(default=1)
     parent_ticket_id = CharField(null=True, index=True)
     work_cycle_id = IntegerField(null=True, index=True)
+    meeting_id = IntegerField(null=True, index=True)
     ai_delegate = IntegerField(default=0)
 
     anonymous_secret = CharField(null=True, unique=True)
@@ -535,6 +550,7 @@ class StatusSubscriber(BaseModel):
 MODELS = [
     User,
     WorkCycle,
+    Meeting,
     Ticket,
     UserTicketJoin,
     Project,
@@ -579,6 +595,7 @@ def initialize_db():
     database.create_tables(MODELS, safe=True)
     _ensure_ticket_parent_column()
     _ensure_work_cycle_schema()
+    _ensure_ticket_meeting_id_column()
     _ensure_ai_delegate_column()
     _ensure_comment_via_agent_column()
     _ensure_agent_token_ticket_id_column()
@@ -616,6 +633,14 @@ def _ensure_work_cycle_schema() -> None:
         database.execute_sql(
             "CREATE INDEX IF NOT EXISTS ticket_work_cycle_id ON ticket(work_cycle_id);"
         )
+
+
+def _ensure_ticket_meeting_id_column() -> None:
+    """Add ticket.meeting_id for DBs created before meeting notes existed."""
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()]
+    if columns and "meeting_id" not in columns:
+        database.execute_sql("ALTER TABLE ticket ADD COLUMN meeting_id INTEGER;")
+        database.execute_sql("CREATE INDEX IF NOT EXISTS ticket_meeting_id ON ticket(meeting_id);")
 
 
 def _ensure_ai_delegate_column() -> None:

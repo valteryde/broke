@@ -26,6 +26,7 @@ from scripts.migrate_016_chart_families import run_migration as run_migration_01
 from scripts.migrate_017_chart_sections import run_migration as run_migration_017
 from scripts.migrate_018_repair_chart_index import run_migration as run_migration_018
 from scripts.migrate_019_usage import run_migration as run_migration_019
+from scripts.migrate_020_meetings import run_migration as run_migration_020
 
 if __name__ == "__main__":
     # Docker entrypoint runs migrations before the app boots; create_tables only
@@ -48,3 +49,4 @@ if __name__ == "__main__":
     run_migration_017()
     run_migration_018()
     run_migration_019()
+    run_migration_020()

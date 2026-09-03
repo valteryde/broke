@@ -1,0 +1,128 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}{{ meeting.title }} | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+{% endblock %}
+
+{% block path %}
+    <a href="{{ request.script_root }}/meetings"><i class="ph ph-notebook"></i> Meetings</a>
+    <i class="ph ph-caret-right"></i>
+    <span>{{ meeting.title }}</span>
+{% endblock %}
+
+{% block content %}
+<div
+    class="meeting-page{% if is_done %} is-done{% endif %}"
+    id="meeting-page"
+    data-meeting-id="{{ meeting.id }}"
+    data-done="{{ '1' if is_done else '0' }}"
+>
+    <header class="meeting-toolbar">
+        <input
+            type="text"
+            id="meeting-title"
+            class="meeting-title-input"
+            value="{{ meeting.title }}"
+            {% if is_done %}readonly{% endif %}
+            maxlength="200"
+            aria-label="Meeting title"
+        >
+        {% if not is_done %}
+        <button type="button" class="btn btn-primary" id="meeting-done-btn">
+            Done
+        </button>
+        {% endif %}
+    </header>
+
+    <p class="meeting-vocab" aria-label="Note marks">
+        <span><code>#</code> topic</span>
+        <span><code>!</code> action</span>
+        <span><code>=</code> decision</span>
+        <span><code>?</code> question</span>
+        <span><code>@</code> name</span>
+        <span class="meeting-info">
+            <button type="button" class="meeting-info-btn" aria-describedby="meeting-ai-hint" aria-label="How notes become tickets">
+                <i class="ph ph-info"></i>
+            </button>
+            <span class="meeting-info-tip" id="meeting-ai-hint" role="tooltip">
+                Done sends every line to AI. Marks help, but messy notes are enough — titles, descriptions, and projects get filled in.
+            </span>
+        </span>
+    </p>
+    {% if not ai_enabled %}
+    <p class="meeting-ai-warn">AI is not configured. <a href="{{ request.script_root }}/settings/ai">Add an API key in Settings</a> so notes can be analyzed.</p>
+    {% endif %}
+
+    {% if is_done and result %}
+    <section class="meeting-spit" aria-label="What came out of this meeting">
+        <h2>What came out</h2>
+        {% if ticket_groups %}
+            {% for group in ticket_groups %}
+            <div class="meeting-spit-group">
+                <h3>{{ group.name }}</h3>
+                <ul>
+                    {% for ticket in group.tickets %}
+                    <li>
+                        <a href="{{ request.script_root }}/tickets/{{ ticket.project }}/{{ ticket.id }}">{{ ticket.id }}</a>
+                        <span>{{ ticket.title }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="meeting-spit-empty">AI did not find any work items in these notes.</p>
+        {% endif %}
+
+        {% if result.decisions %}
+        <div class="meeting-spit-group">
+            <h3>Decisions</h3>
+            <ul>
+                {% for item in result.decisions %}
+                <li>{{ item.text }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if result.questions %}
+        <div class="meeting-spit-group">
+            <h3>Questions</h3>
+            <ul>
+                {% for item in result.questions %}
+                <li>{{ item.text }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if result.skipped %}
+        <div class="meeting-spit-group">
+            <h3>Could not place</h3>
+            <ul>
+                {% for item in result.skipped %}
+                <li>{{ item.title }} <span class="meeting-skip-reason">{{ item.reason }}</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <textarea
+        id="meeting-notes"
+        class="meeting-notes"
+        placeholder="Just write. Marks are optional:&#10;# billing&#10;! retry failed invoices @valter&#10;= no automatic refunds this quarter&#10;? does stripe retry on 500s"
+        {% if is_done %}readonly{% endif %}
+    >{{ meeting.notes }}</textarea>
+
+    <div class="meeting-status" id="meeting-status">
+        <span id="meeting-counts"></span>
+        <span id="meeting-save-state">{% if is_done %}Done{% else %}Not saved yet{% endif %}</span>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/meetings.js') }}"></script>
+{% endblock %}

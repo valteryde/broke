@@ -1,0 +1,47 @@
+{% extends "dashboard.jinja2" %}
+
+{% block title %}Meetings | Broke{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+{% endblock %}
+
+{% block path %}
+    <span><i class="ph ph-notebook"></i> Meetings</span>
+{% endblock %}
+
+{% block content %}
+<div class="meeting-list-head">
+    <div>
+        <h1>Meetings</h1>
+        <p class="meeting-lede">Write notes in the room. Done sends the whole dump to AI, which fills in tickets on your projects.</p>
+    </div>
+    <button type="button" class="btn btn-primary" id="meeting-new-btn">
+        <i class="ph ph-plus"></i> New meeting
+    </button>
+</div>
+
+{% if not rows %}
+<p class="meeting-empty">No meetings yet. Start one and type like you usually do.</p>
+{% else %}
+<ul class="meeting-list">
+    {% for row in rows %}
+    {% set m = row.meeting %}
+    <li>
+        <a class="meeting-list-item" href="{{ request.script_root }}/meetings/{{ m.id }}">
+            <div class="meeting-list-title">{{ m.title }}</div>
+            <div class="meeting-list-meta">
+                <span>{{ row.created_ago }}</span>
+                <span>{{ row.ticket_count }} ticket{% if row.ticket_count != 1 %}s{% endif %}</span>
+                {% if m.status == 'done' %}
+                <span class="meeting-status-done">Done</span>
+                {% endif %}
+            </div>
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/meetings.js') }}"></script>
+{% endblock %}

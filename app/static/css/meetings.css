@@ -1,0 +1,255 @@
+.meeting-list-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 1.25rem;
+}
+
+.meeting-list-head h1 {
+    margin-bottom: 0.35rem;
+}
+
+.meeting-lede,
+.meeting-empty {
+    color: #555;
+    max-width: 40rem;
+}
+
+.meeting-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.meeting-list-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: baseline;
+    padding: 14px 16px;
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+    color: inherit;
+}
+
+.meeting-list-item:hover {
+    border-style: solid;
+    border-color: #999;
+}
+
+.meeting-list-title {
+    font-weight: 600;
+}
+
+.meeting-list-meta {
+    display: flex;
+    gap: 12px;
+    color: #666;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.meeting-status-done {
+    color: #166534;
+}
+
+.meeting-page {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100% - 12px);
+    gap: 10px;
+}
+
+.meeting-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.meeting-title-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: 'Space Grotesk Variable', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    padding: 4px 0;
+    min-width: 0;
+}
+
+.meeting-title-input:focus {
+    outline: none;
+}
+
+.meeting-title-input[readonly] {
+    color: #222;
+}
+
+.meeting-vocab {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    color: #666;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.meeting-info {
+    position: relative;
+    display: inline-flex;
+}
+
+.meeting-info-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #666;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.meeting-info-btn:hover,
+.meeting-info-btn:focus {
+    color: #222;
+}
+
+.meeting-info-tip {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: calc(100% + 8px);
+    z-index: 2;
+    width: min(22rem, 70vw);
+    padding: 8px 10px;
+    background: var(--bg-white);
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    color: #555;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.meeting-info:hover .meeting-info-tip,
+.meeting-info:focus-within .meeting-info-tip {
+    display: block;
+}
+
+.meeting-ai-warn {
+    color: #555;
+    font-size: 0.9rem;
+    margin: 0;
+    max-width: 42rem;
+}
+
+.meeting-ai-warn a {
+    color: var(--logo-blue);
+}
+
+.meeting-vocab code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #222;
+}
+
+.meeting-notes {
+    flex: 1;
+    width: 100%;
+    min-height: 280px;
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 1.05rem;
+    line-height: 1.55;
+    resize: none;
+    background: var(--bg-white);
+    color: #222;
+}
+
+.meeting-notes:focus {
+    outline: none;
+    border-style: solid;
+    border-color: #888;
+}
+
+.meeting-notes[readonly] {
+    color: #333;
+    background: #fafafa;
+}
+
+.meeting-status {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.meeting-spit {
+    border: 1px dashed #ccc;
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+
+.meeting-spit h2 {
+    font-size: 1.05rem;
+    margin-bottom: 12px;
+}
+
+.meeting-spit-group {
+    margin-bottom: 14px;
+}
+
+.meeting-spit-group:last-child {
+    margin-bottom: 0;
+}
+
+.meeting-spit-group h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #666;
+    margin-bottom: 6px;
+}
+
+.meeting-spit-group ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.meeting-spit-group li {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.meeting-spit-group a {
+    color: var(--logo-blue);
+    font-weight: 600;
+}
+
+.meeting-spit-empty,
+.meeting-skip-reason {
+    color: #666;
+}
+
+.meeting-skip-reason {
+    font-size: 0.85rem;
+}
+
+@media (max-width: 768px) {
+    .meeting-list-head,
+    .meeting-list-item,
+    .meeting-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .meeting-list-meta {
+        flex-wrap: wrap;
+    }
+}
