@@ -12,7 +12,7 @@ from app.utils.meeting_notes import (
     parse_meeting_notes,
 )
 from app.utils.models import Ticket, UserTicketJoin, create_user
-from tests.fixtures import auth_client, client, create_test_project
+from tests.fixtures import app, auth_client, create_test_project
 
 
 def _notes():
@@ -150,9 +150,10 @@ def _():
 
 
 @test("/meetings requires authentication")
-def _(c=client):
-    response = c.get("/meetings", follow_redirects=False)
-    assert response.status_code in [302, 401]
+def _(test_app=app):
+    with test_app.test_client() as c:
+        response = c.get("/meetings", follow_redirects=False)
+        assert response.status_code in [302, 401]
 
 
 @test("creating a meeting and finishing it opens tickets in the project")
