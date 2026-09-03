@@ -62,20 +62,43 @@ html, body {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     margin-top: 20px;
+    width: 100%;
+    min-height: 0;
+    overflow-y: auto;
 }
 
+.sb-group {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    margin-top: 14px;
+}
+
+.sb-group-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--secondary-color);
+    padding: 0 var(--sb-inner-padding);
+    margin-bottom: 4px;
+}
 
 .sb-element {
     width: 100%;
     padding: var(--sb-inner-padding);
     box-sizing: border-box;
-    margin-bottom: 10px;
+    margin-bottom: 2px;
     border-radius: 5px;
     display: flex;
     flex-direction: row;
     gap: 10px;
+}
+
+.sb-group .sb-element:last-child {
+    margin-bottom: 0;
 }
 
 .sb-element .ph {
@@ -106,6 +129,48 @@ html, body {
     gap: 6px;
     margin-top: auto;
     margin-bottom: 20px;
+}
+
+.sb-user {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px 6px 4px;
+    border-radius: 5px;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+}
+
+.sb-user-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sb-user .ph {
+    margin-left: auto;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.sb-user.active,
+.sb-user:hover {
+    background-color: var(--logo-blue);
+    color: white;
+}
+
+.sb-update-dot {
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    position: absolute;
+    top: 6px;
+    right: 6px;
 }
 
 .sb-bottom svg {
@@ -155,7 +220,6 @@ html, body {
 }
 
 .sb-logout {
-    margin-left: auto;
     color: black;
     padding: 8px;
     border-radius: 6px;
@@ -287,8 +351,10 @@ html, body {
         border-radius: 0;
         padding: 15px;
     }
+}
 
+@media (max-width: 1100px), (max-height: 900px) {
     .sb-news {
-        margin-bottom: 20px;
+        display: none !important;
     }
 }

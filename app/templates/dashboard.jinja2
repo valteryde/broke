@@ -69,73 +69,74 @@
                 <span>News</span>
             </div>
 
-            <div class="sb-element {% if page == 'triage' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/intake'">
-                <i class="ph ph-tray"></i>
-                <span>Intake</span>
+            <div class="sb-group">
+                <div class="sb-group-label">Work</div>
+                <div class="sb-element {% if page == 'triage' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/intake'">
+                    <i class="ph ph-tray"></i>
+                    <span>Intake</span>
+                </div>
+                <div class="sb-element {% if page == 'tickets' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/tickets'">
+                    <i class="ph ph-ticket"></i>
+                    <span>Tickets</span>
+                </div>
+                <div class="sb-element {% if page == 'work_cycles' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/work-cycles'">
+                    <i class="ph ph-calendar-dots"></i>
+                    <span>Sprints</span>
+                </div>
             </div>
 
-            <div class="sb-element {% if page == 'tickets' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/tickets'">
-                <i class="ph ph-ticket"></i>
-                <span>Tickets</span>
-            </div>
-
-            <div class="sb-element {% if page == 'work_cycles' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/work-cycles'">
-                <i class="ph ph-calendar-dots"></i>
-                <span>Sprints</span>
-            </div>
-
-            {% if feature_monitors_enabled %}
-            <div class="sb-element {% if page == 'monitors' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/monitors'">
-                <i class="ph ph-heartbeat"></i>
-                <span>Monitors</span>
-            </div>
-            {% endif %}
-
-            {% if feature_metrics_enabled %}
-            <div class="sb-element {% if page == 'servers' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/servers'">
-                <i class="ph ph-hard-drives"></i>
-                <span>Servers</span>
-            </div>
-            {% endif %}
-
-            {% if feature_usage_enabled %}
-            <div class="sb-element {% if page == 'usage' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/usage'">
-                <i class="ph ph-chart-line-up"></i>
-                <span>Usage</span>
-            </div>
-            {% endif %}
-
-            <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="openUrlWithArgs('/errors')">
-                <i class="ph ph-bug-beetle"></i>
-                <span>Errors</span>
-            </div>
-
-            <div class="sb-element {% if page == 'reports' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/reports'">
-                <i class="ph ph-chart-bar"></i>
-                <span>Reports</span>
-            </div>
-
-            <div class="sb-element {% if page == 'changelog' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/changelog/manage'">
-                <i class="ph ph-scroll"></i>
-                <span>Changelog</span>
-            </div>
-
-            <div class="sb-element {% if page == 'settings' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/settings'" style="position: relative;">
-                <i class="ph ph-gear-six"></i>
-                <span>Settings</span>
-                {% if update_info and update_info.available %}
-                <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;position:absolute;top:8px;right:8px;"></span>
+            <div class="sb-group">
+                <div class="sb-group-label">Observe</div>
+                {% if feature_monitors_enabled %}
+                <div class="sb-element {% if page == 'monitors' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/monitors'">
+                    <i class="ph ph-heartbeat"></i>
+                    <span>Monitors</span>
+                </div>
                 {% endif %}
+                {% if feature_metrics_enabled %}
+                <div class="sb-element {% if page == 'servers' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/servers'">
+                    <i class="ph ph-hard-drives"></i>
+                    <span>Servers</span>
+                </div>
+                {% endif %}
+                {% if feature_usage_enabled %}
+                <div class="sb-element {% if page == 'usage' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/usage'">
+                    <i class="ph ph-chart-line-up"></i>
+                    <span>Usage</span>
+                </div>
+                {% endif %}
+                <div class="sb-element {% if page == 'errors' %}active{% endif %}" onclick="openUrlWithArgs('/errors')">
+                    <i class="ph ph-bug-beetle"></i>
+                    <span>Errors</span>
+                </div>
+            </div>
+
+            <div class="sb-group">
+                <div class="sb-group-label">More</div>
+                <div class="sb-element {% if page == 'reports' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/reports'">
+                    <i class="ph ph-chart-bar"></i>
+                    <span>Reports</span>
+                </div>
+                <div class="sb-element {% if page == 'changelog' %}active{% endif %}" onclick="window.location.href = '{{ request.script_root }}/changelog/manage'">
+                    <i class="ph ph-scroll"></i>
+                    <span>Changelog</span>
+                </div>
             </div>
 
         </div>
 
          <div class="sb-bottom">
-            <span class="avatar-stack avatar-stack-40" aria-hidden="true">
-                <svg width="40" height="40" data-jdenticon-value="{{ user.username }}"></svg>
-                <img src="{{ request.script_root }}/avatar/{{ user.username }}" alt="{{ user.username }} avatar" width="40" height="40" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
-            </span>
-            <span>{{ user_label(user.username) }}</span>
+            <a href="{{ request.script_root }}/settings" class="sb-user {% if page == 'settings' %}active{% endif %}" title="Settings">
+                <span class="avatar-stack avatar-stack-40" aria-hidden="true">
+                    <svg width="40" height="40" data-jdenticon-value="{{ user.username }}"></svg>
+                    <img src="{{ request.script_root }}/avatar/{{ user.username }}" alt="{{ user.username }} avatar" width="40" height="40" onload="this.classList.add('is-loaded'); if (this.previousElementSibling) this.previousElementSibling.style.display='none';" onerror="this.remove();">
+                </span>
+                <span class="sb-user-name">{{ user_label(user.username) }}</span>
+                <i class="ph ph-gear-six"></i>
+                {% if update_info and update_info.available %}
+                <span class="sb-update-dot"></span>
+                {% endif %}
+            </a>
             {% if is_desktop_client %}
             <a href="#" class="sb-logout" title="Switch instance" onclick="if (window.brokeDesktop && window.brokeDesktop.switchInstance) { window.brokeDesktop.switchInstance(); } return false;">
                 <i class="ph ph-arrows-left-right"></i>

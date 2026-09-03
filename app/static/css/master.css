@@ -58,6 +58,7 @@ body {
 /* Exclude interactive elements and main content from window dragging */
 #content-wrapper,
 .sb-element,
+.sb-user,
 .sb-bottom,
 .sb-news,
 .sb-header .ph,
