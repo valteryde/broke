@@ -601,6 +601,35 @@ button.use-flow-row:hover .use-flow-name {
     stroke-width: 1.5;
 }
 
+.use-map.is-zoomed path[data-id]:not(.is-selected) {
+    opacity: 0.22;
+}
+
+.use-map.is-zoomed path.is-selected {
+    fill: #e8e8e8;
+    stroke: #bbb;
+    stroke-width: 1;
+}
+
+.use-map-city {
+    fill: var(--use-line);
+    stroke: #fff;
+    stroke-width: 1.5px;
+    vector-effect: non-scaling-stroke;
+    cursor: default;
+}
+
+.use-map-city-label {
+    fill: #111;
+    stroke: #fff;
+    stroke-width: 4px;
+    paint-order: stroke;
+    vector-effect: non-scaling-stroke;
+    font-family: "Rubik Variable", "Rubik", system-ui, sans-serif;
+    font-weight: 600;
+    pointer-events: none;
+}
+
 .use-map-water {
     fill: var(--bg-white);
     stroke: none;

@@ -154,14 +154,34 @@ def _(c=client):
     assert response.status_code in (302, 401)
 
 
-@test("GET /usage renders for a signed-in user")
+@test("GET /usage renders a shell without querying the lake")
 def _(c=auth_client, home=usage_home):
-    response = c.get("/usage")
+    with patch("app.utils.usage_store.dashboard") as dash:
+        response = c.get("/usage")
     assert response.status_code == 200
-    assert b"Usage" in response.data
+    body = response.get_data(as_text=True)
+    assert "Usage" in body
+    assert 'id="usage-page"' in body
+    assert "Loading usage" in body
+    assert 'id="usage-pages"' not in body
+    assert "Copenhagen" not in body
+    dash.assert_not_called()
 
 
-@test("GET /usage shows flow, gates, journeys, and a country map")
+@test("GET /api/usage requires authentication")
+def _(c=client):
+    response = c.get("/api/usage", follow_redirects=False)
+    assert response.status_code in (302, 401)
+
+
+@test("GET /api/usage is 404 when usage is disabled")
+def _(c=auth_client, home=usage_home):
+    with patch("app.views.usage.is_feature_enabled", return_value=False):
+        response = c.get("/api/usage")
+    assert response.status_code == 404
+
+
+@test("GET /api/usage returns flow, gates, journeys, and countries")
 def _(c=auth_client, home=usage_home):
     now = int(time.time() * 1000) - 2000
     usage_store.write_events(
@@ -192,18 +212,26 @@ def _(c=auth_client, home=usage_home):
             },
         ]
     )
-    response = c.get("/usage")
+    response = c.get("/api/usage")
     assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert 'id="usage-pages"' in body
-    assert 'id="usage-flow"' in body
-    assert "Where they start and stop" in body
-    assert "Journeys" in body
-    assert 'id="usage-map"' in body
-    assert "world-110m.json" in body
-    assert "Copenhagen" in body
-    assert "use-journey-step" in body
-    assert ">/tickets</span>" in body
+    payload = response.get_json()
+    assert payload["has_events"] is True
+    assert payload["pageviews"] == 2
+    pages = {row["label"] for row in payload["pages"]}
+    assert "/tickets" in pages
+    assert payload["gates"]
+    assert payload["journeys"]
+    journey_steps = [step for row in payload["journeys"] for step in row["steps"]]
+    assert "/tickets" in journey_steps
+    cities = {row["label"] for row in payload["cities"]}
+    assert "Copenhagen" in cities
+    copenhagen = next(row for row in payload["cities"] if row["label"] == "Copenhagen")
+    assert copenhagen["country"] == "DK"
+    assert 685.0 <= copenhagen["x"] <= 703.0
+    assert 195.0 <= copenhagen["y"] <= 213.0
+    countries = {row["label"] for row in payload["countries"]}
+    assert "DK" in countries
+    assert payload["has_geo"] is True
 
 
 @test("GET /usage.js serves the beacon")

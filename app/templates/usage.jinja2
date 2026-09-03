@@ -11,30 +11,16 @@
     <span><i class="ph ph-chart-line-up"></i> Usage</span>
 {% endblock %}
 
-{% macro bar_list(rows, show_flag=false) %}
-    <div class="use-bars">
-        {% for row in rows %}
-        <div class="use-bar-row">
-            <div class="use-bar-top">
-                <span class="use-bar-label">
-                    {% if show_flag and row.flag %}<span class="use-flag">{{ row.flag }}</span>{% endif %}
-                    {{ row.display or row.label }}
-                </span>
-                <span class="use-bar-meta">
-                    <strong>{{ '{:,}'.format(row.count) }}</strong>
-                    <span>{{ row.share }}%</span>
-                </span>
-            </div>
-            <div class="use-bar-track">
-                <div class="use-bar-fill" style="width: {{ row.bar }}%"></div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-{% endmacro %}
-
 {% block content %}
-<div class="use-page">
+<div
+    class="use-page"
+    id="usage-page"
+    data-range="{{ range_key }}"
+    data-snippet="{{ snippet_url }}"
+    data-settings="{{ request.script_root }}{{ settings_url }}"
+    data-has-key="{{ '1' if has_site_key else '0' }}"
+    data-map-src="{{ url_for('static', filename='js/vendor/world-110m.json') }}"
+>
     <div class="use-header">
         <div>
             <h1>Usage</h1>
@@ -42,244 +28,21 @@
         </div>
         <div class="use-ranges">
             {% for key in ranges %}
-            <a href="{{ request.script_root }}/usage?range={{ key }}" class="{% if key == range_key %}is-active{% endif %}">{{ range_labels.get(key, key) }}</a>
+            <a href="{{ request.script_root }}/usage?range={{ key }}" data-range="{{ key }}" class="{% if key == range_key %}is-active{% endif %}">{{ range_labels.get(key, key) }}</a>
             {% endfor %}
         </div>
     </div>
 
-    {% if not has_events %}
-    <div class="use-empty">
-        <i class="ph ph-chart-line-up"></i>
-        <p>No usage events in this range.</p>
-        {% if has_site_key %}
-        <p>Add this snippet to your product. Pageviews arrive here; errors still go through the Sentry DSN.</p>
-        <pre><code>&lt;script defer src="{{ snippet_url }}" data-key="YOUR_SITE_KEY"&gt;&lt;/script&gt;</code></pre>
-        {% else %}
-        <p>Create a site key under <a href="{{ request.script_root }}{{ settings_url }}">Settings › Usage</a>, then add the snippet to your product.</p>
-        {% endif %}
-    </div>
-    {% else %}
-
-    <div class="use-kpis">
-        <div class="use-kpi">
-            <div class="use-kpi-head">
-                <span class="use-kpi-label"><i class="ph ph-users"></i> Users</span>
-            </div>
-            <span class="use-kpi-value">{{ '{:,}'.format(data.uniques) }}</span>
-            <span class="use-kpi-sub">{{ '{:,}'.format(data.sessions) }} sessions</span>
-            <div class="use-spark" data-spark="users"></div>
-        </div>
-        <div class="use-kpi">
-            <div class="use-kpi-head">
-                <span class="use-kpi-label"><i class="ph ph-eye"></i> Views</span>
-            </div>
-            <span class="use-kpi-value">{{ '{:,}'.format(data.pageviews) }}</span>
-            <span class="use-kpi-sub">{% if pages_per_session_display %}{{ pages_per_session_display }} per session{% else %}—{% endif %}</span>
-            <div class="use-spark" data-spark="views"></div>
-        </div>
-        <div class="use-kpi">
-            <div class="use-kpi-head">
-                <span class="use-kpi-label"><i class="ph ph-timer"></i> Avg. session</span>
-            </div>
-            <span class="use-kpi-value">{{ avg_session_display or '—' }}</span>
-            <span class="use-kpi-sub">First to last beacon</span>
-        </div>
-        <div class="use-kpi use-kpi-bounce">
-            <div class="use-kpi-head">
-                <span class="use-kpi-label"><i class="ph ph-arrow-u-up-left"></i> Bounce rate</span>
-            </div>
-            <div class="use-bounce">
-                <div class="use-ring" style="--pct: {{ bounce_pct }}"></div>
-                <div>
-                    <span class="use-kpi-value">{{ bounce_display or '—' }}</span>
-                    <span class="use-kpi-sub">{{ '{:,}'.format(data.bounced) }} of {{ '{:,}'.format(data.sessions) }} sessions</span>
-                </div>
-            </div>
+    <div id="usage-body">
+        <div class="use-empty">
+            <i class="ph ph-chart-line-up"></i>
+            <p>Loading usage…</p>
         </div>
     </div>
-
-    <section class="use-chart" id="usage-traffic">
-        <div class="use-chart-head">
-            <h2>Traffic</h2>
-            <div class="use-legend">
-                <span class="use-legend-item"><i class="use-swatch use-swatch-users"></i> Users</span>
-                <span class="use-legend-item"><i class="use-swatch use-swatch-views"></i> Views</span>
-            </div>
-        </div>
-        <div class="use-chart-body"></div>
-    </section>
-
-    {% if data.pages %}
-    <div class="use-grid use-grid-main">
-        <section class="use-panel">
-            <h2>Pages</h2>
-            <p class="use-panel-lead">Select a page to see how people reach it</p>
-            <div class="use-pages" id="usage-pages">
-                {% for row in data.pages[:12] %}
-                <button type="button" class="use-page-row" data-page="{{ row.label }}" aria-pressed="false">
-                    <div class="use-bar-top">
-                        <span class="use-bar-label">{{ row.label }}</span>
-                        <span class="use-bar-meta">
-                            <strong>{{ '{:,}'.format(row.count) }}</strong>
-                            {% if row.users %}<span>{{ '{:,}'.format(row.users) }} users</span>{% endif %}
-                        </span>
-                    </div>
-                    <div class="use-bar-track">
-                        <div class="use-bar-fill" style="width: {{ row.bar }}%"></div>
-                    </div>
-                </button>
-                {% endfor %}
-            </div>
-        </section>
-
-        <section class="use-panel use-panel-flow">
-            <h2>User flow</h2>
-            <p class="use-panel-lead" id="usage-flow-caption">Where people came from, and where they went next</p>
-            <div class="use-flow" id="usage-flow"></div>
-        </section>
-    </div>
-    {% endif %}
-
-    <div class="use-grid">
-        {% if data.sectors %}
-        <section class="use-panel">
-            <h2>Sectors</h2>
-            <div class="use-split">
-                <div class="use-donut" id="usage-donut"></div>
-                {{ bar_list(data.sectors[:8]) }}
-            </div>
-        </section>
-        {% endif %}
-
-        {% if data.events %}
-        <section class="use-panel">
-            <h2>Events</h2>
-            {{ bar_list(data.events) }}
-        </section>
-        {% elif data.routes %}
-        <section class="use-panel">
-            <h2>Routes</h2>
-            {{ bar_list(data.routes[:8]) }}
-        </section>
-        {% endif %}
-    </div>
-
-    {% if data.gates %}
-    <section class="use-panel use-panel-wide">
-        <h2>Where they start and stop</h2>
-        <div class="use-gates-legend">
-            <span class="use-legend-item"><i class="use-swatch use-swatch-start"></i> Start</span>
-            <span class="use-legend-item"><i class="use-swatch use-swatch-stop"></i> Stop</span>
-        </div>
-        <div class="use-gates">
-            <div class="use-gate-head">
-                <span>Page</span>
-                <span>Start</span>
-                <span>Stop</span>
-            </div>
-            {% for row in data.gates %}
-            <div class="use-gate-row">
-                <span class="use-gate-label" title="{{ row.label }}">{{ row.label }}</span>
-                <div class="use-gate-metric">
-                    <span class="use-gate-n">{{ '{:,}'.format(row.entries) }}</span>
-                    <div class="use-bar-track">
-                        <div class="use-bar-fill use-fill-start" style="width: {{ row.entry_bar }}%"></div>
-                    </div>
-                </div>
-                <div class="use-gate-metric">
-                    <span class="use-gate-n">{{ '{:,}'.format(row.exits) }}</span>
-                    <div class="use-bar-track">
-                        <div class="use-bar-fill use-fill-stop" style="width: {{ row.exit_bar }}%"></div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
-
-    {% if data.journeys %}
-    <section class="use-panel use-panel-wide">
-        <h2>Journeys</h2>
-        <ol class="use-journeys">
-            {% for row in data.journeys %}
-            <li class="use-journey">
-                <span class="use-journey-count">{{ '{:,}'.format(row.count) }}</span>
-                <div class="use-journey-body">
-                    <div class="use-journey-fill" style="width: {{ row.bar }}%"></div>
-                    <div class="use-journey-steps">
-                        {% for step in row.steps %}
-                        {% if step == '…' %}
-                        <span class="use-journey-more">…</span>
-                        {% else %}
-                        <span class="use-journey-step">{{ step }}</span>
-                        {% endif %}
-                        {% if not loop.last %}<span class="use-journey-arrow" aria-hidden="true">→</span>{% endif %}
-                        {% endfor %}
-                    </div>
-                </div>
-            </li>
-            {% endfor %}
-        </ol>
-    </section>
-    {% endif %}
-
-    {% if data.has_geo %}
-    {% if data.countries %}
-    <section class="use-panel use-panel-wide use-panel-map">
-        <h2>Countries</h2>
-        <div class="use-map" id="usage-map" data-src="{{ url_for('static', filename='js/vendor/world-110m.json') }}">
-            <button type="button" class="use-map-back" id="usage-map-back" hidden>World</button>
-            <div class="use-map-tip" id="usage-map-tip" hidden></div>
-        </div>
-        <div class="use-map-legend" aria-hidden="true">
-            <span>Fewer</span>
-            <span class="use-map-scale">
-                <i data-level="0"></i>
-                <i data-level="1"></i>
-                <i data-level="2"></i>
-                <i data-level="3"></i>
-            </span>
-            <span>More</span>
-        </div>
-    </section>
-    {% endif %}
-    <div class="use-grid">
-        {% if data.countries %}
-        <section class="use-panel">
-            <h2>By country</h2>
-            {{ bar_list(data.countries, show_flag=true) }}
-        </section>
-        {% endif %}
-        {% if data.cities %}
-        <section class="use-panel">
-            <h2>Cities</h2>
-            {{ bar_list(data.cities[:20]) }}
-        </section>
-        {% endif %}
-    </div>
-    <p class="use-credit">
-        IP Geolocation by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0)
-        {% if geo_status and geo_status.dataset %} · City Lite {{ geo_status.dataset }}{% endif %}
-        · Map outlines from <a href="https://www.naturalearthdata.com/">Natural Earth</a>
-    </p>
-    {% endif %}
-
-    {% if data.events and data.routes %}
-    <section class="use-panel use-panel-wide">
-        <h2>Routes</h2>
-        {{ bar_list(data.routes[:12]) }}
-    </section>
-    {% endif %}
-
-    <script type="application/json" id="usage-data">{{ chart_payload | tojson }}</script>
-    {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
-    {% if has_events %}
     <script src="{{ url_for('static', filename='js/vendor/uplot-1.6.32.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/usage.js') }}"></script>
-    {% endif %}
 {% endblock %}

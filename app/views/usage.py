@@ -12,9 +12,9 @@ import re
 import time
 from typing import Any
 
-from flask import Blueprint, Response, abort, render_template, request, send_from_directory
+from flask import Blueprint, Response, abort, jsonify, render_template, request, send_from_directory
 
-from ..utils import ip_lookup, usage_store
+from ..utils import city_coords, ip_lookup, usage_store
 from ..utils.app import limiter
 from ..utils.features import FEATURE_USAGE, is_feature_enabled
 from ..utils.models import UsageToken, User
@@ -239,13 +239,12 @@ def _merge_gates(
     return rows
 
 
-@usage_bp.route("/usage")
-@protected
-def usage_view(user: User):
-    _feature_guard()
+def _parse_range() -> str:
     range_key = (request.args.get("range") or DEFAULT_RANGE).strip()
-    if range_key not in RANGES:
-        range_key = DEFAULT_RANGE
+    return range_key if range_key in RANGES else DEFAULT_RANGE
+
+
+def _dashboard_payload(range_key: str) -> dict[str, Any]:
     span, step = RANGES[range_key]
     end_ms = int(time.time() * 1000) + 1
     start_ms = end_ms - span * 1000
@@ -254,7 +253,6 @@ def usage_view(user: User):
     bounce = data.get("bounce_rate")
     bounce_pct = round(bounce * 100) if bounce is not None else None
     pps = data.get("pages_per_session")
-    geo_status = ip_lookup.sidecar_status()
     has_events = bool(data["pageviews"] or data["events"])
 
     view_total = int(data["pageviews"] or 0)
@@ -277,6 +275,7 @@ def usage_view(user: User):
         city = str(row.get("label") or "")
         country = str(row.get("country") or "")
         row["display"] = f"{city}, {country}" if country else city
+    city_coords.attach_points(data["cities"])
     data["gates"] = _merge_gates(data.get("entries") or [], data.get("exits") or [])
     journey_peak = max((int(j["count"]) for j in data["journeys"]), default=1) or 1
     for row in data["journeys"]:
@@ -285,35 +284,60 @@ def usage_view(user: User):
         ]
         row["bar"] = round(100.0 * int(row["count"]) / journey_peak, 1)
 
-    snippet_url = f"{ingest_base_url()}/usage.js"
-    token_row = UsageToken.get_or_none()
-    chart_payload = {
+    geo_dataset = None
+    if data.get("has_geo"):
+        status = ip_lookup.sidecar_status() or {}
+        geo_dataset = status.get("dataset")
+
+    return {
+        "range": range_key,
+        "has_events": has_events,
+        "pageviews": data["pageviews"],
+        "uniques": data["uniques"],
+        "sessions": data["sessions"],
+        "bounced": data["bounced"],
+        "bounce_pct": bounce_pct if bounce_pct is not None else 0,
+        "bounce_display": f"{bounce_pct}%" if bounce_pct is not None else None,
+        "avg_session_display": _format_duration_ms(data.get("avg_session_ms")),
+        "pages_per_session_display": f"{pps:.1f}" if pps else None,
         "views": data.get("traffic") or [],
         "users": data.get("traffic_users") or [],
         "sectors": data.get("sectors") or [],
         "pages": data.get("pages") or [],
-        "transitions": data.get("transitions") or [],
+        "routes": data.get("routes") or [],
         "entries": data.get("entries") or [],
         "exits": data.get("exits") or [],
+        "transitions": data.get("transitions") or [],
+        "events": data.get("events") or [],
+        "gates": data.get("gates") or [],
+        "journeys": data.get("journeys") or [],
         "countries": data.get("countries") or [],
+        "cities": data.get("cities") or [],
+        "has_geo": bool(data.get("has_geo")),
+        "geo_dataset": geo_dataset,
     }
 
+
+@usage_bp.route("/usage")
+@protected
+def usage_view(user: User):
+    _feature_guard()
+    token_row = UsageToken.get_or_none()
     return render_template(
         "usage.jinja2",
         user=user,
         page="usage",
-        range_key=range_key,
+        range_key=_parse_range(),
         ranges=list(RANGES),
         range_labels=RANGE_LABELS,
-        data=data,
-        has_events=has_events,
-        bounce_display=f"{bounce_pct}%" if bounce_pct is not None else None,
-        bounce_pct=bounce_pct if bounce_pct is not None else 0,
-        avg_session_display=_format_duration_ms(data.get("avg_session_ms")),
-        pages_per_session_display=f"{pps:.1f}" if pps else None,
-        chart_payload=chart_payload,
-        geo_status=geo_status,
-        snippet_url=snippet_url,
+        snippet_url=f"{ingest_base_url()}/usage.js",
         has_site_key=bool(token_row),
         settings_url="/settings/usage",
     )
+
+
+@usage_bp.route("/api/usage")
+@protected
+def usage_api(user: User):
+    _feature_guard()
+    return jsonify(_dashboard_payload(_parse_range()))
