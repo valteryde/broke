@@ -53,6 +53,9 @@
             {% if subticket_count > 0 %}
             <p>
                 <strong>Subticket Progress:</strong> {{ subticket_done_count }}/{{ subticket_count }} done
+                {% if subticket_estimate_minutes %}
+                · {{ subticket_estimate_minutes | format_estimate }} estimated
+                {% endif %}
             </p>
             {% endif %}
         </div>
@@ -73,7 +76,7 @@
         <li>
             <a href="{{ request.script_root }}/tickets/{{ child.project }}/{{ child.id }}"><strong>{{ child.id }}</strong></a>
             - {{ child.title }}
-            <span>({{ child.status }}, {{ child.priority }})</span>
+            <span>({{ child.status }}, {{ child.priority }}{% if child.estimate_minutes %}, {{ child.estimate_minutes | format_estimate }}{% endif %})</span>
         </li>
         {% endfor %}
     </ul>
@@ -216,6 +219,7 @@
                 ],
                 dueDate: '{{ ticket.due_date | default("", true) }}',
                 workCycleId: {% if ticket.work_cycle_id is not none %}{{ ticket.work_cycle_id }}{% else %}null{% endif %},
+                estimateMinutes: {% if ticket.estimate_minutes is not none %}{{ ticket.estimate_minutes }}{% else %}null{% endif %},
                 aiDelegate: {% if ticket.ai_delegate %}true{% else %}false{% endif %}
             };
 

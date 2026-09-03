@@ -365,6 +365,7 @@ class List {
         // Original lists.js had this logic:
         if (field === 'status') item.status = value;
         if (field === 'priority') item.urgency = value; // Coupled to 'urgency' prop
+        if (field === 'estimateMinutes') item.estimateMinutes = value;
 
         if (field === 'assignees' && isToggle) {
             const idx = item.assignees.indexOf(value);

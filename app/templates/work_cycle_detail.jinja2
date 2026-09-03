@@ -24,7 +24,7 @@
 <h1 style="margin-bottom: 0.25rem;">{{ cycle.name }}</h1>
 <p class="card-description" style="margin-bottom: 0.75rem;">
     {% if cycle.goal %}{{ cycle.goal }}{% endif %}
-    <br>{{ cycle_stats.total }} ticket{% if cycle_stats.total != 1 %}s{% endif %} in this sprint · {{ cycle_stats.active }} open · {{ cycle_stats.done }} done
+    <br>{{ cycle_stats.total }} ticket{% if cycle_stats.total != 1 %}s{% endif %} in this sprint · {{ cycle_stats.active }} open · {{ cycle_stats.done }} done{% if cycle_stats.remaining_estimate_minutes %} · {{ cycle_stats.remaining_estimate_minutes | format_estimate }} remaining{% elif cycle_stats.estimate_minutes %} · {{ cycle_stats.estimate_minutes | format_estimate }} estimated{% endif %}
     {% if cycle.project %}<br><span style="color:#666;">Legacy tag: project {{ cycle.project }} (tickets are not limited to this project)</span>{% endif %}
 </p>
 
@@ -82,6 +82,9 @@
                         <div class="wc-diagram-ticket-title">{{ t.title }}</div>
                         <div class="wc-diagram-ticket-meta">
                             <span class="wc-diagram-priority ticket-priority-{{ t.priority }}">{{ t.priority }}</span>
+                            {% if t.estimate_minutes %}
+                            <span class="wc-diagram-estimate"><i class="ph ph-timer"></i> {{ t.estimate_minutes | format_estimate }}</span>
+                            {% endif %}
                             {% if t.assignees %}
                             <span class="wc-diagram-assignees">
                                 {% for a in t.assignees %}

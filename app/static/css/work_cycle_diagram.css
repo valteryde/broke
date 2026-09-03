@@ -152,6 +152,14 @@
   color: #3730a3;
 }
 
+.wc-diagram-estimate {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  color: #555;
+}
+
 .wc-diagram-assignees {
   display: flex;
   flex-wrap: wrap;

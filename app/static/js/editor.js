@@ -237,6 +237,16 @@ class TicketEditor {
                     </button>
                 </div>
 
+                <!-- Estimate -->
+                <div class="ticket-property">
+                    <div class="ticket-property-label">Estimate</div>
+                    <button class="ticket-property-btn" data-property="estimate">
+                        <i class="ph ph-timer"></i>
+                        <span class="property-value">${this.renderEstimateValue()}</span>
+                        <i class="ph ph-caret-down"></i>
+                    </button>
+                </div>
+
                 <!-- Assignees -->
                 <div class="ticket-property">
                     <div class="ticket-property-label">Assignees</div>
@@ -352,6 +362,69 @@ class TicketEditor {
         this.ticket.workCycleId = cycleId;
         this.onSave('work_cycle_id', cycleId);
         this.refreshProperty('workCycle');
+    }
+
+    renderEstimateValue() {
+        const label = typeof formatEstimateMinutes === 'function'
+            ? formatEstimateMinutes(this.ticket.estimateMinutes)
+            : '';
+        if (!label) {
+            return '<span style="color: #999;">No estimate</span>';
+        }
+        return this.escapeHtml(label);
+    }
+
+    mountEstimateDropdown() {
+        const estimateBtn = this.container.querySelector('[data-property="estimate"]');
+        if (!estimateBtn) return;
+
+        const current = this.ticket.estimateMinutes == null ? null : Number(this.ticket.estimateMinutes);
+        const presets = (typeof EstimatePresets !== 'undefined' ? EstimatePresets : []);
+        const items = [
+            {
+                label: 'No estimate',
+                icon: 'ph-x',
+                selected: current == null || Number.isNaN(current),
+                onClick: () => this.setEstimate(null)
+            },
+            { divider: true },
+            ...presets.map((preset) => ({
+                label: preset.label,
+                icon: 'ph-timer',
+                selected: current === preset.minutes,
+                onClick: () => this.setEstimate(preset.minutes)
+            })),
+            { divider: true },
+            {
+                label: 'Custom…',
+                icon: 'ph-pencil-simple',
+                onClick: () => this.promptCustomEstimate()
+            }
+        ];
+        this.dropdowns.estimate = new Dropdown(estimateBtn, {
+            items,
+            closeOnClick: true
+        });
+    }
+
+    setEstimate(minutes) {
+        this.ticket.estimateMinutes = minutes;
+        this.onSave('estimate_minutes', minutes);
+        this.refreshProperty('estimate');
+    }
+
+    promptCustomEstimate() {
+        const currentLabel = typeof formatEstimateMinutes === 'function'
+            ? formatEstimateMinutes(this.ticket.estimateMinutes)
+            : '';
+        const raw = window.prompt('Time estimate (e.g. 30m, 2h, 1d, 1w)', currentLabel || '');
+        if (raw === null) return;
+        const parsed = typeof parseEstimateInput === 'function' ? parseEstimateInput(raw) : null;
+        if (String(raw).trim() && parsed == null) {
+            alert('Could not parse estimate. Try 30m, 2h, or 1d.');
+            return;
+        }
+        this.setEstimate(parsed);
     }
 
     renderActivity() {
@@ -695,6 +768,7 @@ class TicketEditor {
         }
 
         this.mountWorkCycleDropdown();
+        this.mountEstimateDropdown();
 
         // Due date dropdown
         const dueDateBtn = this.container.querySelector('[data-property="dueDate"]');
@@ -975,6 +1049,30 @@ class TicketEditor {
                 }
             }).show();
         }, 'Change Due Date', false, target);
+
+        window.shortcuts.register('e', () => {
+            const presets = (typeof EstimatePresets !== 'undefined' ? EstimatePresets : []);
+            new ListModal({
+                title: 'Set Estimate',
+                items: [
+                    { label: 'No estimate', value: null, icon: 'ph-x', selected: this.ticket.estimateMinutes == null },
+                    ...presets.map((preset) => ({
+                        label: preset.label,
+                        value: preset.minutes,
+                        icon: 'ph-timer',
+                        selected: Number(this.ticket.estimateMinutes) === preset.minutes
+                    })),
+                    { label: 'Custom…', value: '__custom__', icon: 'ph-pencil-simple' }
+                ],
+                onSelect: (item) => {
+                    if (item.value === '__custom__') {
+                        this.promptCustomEstimate();
+                        return;
+                    }
+                    this.setEstimate(item.value);
+                }
+            }).show();
+        }, 'Change Estimate', false, target);
     }
 
     // Property updates
@@ -1028,6 +1126,13 @@ class TicketEditor {
                 <i class="ph ph-caret-down"></i>
             `;
             this.mountWorkCycleDropdown();
+        } else if (field === 'estimate') {
+            btn.innerHTML = `
+                <i class="ph ph-timer"></i>
+                <span class="property-value">${this.renderEstimateValue()}</span>
+                <i class="ph ph-caret-down"></i>
+            `;
+            this.mountEstimateDropdown();
         }
     }
 
@@ -1269,6 +1374,8 @@ class TicketEditor {
             assignees: 'assignees',
             labels: 'labels',
             dueDate: 'due date',
+            estimate: 'estimate',
+            estimateMinutes: 'estimate',
             title: 'title',
             description: 'description'
         };

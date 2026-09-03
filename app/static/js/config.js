@@ -142,3 +142,85 @@ const PriorityOrder = ['urgent', 'high', 'medium', 'low', 'none'];
 
 // Helper to get priorities as array (for dropdowns)
 const PriorityList = PriorityOrder.map(key => PriorityConfig[key]);
+
+const ESTIMATE_MINUTES_PER_HOUR = 60;
+const ESTIMATE_MINUTES_PER_DAY = 8 * ESTIMATE_MINUTES_PER_HOUR;
+const ESTIMATE_MINUTES_PER_WEEK = 5 * ESTIMATE_MINUTES_PER_DAY;
+const ESTIMATE_MAX_MINUTES = 4 * ESTIMATE_MINUTES_PER_WEEK;
+
+const EstimatePresets = [
+    { minutes: 15, label: '15m' },
+    { minutes: 30, label: '30m' },
+    { minutes: 60, label: '1h' },
+    { minutes: 120, label: '2h' },
+    { minutes: 240, label: '4h' },
+    { minutes: 480, label: '1d' },
+    { minutes: 960, label: '2d' },
+    { minutes: 1440, label: '3d' },
+    { minutes: 2400, label: '1w' }
+];
+
+function formatEstimateMinutes(minutes) {
+    if (minutes == null || minutes === '') return '';
+    let remaining = Math.round(Number(minutes));
+    if (!Number.isFinite(remaining) || remaining <= 0) return '';
+
+    const weeks = Math.floor(remaining / ESTIMATE_MINUTES_PER_WEEK);
+    remaining -= weeks * ESTIMATE_MINUTES_PER_WEEK;
+    const days = Math.floor(remaining / ESTIMATE_MINUTES_PER_DAY);
+    remaining -= days * ESTIMATE_MINUTES_PER_DAY;
+    const hours = Math.floor(remaining / ESTIMATE_MINUTES_PER_HOUR);
+    remaining -= hours * ESTIMATE_MINUTES_PER_HOUR;
+
+    const parts = [];
+    if (weeks) parts.push(weeks + 'w');
+    if (days) parts.push(days + 'd');
+    if (hours) parts.push(hours + 'h');
+    if (remaining) parts.push(remaining + 'm');
+    return parts.join(' ');
+}
+
+function parseEstimateInput(raw) {
+    if (raw == null) return null;
+    const text = String(raw).trim().toLowerCase();
+    if (!text || ['none', 'no', 'clear', '-', '0', 'null', 'no estimate'].includes(text)) {
+        return null;
+    }
+
+    const compact = text.replace(/[,+]|and/g, ' ').replace(/\s+/g, ' ').trim();
+    const tokenRe = /(\d+(?:\.\d+)?)\s*(w(?:eeks?)?|d(?:ays?)?|h(?:ours?|rs?)?|m(?:ins?|inutes?)?)?/gi;
+    let total = 0;
+    let consumed = 0;
+    let match;
+    while ((match = tokenRe.exec(compact)) !== null) {
+        const gap = compact.slice(consumed, match.index).trim();
+        if (gap) {
+            tokenRe.lastIndex = 0;
+            return null;
+        }
+        consumed = match.index + match[0].length;
+        const amount = parseFloat(match[1]);
+        const unit = (match[2] || '').toLowerCase();
+        if (!unit) {
+            total += amount * ESTIMATE_MINUTES_PER_HOUR;
+        } else if (unit.startsWith('w')) {
+            total += amount * ESTIMATE_MINUTES_PER_WEEK;
+        } else if (unit.startsWith('d')) {
+            total += amount * ESTIMATE_MINUTES_PER_DAY;
+        } else if (unit.startsWith('h')) {
+            total += amount * ESTIMATE_MINUTES_PER_HOUR;
+        } else {
+            total += amount;
+        }
+    }
+    if (!consumed || compact.slice(consumed).trim()) return null;
+    const minutes = Math.round(total);
+    if (minutes <= 0 || minutes > ESTIMATE_MAX_MINUTES) return null;
+    return minutes;
+}
+
+if (typeof window !== 'undefined') {
+    window.EstimatePresets = EstimatePresets;
+    window.formatEstimateMinutes = formatEstimateMinutes;
+    window.parseEstimateInput = parseEstimateInput;
+}

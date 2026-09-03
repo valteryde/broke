@@ -7,6 +7,7 @@ from typing import Any
 from peewee import DoesNotExist
 
 from .models import Comment, Ticket, TicketLabelJoin, TicketUpdateMessage, UserTicketJoin, WorkCycle
+from .ticket_estimate import format_estimate_minutes
 
 
 def build_ticket_export_payload(ticket_id: str) -> dict[str, Any] | None:
@@ -45,6 +46,7 @@ def build_ticket_export_payload(ticket_id: str) -> dict[str, Any] | None:
         "priority": ticket.priority,
         "parent_ticket_id": ticket.parent_ticket_id,
         "work_cycle_id": ticket.work_cycle_id,
+        "estimate_minutes": ticket.estimate_minutes,
         "ai_delegate": bool(getattr(ticket, "ai_delegate", 0) or 0),
         "created_at": ticket.created_at,
         "labels": labels,
@@ -74,6 +76,7 @@ def build_ticket_export_payload(ticket_id: str) -> dict[str, Any] | None:
                 "title": child.title,
                 "status": child.status,
                 "priority": child.priority,
+                "estimate_minutes": child.estimate_minutes,
                 "created_at": child.created_at,
             }
             for child in subtickets
@@ -90,6 +93,7 @@ def ticket_payload_to_markdown(payload: dict[str, Any]) -> str:
     updates = payload.get("updates") or []
     subtickets = payload.get("subtickets") or []
     wc = payload.get("work_cycle_id")
+    estimate_label = format_estimate_minutes(payload.get("estimate_minutes")) or "None"
 
     markdown_lines = [
         f"# Ticket {ticket_id}",
@@ -98,6 +102,7 @@ def ticket_payload_to_markdown(payload: dict[str, Any]) -> str:
         f"- Project: {payload.get('project', '')}",
         f"- Status: {payload.get('status', '')}",
         f"- Priority: {payload.get('priority', '')}",
+        f"- Estimate: {estimate_label}",
         f"- Parent Ticket: {payload.get('parent_ticket_id') or 'None'}",
         f"- Work cycle id: {wc if wc is not None else 'None'}",
         f"- External AI handoff: {'yes' if payload.get('ai_delegate') else 'no'}",
@@ -145,6 +150,7 @@ def ticket_payload_to_markdown(payload: dict[str, Any]) -> str:
         for child in subtickets:
             markdown_lines.append(
                 f"- {child['id']} | {child['title']} | {child['status']} | {child['priority']}"
+                f" | {format_estimate_minutes(child.get('estimate_minutes')) or 'no estimate'}"
             )
     else:
         markdown_lines.append("No subtickets.")

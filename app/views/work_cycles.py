@@ -41,7 +41,14 @@ def _normalize_lane_status(status: str | None) -> str:
 
 def _stats_for_cycles(cycle_ids: list[int]) -> dict[int, dict[str, int]]:
     out: dict[int, dict[str, int]] = {
-        cid: {"total": 0, "done": 0, "active": 0} for cid in cycle_ids
+        cid: {
+            "total": 0,
+            "done": 0,
+            "active": 0,
+            "estimate_minutes": 0,
+            "remaining_estimate_minutes": 0,
+        }
+        for cid in cycle_ids
     }
     if not cycle_ids:
         return out
@@ -51,10 +58,13 @@ def _stats_for_cycles(cycle_ids: list[int]) -> dict[int, dict[str, int]]:
         if cid not in out:
             continue
         out[cid]["total"] += 1
+        minutes = int(getattr(t, "estimate_minutes", 0) or 0)
+        out[cid]["estimate_minutes"] += minutes
         if t.status in {"done", "closed", "duplicate"}:
             out[cid]["done"] += 1
         else:
             out[cid]["active"] += 1
+            out[cid]["remaining_estimate_minutes"] += minutes
     return out
 
 
@@ -107,7 +117,16 @@ def work_cycle_detail_view(user: User, cycle_id: int):
         .order_by(Ticket.created_at.asc())
     )
     populateTickets(tickets, lite=True)
-    st = _stats_for_cycles([cycle_id]).get(cycle_id, {"total": 0, "done": 0, "active": 0})
+    st = _stats_for_cycles([cycle_id]).get(
+        cycle_id,
+        {
+            "total": 0,
+            "done": 0,
+            "active": 0,
+            "estimate_minutes": 0,
+            "remaining_estimate_minutes": 0,
+        },
+    )
     board_lanes = _board_lanes(tickets)
     return render_template(
         "work_cycle_detail.jinja2",

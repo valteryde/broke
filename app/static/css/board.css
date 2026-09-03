@@ -96,6 +96,18 @@
   border: none;
 }
 
+.ticket-board-estimate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+.ticket-board-estimate .ph {
+  font-size: 0.85rem;
+}
+
 .ticket-board-assignees {
   display: flex;
   gap: 0.25rem;

@@ -36,6 +36,7 @@ from ..utils.stale_tickets import (
     list_stale_rows,
     ticket_matches_stale_rule,
 )
+from ..utils.ticket_estimate import coerce_estimate_minutes, format_estimate_minutes
 from ..utils.ticket_markdown import build_ticket_export_payload, ticket_payload_to_markdown
 from ..utils.user_display import build_all_display_name_map
 
@@ -439,6 +440,7 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         subticket_count=subticket_count,
         subticket_done_count=subticket_done_count,
         all_subtickets_done=all_subtickets_done,
+        subticket_estimate_minutes=sum((child.estimate_minutes or 0) for child in subtickets),
     )
 
 
@@ -574,6 +576,19 @@ def create_ticket(user: User):
     ticket_id = generate_unique_ticket_id(project_id)
 
     # Create ticket with defaults
+    estimate_minutes = None
+    if "estimate_minutes" in data or "estimate" in data:
+        try:
+            raw_estimate = (
+                data["estimate_minutes"] if "estimate_minutes" in data else data.get("estimate")
+            )
+            integer_is_minutes = "estimate_minutes" in data
+            estimate_minutes = coerce_estimate_minutes(
+                raw_estimate, integer_is_minutes=integer_is_minutes
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
     ticket = Ticket.create(
         id=ticket_id,
         title=data.get("title", ""),
@@ -583,6 +598,7 @@ def create_ticket(user: User):
         project=project_id,
         created_at=int(time.time()),
         parent_ticket_id=parent_ticket_id,
+        estimate_minutes=estimate_minutes,
     )
 
     # Create initial activity message
@@ -618,6 +634,7 @@ def create_ticket(user: User):
                     "status": ticket.status,
                     "priority": ticket.priority,
                     "parent_ticket_id": ticket.parent_ticket_id,
+                    "estimate_minutes": ticket.estimate_minutes,
                 },
             }
         ),
@@ -1384,6 +1401,37 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                 message=msg,
                 created_at=int(time.time()),
             )
+
+    elif field in {"estimate_minutes", "estimateMinutes", "estimate"}:
+        try:
+            minutes = coerce_estimate_minutes(value, integer_is_minutes=(field != "estimate"))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        old_minutes = ticket.estimate_minutes
+        ticket.estimate_minutes = minutes
+        ticket.save()
+
+        if old_minutes != minutes:
+            old_label = format_estimate_minutes(old_minutes) or "none"
+            new_label = format_estimate_minutes(minutes) or "none"
+            TicketUpdateMessage.create(
+                ticket=ticket_id,
+                title="Estimate changed",
+                icon="ph ph-timer",
+                message=f"{user.username} changed estimate from {old_label} to {new_label}",
+                created_at=int(time.time()),
+            )
+
+        return jsonify(
+            {
+                "success": True,
+                "ticket": {
+                    "estimate_minutes": ticket.estimate_minutes,
+                    "estimate": format_estimate_minutes(ticket.estimate_minutes) or None,
+                },
+            }
+        )
 
     else:
         return jsonify({"error": f"Unknown field: {field}"}), 400

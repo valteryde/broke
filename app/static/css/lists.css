@@ -609,6 +609,21 @@
     border: solid 1px black;
 }
 
+.list-estimate {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: #555;
+    white-space: nowrap;
+    margin-right: 4px;
+}
+
+.list-estimate .ph {
+    font-size: 0.95rem;
+    color: #666;
+}
+
 .has-submenu::after {
     content: '';
     position: absolute;

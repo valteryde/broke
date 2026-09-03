@@ -11,6 +11,7 @@ from html import unescape
 from typing import TYPE_CHECKING, Any
 
 from .models import AgentToken
+from .ticket_estimate import format_estimate_minutes
 from .ticket_markdown import ticket_payload_to_markdown
 
 if TYPE_CHECKING:
@@ -63,6 +64,7 @@ def build_ai_delegate_pack_markdown(
     status = payload.get("status") or ""
     project = payload.get("project") or ""
     priority = payload.get("priority") or ""
+    estimate_label = format_estimate_minutes(payload.get("estimate_minutes")) or "none"
     desc_raw = str(payload.get("description") or "")
     desc_plain = _strip_html_to_text(desc_raw)
     if len(desc_plain) > 12_000:
@@ -111,6 +113,7 @@ def build_ai_delegate_pack_markdown(
         f"- **Project:** `{project}`",
         f"- **Status:** `{status}`",
         f"- **Priority:** `{priority}`",
+        f"- **Estimate:** `{estimate_label}`",
         "",
         "## Description (plain text)",
         "",

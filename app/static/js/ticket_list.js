@@ -308,6 +308,13 @@ const TicketListConfig = {
                </span>`
             : '';
 
+        const estimateLabel = typeof formatEstimateMinutes === 'function'
+            ? formatEstimateMinutes(element.estimateMinutes)
+            : '';
+        const estimateHtml = estimateLabel
+            ? `<span class="list-estimate" title="Time estimate"><i class="ph ph-timer"></i> ${estimateLabel}</span>`
+            : '';
+
         inner.innerHTML = `
             <i class="ph ${element.icon} list-element-icon"></i>
             <span class="list-element-id">${element.id}</span>
@@ -320,6 +327,7 @@ const TicketListConfig = {
                 ${(element.labels || []).map(label => `<span class="list-label"> <span class="list-label-circle" style="background-color: ${label.color}"></span> ${label.text}  </span>`).join('')}
             </span>
             <span class="list-assignees">
+                ${estimateHtml}
                 ${(element.assignees || []).map(assignee => `<span class="list-assignee"> <i class="ph ph-user"></i>  ${brokeAssigneeDisplay(assignee)}</span>`).join('')}
             </span>
         `;
@@ -410,6 +418,47 @@ const TicketListConfig = {
                 } else {
                     console.warn('availableLabels not defined');
                 }
+            }
+        },
+        'e': {
+            name: 'Change Estimate',
+            handler: (listInstance, item) => {
+                const presets = (typeof EstimatePresets !== 'undefined' ? EstimatePresets : []);
+                new ListModal({
+                    title: 'Set Estimate',
+                    items: [
+                        {
+                            label: 'No estimate',
+                            value: null,
+                            icon: 'ph-x',
+                            selected: item.estimateMinutes == null
+                        },
+                        ...presets.map((preset) => ({
+                            label: preset.label,
+                            value: preset.minutes,
+                            icon: 'ph-timer',
+                            selected: Number(item.estimateMinutes) === preset.minutes
+                        })),
+                        { label: 'Custom…', value: '__custom__', icon: 'ph-pencil-simple' }
+                    ],
+                    onSelect: (selected) => {
+                        if (selected.value === '__custom__') {
+                            const currentLabel = typeof formatEstimateMinutes === 'function'
+                                ? formatEstimateMinutes(item.estimateMinutes)
+                                : '';
+                            const raw = window.prompt('Time estimate (e.g. 30m, 2h, 1d, 1w)', currentLabel || '');
+                            if (raw === null) return;
+                            const parsed = typeof parseEstimateInput === 'function' ? parseEstimateInput(raw) : null;
+                            if (String(raw).trim() && parsed == null) {
+                                alert('Could not parse estimate. Try 30m, 2h, or 1d.');
+                                return;
+                            }
+                            listInstance.handleUpdate(item, 'estimateMinutes', parsed);
+                            return;
+                        }
+                        listInstance.handleUpdate(item, 'estimateMinutes', selected.value);
+                    }
+                }).show();
             }
         }
     }

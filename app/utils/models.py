@@ -245,6 +245,7 @@ class Ticket(BaseModel):
     work_cycle_id = IntegerField(null=True, index=True)
     meeting_id = IntegerField(null=True, index=True)
     ai_delegate = IntegerField(default=0)
+    estimate_minutes = IntegerField(null=True)
 
     anonymous_secret = CharField(null=True, unique=True)
 
@@ -597,6 +598,7 @@ def initialize_db():
     _ensure_work_cycle_schema()
     _ensure_ticket_meeting_id_column()
     _ensure_ai_delegate_column()
+    _ensure_ticket_estimate_minutes_column()
     _ensure_comment_via_agent_column()
     _ensure_agent_token_ticket_id_column()
     _ensure_dsn_token_columns()
@@ -647,6 +649,12 @@ def _ensure_ai_delegate_column() -> None:
     columns = [row[1] for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()]
     if "ai_delegate" not in columns:
         database.execute_sql("ALTER TABLE ticket ADD COLUMN ai_delegate INTEGER DEFAULT 0;")
+
+
+def _ensure_ticket_estimate_minutes_column() -> None:
+    columns = [row[1] for row in database.execute_sql("PRAGMA table_info(ticket);").fetchall()]
+    if columns and "estimate_minutes" not in columns:
+        database.execute_sql("ALTER TABLE ticket ADD COLUMN estimate_minutes INTEGER;")
 
 
 def _ensure_comment_via_agent_column() -> None:
@@ -788,6 +796,7 @@ def setup_test_data():  # noqa: C901
                 priority=random.choice(priorities),
                 project=project_id,
                 created_at=random_time(),
+                estimate_minutes=random.choice([None, None, 30, 60, 120, 240, 480, 960]),
             )
             ticket_ids.append(ticket_id)
         except Exception as e:

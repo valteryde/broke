@@ -95,7 +95,7 @@ def agent_patch_ticket(user: User, agent_token, ticket_id: str):
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    allowed = {"status", "description_append", "work_cycle_id"}
+    allowed = {"status", "description_append", "work_cycle_id", "estimate_minutes"}
     if not any(k in data for k in allowed):
         return jsonify({"error": "No recognized fields to update"}), 400
 
@@ -155,6 +155,25 @@ def agent_patch_ticket(user: User, agent_token, ticket_id: str):
             title="Work cycle changed",
             icon="ph ph-calendar",
             message=f"{user.username} (agent) updated work cycle assignment",
+            created_at=int(time.time()),
+        )
+
+    if "estimate_minutes" in data:
+        from ..utils.ticket_estimate import coerce_estimate_minutes, format_estimate_minutes
+
+        try:
+            minutes = coerce_estimate_minutes(data["estimate_minutes"])
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        old_label = format_estimate_minutes(ticket.estimate_minutes) or "none"
+        ticket.estimate_minutes = minutes
+        ticket.save()
+        new_label = format_estimate_minutes(minutes) or "none"
+        TicketUpdateMessage.create(
+            ticket=ticket_id,
+            title="Estimate changed",
+            icon="ph ph-timer",
+            message=f"{user.username} (agent) changed estimate from {old_label} to {new_label}",
             created_at=int(time.time()),
         )
 

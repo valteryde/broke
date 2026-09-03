@@ -291,6 +291,7 @@
                     createdAt: {{ ticket.created_at | tojson }},
                     project: {{ ticket.project | tojson }},
                     workCycleId: {% if ticket.work_cycle_id is not none %}{{ ticket.work_cycle_id }}{% else %}null{% endif %},
+                    estimateMinutes: {% if ticket.estimate_minutes is not none %}{{ ticket.estimate_minutes }}{% else %}null{% endif %},
                     onClick: () => { window.location.href = '{{ request.script_root }}/tickets/{{ ticket.project }}/{{ ticket.id }}'; }
                 },
                 {% endfor %}
@@ -357,6 +358,11 @@
                     let backendValue = value;
 
                     if (field === 'priority') backendField = 'priority';
+
+                    if (field === 'estimateMinutes') {
+                        backendField = 'estimate_minutes';
+                        backendValue = value;
+                    }
 
                     if (field === 'assignees') {
                         backendField = 'assignees';

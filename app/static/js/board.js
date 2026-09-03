@@ -89,6 +89,13 @@ const TicketBoard = {
         const columnsHtml = statuses.map((status) => {
             const isCollapsed = this.collapsedStatuses.includes(status.key);
             const items = visibleTickets.filter((ticket) => ticket.status === status.key);
+            const columnMinutes = items.reduce((sum, ticket) => {
+                const minutes = Number(ticket.estimateMinutes);
+                return sum + (Number.isFinite(minutes) ? minutes : 0);
+            }, 0);
+            const columnEstimate = (typeof formatEstimateMinutes === 'function' && columnMinutes > 0)
+                ? formatEstimateMinutes(columnMinutes)
+                : '';
 
             let bodyHtml = '';
             let footerHtml = '';
@@ -121,7 +128,7 @@ const TicketBoard = {
                             <i class="${collapseIcon}"></i>
                         </button>
                         <h3>${status.label}</h3>
-                        <span>${items.length}</span>
+                        <span>${items.length}${columnEstimate ? ` · ${columnEstimate}` : ''}</span>
                     </header>
                     ${bodyHtml}
                     ${footerHtml}
@@ -207,6 +214,12 @@ const TicketBoard = {
         const subticketMeta = subticketCount > 0
             ? `<div class="ticket-board-card-subtasks">Subtasks ${subticketDoneCount}/${subticketCount}</div>`
             : '';
+        const estimateLabel = typeof formatEstimateMinutes === 'function'
+            ? formatEstimateMinutes(ticket.estimateMinutes)
+            : '';
+        const estimateHtml = estimateLabel
+            ? `<div class="ticket-board-card-meta"><span class="ticket-board-estimate"><i class="ph ph-timer"></i> ${estimateLabel}</span></div>`
+            : '';
 
         return `
             <article class="ticket-board-card ${priorityClass}" draggable="true" data-ticket-id="${ticket.id}">
@@ -214,6 +227,7 @@ const TicketBoard = {
                 <div class="ticket-board-card-title">${safeTitle}</div>
                 <div class="ticket-board-card-meta">${ticket.project}</div>
                 <div class="ticket-board-card-meta"><span class="ticket-board-priority ${priorityClass}">${priorityLabel}</span></div>
+                ${estimateHtml}
                 ${subticketMeta}
                 <div class="ticket-board-card-assignees">${assigneeHtml}</div>
             </article>

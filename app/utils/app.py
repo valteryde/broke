@@ -157,6 +157,13 @@ def create_app():  # noqa: C901
         except (ValueError, TypeError):
             return str(epoch)
 
+    @app.template_filter("format_estimate")
+    def format_estimate(minutes):
+        """Format stored estimate minutes as a short duration (2h, 1d)."""
+        from .ticket_estimate import format_estimate_minutes
+
+        return format_estimate_minutes(minutes)
+
     APP_VERSION = get_app_version_from_toml()
     APP_CODENAME = get_app_codename_from_toml()
 
