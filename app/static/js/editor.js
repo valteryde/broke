@@ -84,7 +84,11 @@ class TicketEditor {
 
     init() {
         this.render();
-        this.initQuillEditors();
+        try {
+            this.initQuillEditors();
+        } catch (error) {
+            console.error('Failed to initialize ticket editors', error);
+        }
         this.initPropertyDropdowns();
         this.initEventListeners();
         this.initAiDelegateHandoff();

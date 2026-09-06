@@ -290,8 +290,8 @@
                     subticketDoneCount: {{ ticket.subticket_done_count | default(0) | tojson }},
                     createdAt: {{ ticket.created_at | tojson }},
                     project: {{ ticket.project | tojson }},
-                    workCycleId: {% if ticket.work_cycle_id is not none %}{{ ticket.work_cycle_id }}{% else %}null{% endif %},
-                    estimateMinutes: {% if ticket.estimate_minutes is not none %}{{ ticket.estimate_minutes }}{% else %}null{% endif %},
+                    workCycleId: {{ ticket.work_cycle_id | default(none, true) | tojson }},
+                    estimateMinutes: {{ ticket.estimate_minutes | default(none, true) | tojson }},
                     onClick: () => { window.location.href = '{{ request.script_root }}/tickets/{{ ticket.project }}/{{ ticket.id }}'; }
                 },
                 {% endfor %}

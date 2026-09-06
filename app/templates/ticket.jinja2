@@ -186,14 +186,14 @@
         document.addEventListener('DOMContentLoaded', () => {
             // Sample ticket data (would come from backend)
             const ticketData = {
-                id: '{{ ticket.id }}',
-                title: '{{ ticket.title }}',
-                description: `{{ ticket.description.replace("`", "\\`").replace("\n", "\\n") | safe }}`,
-                status: '{{ ticket.status | default("todo", true) }}',
-                priority: '{{ ticket.priority | default("medium", true) }}',
+                id: {{ ticket.id | tojson }},
+                title: {{ ticket.title | default("", true) | tojson }},
+                description: {{ ticket.description | default("", true) | tojson }},
+                status: {{ ticket.status | default("todo", true) | tojson }},
+                priority: {{ ticket.priority | default("medium", true) | tojson }},
                 error: { {% if ticket.error %}
-                    id: '{{ ticket.error.id }}',
-                    part: '{{ ticket.error.part.id }}'
+                    id: {{ ticket.error.id | tojson }},
+                    part: {{ ticket.error.part.id | tojson }}
                 {% else %}
                     id: null,
                     part: null
@@ -201,26 +201,26 @@
                 labels: [
                     {% for label in ticket.labels %}
                     {
-                        id: '{{ label.id }}',
-                        name: '{{ label.name }}',
-                        color: '{{ label.color }}'
+                        id: {{ label.id | tojson }},
+                        name: {{ label.name | tojson }},
+                        color: {{ label.color | tojson }}
                     },
                     {% endfor %}
                 ],
                 assignees: [
                     {% for assignee in ticket.assignees %}
                     {
-                        id: '{{ assignee.username }}',
-                        username: '{{ assignee.username }}',
+                        id: {{ assignee.username | tojson }},
+                        username: {{ assignee.username | tojson }},
                         name: {{ user_display_names.get(assignee.username, assignee.username) | tojson }},
                         avatar: null
                     },
                     {% endfor %}
                 ],
-                dueDate: '{{ ticket.due_date | default("", true) }}',
-                workCycleId: {% if ticket.work_cycle_id is not none %}{{ ticket.work_cycle_id }}{% else %}null{% endif %},
-                estimateMinutes: {% if ticket.estimate_minutes is not none %}{{ ticket.estimate_minutes }}{% else %}null{% endif %},
-                aiDelegate: {% if ticket.ai_delegate %}true{% else %}false{% endif %}
+                dueDate: {{ ticket.due_date | default("", true) | tojson }},
+                workCycleId: {{ ticket.work_cycle_id | default(none, true) | tojson }},
+                estimateMinutes: {{ ticket.estimate_minutes | default(none, true) | tojson }},
+                aiDelegate: {{ (true if ticket.ai_delegate else false) | tojson }}
             };
 
             const availableWorkCycles = [
@@ -231,8 +231,8 @@
 
             // Current user (would come from session)
             const currentUser = {
-                id: '{{ user.username }}',
-                username: '{{ user.username }}',
+                id: {{ user.username | tojson }},
+                username: {{ user.username | tojson }},
                 name: {{ user_display_names.get(user.username, user.username) | tojson }},
                 avatar: null
             };
@@ -241,25 +241,25 @@
             const activityData = [
                 {% for comment in comments %}
                 {
-                    id: '{{ comment.id }}',
+                    id: {{ comment.id | tojson }},
                     author: {
-                        id: '{{ comment.user.username }}',
-                        username: '{{ comment.user.username }}',
+                        id: {{ comment.user.username | tojson }},
+                        username: {{ comment.user.username | tojson }},
                         name: {{ user_display_names.get(comment.user.username, comment.user.username) | tojson }},
                         avatar: "<svg width='40' height='40' data-jdenticon-value='{{ comment.user.username }}'></svg>"
                     },
                     type: 'comment',
                     viaAgent: {% if comment.via_agent %}true{% else %}false{% endif %},
                     content: {{ comment.body | default("", true) | tojson }},
-                    createdAt: {{ comment.created_at }} * 1000
+                    createdAt: {{ (comment.created_at or 0) | tojson }} * 1000
                 },
                 {% endfor %}
                 {% for update in updates %}
                 {
-                    id: '{{ update.id }}',
+                    id: {{ update.id | tojson }},
                     message: {{ update.message | default("", true) | tojson }},
                     icon : {{ (update.icon or 'ph ph-pencil') | tojson }},
-                    createdAt: {{ update.created_at }} * 1000,
+                    createdAt: {{ (update.created_at or 0) | tojson }} * 1000,
                     type: 'update',
                     viaAgent: {% if '(agent)' in (update.message or '') %}true{% else %}false{% endif %}
                 },
@@ -270,8 +270,8 @@
             const availableUsers = [
                 {% for available_user in available_users %}
                 {
-                    id: '{{ available_user.username }}',
-                    username: '{{ available_user.username }}',
+                    id: {{ available_user.username | tojson }},
+                    username: {{ available_user.username | tojson }},
                     name: {{ user_display_names.get(available_user.username, available_user.username) | tojson }},
                 },
                 {% endfor %}
@@ -280,9 +280,9 @@
             const availableLabels = [
                 {% for available_label in available_labels %}
                 {
-                    id: '{{ available_label.name }}',
-                    name: '{{ available_label.name }}',
-                    color: '{{ available_label.color }}'
+                    id: {{ available_label.name | tojson }},
+                    name: {{ available_label.name | tojson }},
+                    color: {{ available_label.color | tojson }}
                 },
                 {% endfor %}
             ]

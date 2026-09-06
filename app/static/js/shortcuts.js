@@ -62,17 +62,27 @@ class ShortcutManager {
             const cleanKey = key;
             const shortcut = this.shortcuts[cleanKey];
 
+            if (this.locked) {
+                return;
+            }
+
+            const eventTarget = e.target;
+            const inEditable = !!(eventTarget && (
+                eventTarget.tagName === 'INPUT' ||
+                eventTarget.tagName === 'TEXTAREA' ||
+                eventTarget.tagName === 'SELECT' ||
+                eventTarget.isContentEditable
+            ));
+            if (inEditable && !shortcut.allowInInput) {
+                return;
+            }
+
             // If a custom target is provided, find it first
-            let target = e.target;
+            let target = eventTarget;
             if (shortcut.target) {
                 target = shortcut.target();
             }
             if (!target) {
-                return;
-            }
-
-            // If we are in an input and this shortcut is not allowed in inputs, skip
-            if (this.locked) {
                 return;
             }
 

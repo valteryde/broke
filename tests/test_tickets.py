@@ -239,6 +239,29 @@ def _(c=auth_client, f=fake, project=test_project):
         assert child.id.encode() in response.data
 
 
+@test("Ticket detail page JS stays valid when title and description have quotes")
+def _(c=auth_client, project=test_project):
+    unique = str(int(time.time() * 1000000))
+    ticket = Ticket.create(
+        id=f"{project.id}-{unique}-QUOTE",
+        title="Don't forget the `estimate`",
+        description="<p>Use ${foo} and </script><script>alert(1)</script></p>",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+
+    response = c.get(f"/tickets/{project.id}/{ticket.id}")
+    assert response.status_code == 200
+    text = response.get_data(as_text=True)
+    assert "title: 'Don't" not in text
+    assert "Don\\u0027t forget" in text
+    assert "\\u003c/script\\u003e" in text
+    assert "new TicketEditor('ticket-editor'" in text
+    assert "estimateMinutes: null" in text
+
+
 @test("Ticket detail hides subticket section when no subtickets exist")
 def _(c=auth_client, f=fake, project=test_project):
     ticket = Ticket.create(
