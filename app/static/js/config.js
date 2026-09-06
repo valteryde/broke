@@ -24,7 +24,7 @@ if (typeof window !== "undefined") {
 
 // Ticket Status Configuration
 // Used by: lists.js, ticket.js
-const StatusConfig = {
+var StatusConfig = {
     'intake': {
         value: 'intake',
         label: 'Intake',
@@ -92,14 +92,14 @@ const StatusConfig = {
 };
 
 // Order of statuses for sorting and grouping
-const StatusOrder = ['intake', 'backlog', 'todo', 'in-progress', 'in-review', 'done', 'closed', 'duplicate'];
+var StatusOrder = ['intake', 'backlog', 'todo', 'in-progress', 'in-review', 'done', 'closed', 'duplicate'];
 
 // Helper to get statuses as array (for dropdowns)
-const StatusList = StatusOrder.map(key => StatusConfig[key]);
+var StatusList = StatusOrder.map(key => StatusConfig[key]);
 
 // Priority Configuration
 // Used by: ticket.js
-const PriorityConfig = {
+var PriorityConfig = {
     'urgent': {
         value: 'urgent',
         label: 'Urgent',
@@ -138,17 +138,17 @@ const PriorityConfig = {
 };
 
 // Order of priorities for sorting
-const PriorityOrder = ['urgent', 'high', 'medium', 'low', 'none'];
+var PriorityOrder = ['urgent', 'high', 'medium', 'low', 'none'];
 
 // Helper to get priorities as array (for dropdowns)
-const PriorityList = PriorityOrder.map(key => PriorityConfig[key]);
+var PriorityList = PriorityOrder.map(key => PriorityConfig[key]);
 
-const ESTIMATE_MINUTES_PER_HOUR = 60;
-const ESTIMATE_MINUTES_PER_DAY = 8 * ESTIMATE_MINUTES_PER_HOUR;
-const ESTIMATE_MINUTES_PER_WEEK = 5 * ESTIMATE_MINUTES_PER_DAY;
-const ESTIMATE_MAX_MINUTES = 4 * ESTIMATE_MINUTES_PER_WEEK;
+var ESTIMATE_MINUTES_PER_HOUR = 60;
+var ESTIMATE_MINUTES_PER_DAY = 8 * ESTIMATE_MINUTES_PER_HOUR;
+var ESTIMATE_MINUTES_PER_WEEK = 5 * ESTIMATE_MINUTES_PER_DAY;
+var ESTIMATE_MAX_MINUTES = 4 * ESTIMATE_MINUTES_PER_WEEK;
 
-const EstimatePresets = [
+var EstimatePresets = [
     { minutes: 15, label: '15m' },
     { minutes: 30, label: '30m' },
     { minutes: 60, label: '1h' },
@@ -220,6 +220,12 @@ function parseEstimateInput(raw) {
 }
 
 if (typeof window !== 'undefined') {
+    window.StatusConfig = StatusConfig;
+    window.StatusOrder = StatusOrder;
+    window.StatusList = StatusList;
+    window.PriorityConfig = PriorityConfig;
+    window.PriorityOrder = PriorityOrder;
+    window.PriorityList = PriorityList;
     window.EstimatePresets = EstimatePresets;
     window.formatEstimateMinutes = formatEstimateMinutes;
     window.parseEstimateInput = parseEstimateInput;

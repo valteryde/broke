@@ -1,4 +1,5 @@
 import base64
+import logging
 import os
 import re
 import time
@@ -6,6 +7,7 @@ import uuid
 from difflib import SequenceMatcher
 
 from flask import Blueprint, jsonify, redirect, render_template, request, send_file
+from peewee import OperationalError
 
 from ..utils.ai_changelog import get_ai_config
 from ..utils.ai_delegate_handoff import build_ai_delegate_pack_markdown, mint_ticket_delegate_token
@@ -23,6 +25,7 @@ from ..utils.models import (
     UserSettings,
     UserTicketJoin,
     WorkCycle,
+    _ensure_ticket_estimate_minutes_column,
     active_projects_ordered,
     database,
 )
@@ -42,6 +45,7 @@ from ..utils.user_display import build_all_display_name_map
 
 # Create blueprint
 tickets_bp = Blueprint("tickets", __name__)
+logger = logging.getLogger(__name__)
 
 INTAKE_STATUSES = {"intake", "triage"}
 
@@ -530,6 +534,28 @@ def extract_and_save_images(html_content: str) -> str:
             return match.group(0)
 
     return re.sub(pattern, replace_image, html_content)
+
+
+def _save_ticket_fields(ticket: Ticket, *field_names: str) -> None:
+    """Persist only the changed columns so extra model fields cannot fail the write."""
+    fields = [getattr(Ticket, name) for name in field_names]
+    try:
+        ticket.save(only=fields)
+        return
+    except OperationalError as exc:
+        if "estimate_minutes" not in str(exc):
+            raise
+        logger.warning("Adding missing estimate_minutes column and retrying save")
+        database.connect(reuse_if_open=True)
+        _ensure_ticket_estimate_minutes_column()
+        ticket.save(only=fields)
+
+
+def _record_ticket_update(**kwargs) -> None:
+    try:
+        TicketUpdateMessage.create(**kwargs)
+    except Exception:
+        logger.exception("Failed to record ticket update message")
 
 
 @tickets_bp.route("/api/tickets", methods=["POST"])
@@ -1110,14 +1136,30 @@ def commit_ai_intake_ticket(user: User):
 
 @tickets_bp.route("/api/tickets/<ticket_id>", methods=["PUT", "PATCH"])
 @protected
-def update_ticket(user: User, ticket_id: str):  # noqa: C901
+def update_ticket(user: User, ticket_id: str):
+    try:
+        return _apply_ticket_update(user, ticket_id)
+    except Exception as exc:
+        logger.exception("Failed to update ticket %s", ticket_id)
+        return jsonify({"error": str(exc)}), 500
+
+
+def _apply_ticket_update(user: User, ticket_id: str):  # noqa: C901
     """Update a ticket field"""
     data = request.get_json()
 
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    ticket = Ticket.get_or_none(Ticket.id == ticket_id)
+    try:
+        ticket = Ticket.get_or_none(Ticket.id == ticket_id)
+    except OperationalError as exc:
+        if "estimate_minutes" not in str(exc):
+            raise
+        logger.warning("Adding missing estimate_minutes column and retrying ticket load")
+        database.connect(reuse_if_open=True)
+        _ensure_ticket_estimate_minutes_column()
+        ticket = Ticket.get_or_none(Ticket.id == ticket_id)
     if not ticket:
         return jsonify({"error": "Ticket not found"}), 404
 
@@ -1140,19 +1182,19 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
             .first()
         )
 
-        if not last_update:
+        if not last_update or last_update.created_at is None:
             return True
 
-        return int(time.time()) - last_update.created_at >= UPDATE_MESSAGE_COOLDOWN
+        return int(time.time()) - int(last_update.created_at) >= UPDATE_MESSAGE_COOLDOWN
 
     # Handle different field types
     if field == "title":
         ticket.title = value
-        ticket.save()
+        _save_ticket_fields(ticket, "title")
 
         # Rate-limited update message
         if should_create_update_message(ticket_id, "Title changed"):
-            TicketUpdateMessage.create(
+            _record_ticket_update(
                 ticket=ticket_id,
                 title="Title changed",
                 icon="ph ph-pencil",
@@ -1168,11 +1210,11 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
             return jsonify({"success": True})
 
         ticket.description = processed_description
-        ticket.save()
+        _save_ticket_fields(ticket, "description")
 
         # Rate-limited update message
         if should_create_update_message(ticket_id, "Description updated"):
-            TicketUpdateMessage.create(
+            _record_ticket_update(
                 ticket=ticket_id,
                 title="Description updated",
                 icon="ph ph-note-pencil",
@@ -1190,9 +1232,9 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
             return jsonify({"error": "Assign a project before moving ticket out of intake"}), 400
 
         ticket.status = value
-        ticket.save()
+        _save_ticket_fields(ticket, "status")
 
-        TicketUpdateMessage.create(
+        _record_ticket_update(
             ticket=ticket_id,
             title="Status changed",
             icon="ph ph-arrow-right",
@@ -1236,7 +1278,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                 return jsonify({"error": "Ticket rename failed"}), 500
         else:
             ticket.project = target_project
-            ticket.save()
+            _save_ticket_fields(ticket, "project")
 
         if effective_ticket_id != ticket_id:
             proj_msg = (
@@ -1246,7 +1288,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
         else:
             proj_msg = f"{user.username} changed project from {old_project} to {target_project}"
 
-        TicketUpdateMessage.create(
+        _record_ticket_update(
             ticket=effective_ticket_id,
             title="Project changed",
             icon="ph ph-folder-simple",
@@ -1258,9 +1300,9 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
     elif field == "priority":
         old_priority = ticket.priority
         ticket.priority = value
-        ticket.save()
+        _save_ticket_fields(ticket, "priority")
 
-        TicketUpdateMessage.create(
+        _record_ticket_update(
             ticket=ticket_id,
             title="Priority changed",
             icon="ph ph-cell-signal-full",
@@ -1281,7 +1323,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                 UserTicketJoin.create(user=user_id, ticket=ticket_id)
                 assigned_usernames.append(user_id)
 
-        TicketUpdateMessage.create(
+        _record_ticket_update(
             ticket=ticket_id,
             title="Assignees changed",
             icon="ph ph-users-three",
@@ -1301,7 +1343,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                 TicketLabelJoin.create(ticket=ticket_id, label=label_name)
                 label_names.append(label_name)
 
-        TicketUpdateMessage.create(
+        _record_ticket_update(
             ticket=ticket_id,
             title="Labels changed",
             icon="ph ph-tag",
@@ -1324,7 +1366,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
             if ticket.status in {"backlog", "intake", "triage"}:
                 old_status = ticket.status
                 ticket.status = "todo"
-                TicketUpdateMessage.create(
+                _record_ticket_update(
                     ticket=ticket_id,
                     title="Status changed",
                     icon="ph ph-arrow-right",
@@ -1341,7 +1383,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                     actor=user.username,
                     details="Moved to todo for external AI handoff",
                 )
-            TicketUpdateMessage.create(
+            _record_ticket_update(
                 ticket=ticket_id,
                 title="External AI",
                 icon="ph ph-robot",
@@ -1349,7 +1391,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                 created_at=int(time.time()),
             )
         elif not on and prev == 1:
-            TicketUpdateMessage.create(
+            _record_ticket_update(
                 ticket=ticket_id,
                 title="External AI",
                 icon="ph ph-robot",
@@ -1357,7 +1399,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                 created_at=int(time.time()),
             )
 
-        ticket.save()
+        _save_ticket_fields(ticket, "ai_delegate", "status")
         return jsonify(
             {
                 "success": True,
@@ -1371,7 +1413,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
     elif field == "work_cycle_id":
         if value is None or value == "" or value == "null":
             if ticket.work_cycle_id:
-                TicketUpdateMessage.create(
+                _record_ticket_update(
                     ticket=ticket_id,
                     title="Removed from work cycle",
                     icon="ph ph-calendar-x",
@@ -1379,7 +1421,7 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                     created_at=int(time.time()),
                 )
             ticket.work_cycle_id = None
-            ticket.save()
+            _save_ticket_fields(ticket, "work_cycle_id")
         else:
             try:
                 cid = int(value)
@@ -1390,11 +1432,11 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
                 return jsonify({"error": "Work cycle not found"}), 404
             old_cid = ticket.work_cycle_id
             ticket.work_cycle_id = cid
-            ticket.save()
+            _save_ticket_fields(ticket, "work_cycle_id")
             msg = f"{user.username} set work cycle to {cycle.name} (#{cid})"
             if old_cid and old_cid != cid:
                 msg = f"{user.username} moved this ticket to work cycle {cycle.name} (#{cid})"
-            TicketUpdateMessage.create(
+            _record_ticket_update(
                 ticket=ticket_id,
                 title="Work cycle changed",
                 icon="ph ph-calendar",
@@ -1410,12 +1452,12 @@ def update_ticket(user: User, ticket_id: str):  # noqa: C901
 
         old_minutes = ticket.estimate_minutes
         ticket.estimate_minutes = minutes
-        ticket.save()
+        _save_ticket_fields(ticket, "estimate_minutes")
 
         if old_minutes != minutes:
             old_label = format_estimate_minutes(old_minutes) or "none"
             new_label = format_estimate_minutes(minutes) or "none"
-            TicketUpdateMessage.create(
+            _record_ticket_update(
                 ticket=ticket_id,
                 title="Estimate changed",
                 icon="ph ph-timer",

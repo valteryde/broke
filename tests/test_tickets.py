@@ -239,6 +239,29 @@ def _(c=auth_client, f=fake, project=test_project):
         assert child.id.encode() in response.data
 
 
+@test("PATCH status returns JSON and persists")
+def _(c=auth_client, project=test_project):
+    unique = str(int(time.time() * 1000000))
+    ticket = Ticket.create(
+        id=f"{project.id}-{unique}-PATCH",
+        title="Patch me",
+        description="desc",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+    response = c.patch(
+        f"/api/tickets/{ticket.id}",
+        data=json.dumps({"field": "status", "value": "in-review"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert Ticket.get_by_id(ticket.id).status == "in-review"
+
+
 @test("Ticket detail page JS stays valid when title and description have quotes")
 def _(c=auth_client, project=test_project):
     unique = str(int(time.time() * 1000000))

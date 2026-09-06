@@ -197,6 +197,9 @@ def create_app():  # noqa: C901
         import traceback
 
         traceback.print_exc()
+        if flask.request.path.startswith("/api/"):
+            detail = getattr(error, "original_exception", None) or error
+            return flask.jsonify({"error": str(detail) or "Internal server error"}), 500
         return (
             flask.render_template(
                 "error_message.jinja2", error_code=500, error_message="Internal server error"
