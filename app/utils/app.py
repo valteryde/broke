@@ -411,6 +411,7 @@ def create_app():  # noqa: C901
         bug_bp,
         changelog_bp,
         desktop_bp,
+        mcp_bp,
         meetings_bp,
         metrics_bp,
         monitors_bp,
@@ -426,6 +427,7 @@ def create_app():  # noqa: C901
     app.register_blueprint(auth_bp)
     app.register_blueprint(tickets_bp)
     app.register_blueprint(work_cycles_bp)
+    app.register_blueprint(mcp_bp)
     app.register_blueprint(meetings_bp)
     app.register_blueprint(monitors_bp)
     app.register_blueprint(metrics_bp)

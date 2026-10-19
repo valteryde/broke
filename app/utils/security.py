@@ -307,6 +307,9 @@ def authenticate(username, password) -> User | None:
         if not user:
             return None
 
+        if getattr(user, "is_bot", 0) or getattr(user, "bot_disabled", 0):
+            return None
+
         if user.password_hash == pyargon2.hash(password, str(user.salt)):
             return user
     except DoesNotExist:
@@ -324,6 +327,8 @@ def get_current_user() -> User | None:
 
     try:
         user = User.select().where(User.username == user_id).first()
+        if user and (getattr(user, "is_bot", 0) or getattr(user, "bot_disabled", 0)):
+            return None
         return user
     except DoesNotExist:
         return None

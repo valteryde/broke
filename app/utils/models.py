@@ -30,8 +30,11 @@ class User(BaseModel):
     username = CharField(primary_key=True)
     password_hash = CharField()
     salt = CharField()
-    email = CharField(unique=True)
+    email = CharField(unique=True, null=True)
     admin = IntegerField(default=0)
+    is_bot = IntegerField(default=0)
+    bot_owner = CharField(null=True)  # username of the person who created this bot
+    bot_disabled = IntegerField(default=0)
 
 
 def create_user(username: str, password, email: str, admin: int = 0):
@@ -43,6 +46,28 @@ def create_user(username: str, password, email: str, admin: int = 0):
         username=username, password_hash=password_hash, salt=salt, email=email, admin=admin
     )
     return user
+
+
+def create_bot_user(username: str, owner_username: str):
+    """A bot has no mailbox and no password a person can use."""
+    User.create_table(safe=True)
+    salt = uuid.uuid4().hex
+    password_hash = pyargon2.hash(uuid.uuid4().hex, salt)
+    return User.create(
+        username=username,
+        password_hash=password_hash,
+        salt=salt,
+        email=None,
+        admin=0,
+        is_bot=1,
+        bot_owner=owner_username,
+        bot_disabled=0,
+    )
+
+
+def active_members():
+    """People and bots that are still part of the workspace."""
+    return User.select().where(User.bot_disabled == 0).order_by(User.username)
 
 
 class UserCreateToken(BaseModel):  # should be deleted after use
@@ -364,6 +389,18 @@ class APIToken(BaseModel):
     created_at = IntegerField(default=lambda: int(time.time()))
 
 
+class BotToken(BaseModel):
+    """Long-lived Bearer token for a bot user. The raw token is shown once."""
+
+    id = AutoField(primary_key=True)
+    user = ForeignKeyField(User, backref="bot_tokens")
+    token_hash = CharField(index=True)
+    token_preview = CharField()
+    created_at = IntegerField(default=lambda: int(time.time()))
+    last_used = IntegerField(null=True)
+    revoked = IntegerField(default=0)
+
+
 class AgentToken(BaseModel):
     """Short-lived Bearer tokens for agents (Cursor, scripts) — no CSRF; scope-limited."""
 
@@ -572,6 +609,7 @@ MODELS = [
     Webhook,
     WebhookDelivery,
     APIToken,
+    BotToken,
     AgentToken,
     DSNToken,
     GlobalSetting,
@@ -601,6 +639,7 @@ def initialize_db():
     _ensure_ticket_estimate_minutes_column()
     _ensure_comment_via_agent_column()
     _ensure_agent_token_ticket_id_column()
+    _ensure_user_bot_columns()
     _ensure_dsn_token_columns()
     _ensure_project_settings_column()
     _ensure_project_archived_column()
@@ -670,6 +709,61 @@ def _ensure_agent_token_ticket_id_column() -> None:
         database.execute_sql(
             "CREATE INDEX IF NOT EXISTS agenttoken_ticket_id ON agenttoken(ticket_id);"
         )
+
+
+def _ensure_user_bot_columns() -> None:
+    """Add bot fields and allow a null email without dropping existing users."""
+    rows = database.execute_sql('PRAGMA table_info("user")').fetchall()
+    if not rows:
+        return
+    info = {row[1]: row for row in rows}
+    email_nullable = info.get("email") is not None and info["email"][3] == 0
+    complete = (
+        email_nullable
+        and "is_bot" in info
+        and "bot_owner" in info
+        and "bot_disabled" in info
+    )
+    if complete:
+        return
+
+    names = set(info)
+    is_bot_expr = "COALESCE(is_bot, 0)" if "is_bot" in names else "0"
+    bot_owner_expr = "bot_owner" if "bot_owner" in names else "NULL"
+    bot_disabled_expr = "COALESCE(bot_disabled, 0)" if "bot_disabled" in names else "0"
+
+    database.execute_sql("PRAGMA foreign_keys=OFF")
+    try:
+        with database.atomic():
+            database.execute_sql('DROP TABLE IF EXISTS "user__botmig"')
+            database.execute_sql(
+                """
+                CREATE TABLE "user__botmig" (
+                    "username" VARCHAR(255) NOT NULL PRIMARY KEY,
+                    "password_hash" VARCHAR(255) NOT NULL,
+                    "salt" VARCHAR(255) NOT NULL,
+                    "email" VARCHAR(255) UNIQUE,
+                    "admin" INTEGER NOT NULL,
+                    "is_bot" INTEGER NOT NULL DEFAULT 0,
+                    "bot_owner" VARCHAR(255),
+                    "bot_disabled" INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+            database.execute_sql(
+                f"""
+                INSERT INTO "user__botmig" (
+                    username, password_hash, salt, email, admin, is_bot, bot_owner, bot_disabled
+                )
+                SELECT username, password_hash, salt, email, admin,
+                       {is_bot_expr}, {bot_owner_expr}, {bot_disabled_expr}
+                FROM "user"
+                """
+            )
+            database.execute_sql('DROP TABLE "user"')
+            database.execute_sql('ALTER TABLE "user__botmig" RENAME TO "user"')
+    finally:
+        database.execute_sql("PRAGMA foreign_keys=ON")
 
 
 def _ensure_dsn_token_columns() -> None:

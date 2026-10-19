@@ -94,6 +94,10 @@
                 <i class="ph ph-code"></i>
                 <span>API & Tokens</span>
             </a>
+            <a href="{{ request.script_root }}/settings/bots" class="settings-nav-item {% if section == 'bots' %}active{% endif %}">
+                <i class="ph ph-robot"></i>
+                <span>Bots</span>
+            </a>
             <a href="{{ request.script_root }}/settings/webhooks" class="settings-nav-item {% if section == 'webhooks' %}active{% endif %}">
                 <i class="ph ph-webhooks-logo"></i>
                 <span>Webhooks</span>
@@ -891,8 +895,11 @@
                                         {% if member.admin == 1 %}
                                         <span class="member-role-badge">Admin</span>
                                         {% endif %}
+                                        {% if member.is_bot %}
+                                        <span class="member-role-badge">Bot</span>
+                                        {% endif %}
                                     </span>
-                                    <span class="member-email">{{ member.username }} · {{ member.email }}</span>
+                                    <span class="member-email">{{ member.username }}{% if not member.is_bot and member.email %} · {{ member.email }}{% endif %}</span>
                                 </div>
                             </div>
                             {# <div class="member-role">
@@ -1247,6 +1254,65 @@
                         .catch(() => showToast('Error removing logo', 'error'));
                 }
             </script>
+        </div>
+
+        {% elif section == 'bots' %}
+        <div class="settings-section">
+            <div class="section-header">
+                <h1>Bots</h1>
+                <p class="section-description">A bot is a user that works through MCP. It can list, read, create, and update tickets, and comment as itself.</p>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Create a bot</h3>
+                    <p class="card-description">You get a token and a config block once. Paste the config into Cursor or Claude. The token is the only secret in that block. What the bot can do is decided by this Broke server, and updates here apply the next time the client reconnects.</p>
+                    <p class="card-description">Endpoint: <code>{{ mcp_base_url }}/mcp</code></p>
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label for="bot-username">Username</label>
+                        <input type="text" id="bot-username" class="form-input" maxlength="32" autocomplete="off" placeholder="review-bot">
+                    </div>
+                    <button class="btn btn-secondary" style="margin-top: 12px;" onclick="createBot()">
+                        <i class="ph ph-plus"></i> Create bot
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="card-section">
+                    <h3>Your bots</h3>
+                    <p class="card-description">Removing a bot revokes its token. Its username stays on comments it already wrote.</p>
+                    <div class="token-list">
+                        {% if not bots %}
+                        <div class="empty-state">
+                            <i class="ph ph-robot"></i>
+                            <p>No bots yet</p>
+                        </div>
+                        {% else %}
+                        {% for bot in bots %}
+                        <div class="token-item">
+                            <div class="token-info">
+                                <span class="token-name">{{ bot.username }}</span>
+                                <span class="token-meta">
+                                    {% if user.admin == 1 and bot.bot_owner %}Created by {{ bot.bot_owner }} · {% endif %}
+                                    Token {{ bot.token_preview }}…
+                                    {% if bot.token_last_used %} · Last used {{ bot.token_last_used | timestamp_to_date }}{% else %} · Never used{% endif %}
+                                </span>
+                            </div>
+                            <div class="token-actions">
+                                <button class="btn-icon" title="Rotate token" onclick="rotateBotToken('{{ bot.username }}')">
+                                    <i class="ph ph-arrows-clockwise"></i>
+                                </button>
+                                <button class="btn-icon danger" title="Remove" onclick="deleteBot('{{ bot.username }}')">
+                                    <i class="ph ph-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
         </div>
 
         {% elif section == 'api' %}

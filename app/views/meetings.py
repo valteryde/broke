@@ -43,7 +43,7 @@ def _projects_payload() -> list[dict[str, str]]:
 
 
 def _usernames() -> list[str]:
-    return [user.username for user in User.select()]
+    return [user.username for user in User.select().where(User.bot_disabled == 0)]
 
 
 def _meeting_dict(meeting: Meeting, *, include_notes: bool = True) -> dict[str, Any]:

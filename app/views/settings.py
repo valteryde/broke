@@ -26,9 +26,18 @@ from ..utils.mail import (
     effective_relay_token,
 )
 from ..utils.mail_relay import relay_base_url_from_environment, relay_token_from_environment
+from ..utils.bot_auth import (
+    USERNAME_RE,
+    can_manage_bot,
+    mcp_config_block,
+    mint_bot_token,
+    public_base_url,
+    revoke_bot_tokens,
+)
 from ..utils.models import (
     AgentToken,
     APIToken,
+    BotToken,
     DSNToken,
     GlobalSetting,
     Label,
@@ -44,7 +53,9 @@ from ..utils.models import (
     Webhook,
     WebhookDelivery,
     WorkCycle,
+    active_members,
     active_projects_ordered,
+    create_bot_user,
     create_user,
     data_path,
 )
@@ -138,6 +149,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         "team": "Team Members",
         "labels": "Labels",
         "api": "API & Tokens",
+        "bots": "Bots",
         "webhooks": "Webhooks",
         "sentry": "Sentry Integration",
         "metrics": "Server Metrics",
@@ -216,7 +228,23 @@ def settings_section_view(user: User, section: str):  # noqa: C901
         context["projects_archived"] = [p for p in projs if p.archived]
 
     elif section == "team":
-        context["team_members"] = list(User.select().order_by(User.username))
+        context["team_members"] = list(active_members())
+
+    elif section == "bots":
+        query = User.select().where((User.is_bot == 1) & (User.bot_disabled == 0))
+        if user.admin != 1:
+            query = query.where(User.bot_owner == user.username)
+        bots = list(query.order_by(User.username))
+        previews = {
+            row.user_id: row
+            for row in BotToken.select().where(BotToken.revoked == 0)
+        }
+        for bot in bots:
+            token_row = previews.get(bot.username)
+            bot.token_preview = token_row.token_preview if token_row else ""
+            bot.token_last_used = token_row.last_used if token_row else None
+        context["bots"] = bots
+        context["mcp_base_url"] = public_base_url()
 
     elif section == "labels":
         context["labels"] = list(Label.select().order_by(Label.name))
@@ -1004,11 +1032,14 @@ def api_delete_team_member(user: User, username: str):
         Webhook.delete().where(Webhook.user == username).execute()
         APIToken.delete().where(APIToken.user == username).execute()
         UserTicketJoin.delete().where(UserTicketJoin.user == username).execute()
+        revoke_bot_tokens(username)
 
         target_user.salt = uuid.uuid4().hex
         target_user.password_hash = pyargon2.hash(uuid.uuid4().hex, target_user.salt)
         target_user.email = f"deleted+{username}+{int(time.time())}@deleted.local"
         target_user.admin = 0
+        if target_user.is_bot:
+            target_user.bot_disabled = 1
         target_user.save()
 
         return json.dumps({"success": True}), 200
@@ -1027,6 +1058,9 @@ def api_set_temporary_password(user: User, username: str):
         target_user = User.get(User.username == username)
     except DoesNotExist:
         return json.dumps({"error": "User not found"}), 404
+
+    if target_user.is_bot:
+        return json.dumps({"error": "Bots sign in with an MCP token."}), 400
 
     # Default to generated secret if admin does not provide one.
     payload = request.get_json(silent=True) or {}
@@ -1122,6 +1156,65 @@ def api_delete_token(user: User, token_id: int):
         return json.dumps({"success": True}), 200
     except DoesNotExist:
         return json.dumps({"error": "Token not found"}), 404
+
+
+def _bot_created_payload(username: str, raw_token: str) -> dict:
+    base = public_base_url()
+    return {
+        "username": username,
+        "token": raw_token,
+        "mcp_config": mcp_config_block(base, raw_token),
+        "mcp_url": f"{base}/mcp",
+    }
+
+
+@settings_bp.route("/api/settings/bots", methods=["POST"])
+@protected
+def api_create_bot(user: User):
+    data = request.get_json(silent=True) or {}
+    username = str(data.get("username") or "").strip()
+    if not USERNAME_RE.match(username):
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Username must start with a letter and use 2–32 letters, "
+                        "numbers, hyphens, or underscores."
+                    )
+                }
+            ),
+            400,
+        )
+    if User.get_or_none(User.username == username):
+        return jsonify({"error": "That username is already taken."}), 400
+
+    bot = create_bot_user(username, user.username)
+    raw = mint_bot_token(bot)
+    return jsonify(_bot_created_payload(bot.username, raw)), 201
+
+
+@settings_bp.route("/api/settings/bots/<username>/token", methods=["POST"])
+@protected
+def api_rotate_bot_token(user: User, username: str):
+    bot = User.get_or_none(User.username == username)
+    if not bot or not can_manage_bot(user, bot):
+        return jsonify({"error": "Bot not found"}), 404
+    raw = mint_bot_token(bot)
+    return jsonify(_bot_created_payload(bot.username, raw)), 200
+
+
+@settings_bp.route("/api/settings/bots/<username>", methods=["DELETE"])
+@protected
+def api_delete_bot(user: User, username: str):
+    bot = User.get_or_none(User.username == username)
+    if not bot or not can_manage_bot(user, bot):
+        return jsonify({"error": "Bot not found"}), 404
+    revoke_bot_tokens(bot.username)
+    bot.bot_disabled = 1
+    bot.salt = uuid.uuid4().hex
+    bot.password_hash = pyargon2.hash(uuid.uuid4().hex, bot.salt)
+    bot.save()
+    return jsonify({"success": True}), 200
 
 
 # ============ Agent token endpoints (Bearer, short-lived) ============

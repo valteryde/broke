@@ -114,7 +114,12 @@ def _build_recipients(event: dict) -> list[str]:
         if recipients:
             return recipients
 
-    admins = [row.email for row in User.select().where(User.admin == 1)]
+    admins = [
+        row.email
+        for row in User.select().where(
+            (User.admin == 1) & (User.is_bot == 0) & (User.bot_disabled == 0)
+        )
+    ]
     return [email for email in admins if email]
 
 

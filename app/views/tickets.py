@@ -26,6 +26,7 @@ from ..utils.models import (
     UserTicketJoin,
     WorkCycle,
     _ensure_ticket_estimate_minutes_column,
+    active_members,
     active_projects_ordered,
     database,
 )
@@ -209,7 +210,7 @@ def tickets_view(user: User):
     populate_ticket_board_meta(tickets)
     ticket_view = resolve_ticket_view(user)
 
-    available_users = User.select().order_by(User.username)
+    available_users = active_members()
     available_labels = Label.select().order_by(Label.name)
     user_display_names = build_all_display_name_map()
 
@@ -296,7 +297,7 @@ def project_tickets_view(user: User, project_id: str):
     populate_ticket_board_meta(tickets)
     ticket_view = resolve_ticket_view(user)
 
-    available_users = User.select().order_by(User.username)
+    available_users = active_members()
     available_labels = Label.select().order_by(Label.name)
     user_display_names = build_all_display_name_map()
 
@@ -331,7 +332,7 @@ def triage_view(user: User):
     )
     lite_populate(tickets)
 
-    available_users = User.select().order_by(User.username)
+    available_users = active_members()
     available_labels = Label.select().order_by(Label.name)
 
     return render_template(
@@ -369,7 +370,7 @@ def triage_project_view(user: User, project_id: str):
     )
     lite_populate(tickets)
 
-    available_users = User.select().order_by(User.username)
+    available_users = active_members()
     available_labels = Label.select().order_by(Label.name)
 
     return render_template(
@@ -404,7 +405,7 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
 
     populateTickets([ticket])  # type: ignore
 
-    available_users = User.select().order_by(User.username)
+    available_users = active_members()
     available_labels = Label.select().order_by(Label.name)
 
     comments = Comment.select().where(Comment.ticket == ticket.id).order_by(Comment.id)  # type: ignore

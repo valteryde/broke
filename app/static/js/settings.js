@@ -818,6 +818,99 @@ function deleteAgentToken(tokenId) {
         .catch(() => showToast('Failed to revoke', 'error'));
 }
 
+function showBotTokenModal(title, data) {
+    const token = String(data.token || '');
+    const config = String(data.mcp_config || '');
+    const escapeHtml = (value) => value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    Modal.show(
+        title,
+        `
+        <p>Copy this now. The token is not shown again. Paste the config into your MCP client.</p>
+        <br>
+        <div style="background: #f3f4f6; padding: 12px; border-radius: 4px; word-break: break-all; margin-bottom: 16px;">${escapeHtml(token)}</div>
+        <p><strong>Config</strong></p>
+        <pre style="white-space:pre-wrap;font-size:12px;background:#f3f4f6;padding:8px;border-radius:4px;">${escapeHtml(config)}</pre>
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" onclick="Modal.close(); location.reload();">Done</button>
+        </div>
+        `
+    );
+}
+
+function botRequestHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (window.BROKE_CSRF_TOKEN) {
+        headers['X-CSRF-Token'] = window.BROKE_CSRF_TOKEN;
+    }
+    return headers;
+}
+
+function createBot() {
+    const input = document.getElementById('bot-username');
+    const username = (input && input.value || '').trim();
+    if (!username) {
+        showToast('Username is required', 'error');
+        return;
+    }
+    fetch(brokeAppUrl('/api/settings/bots'), {
+        method: 'POST',
+        headers: botRequestHeaders(),
+        body: JSON.stringify({ username }),
+    })
+        .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (ok && data.token) {
+                showBotTokenModal('Bot created', data);
+            } else {
+                showToast(data.error || 'Failed to create bot', 'error');
+            }
+        })
+        .catch(() => showToast('Failed to create bot', 'error'));
+}
+
+function rotateBotToken(username) {
+    if (!confirm('Rotate this token? The current one stops working immediately.')) {
+        return;
+    }
+    fetch(brokeAppUrl('/api/settings/bots/' + encodeURIComponent(username) + '/token'), {
+        method: 'POST',
+        headers: botRequestHeaders(),
+        body: JSON.stringify({}),
+    })
+        .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (ok && data.token) {
+                showBotTokenModal('New bot token', data);
+            } else {
+                showToast(data.error || 'Failed to rotate token', 'error');
+            }
+        })
+        .catch(() => showToast('Failed to rotate token', 'error'));
+}
+
+function deleteBot(username) {
+    if (!confirm('Remove ' + username + '? Its token stops working. Comments it already wrote keep its name.')) {
+        return;
+    }
+    fetch(brokeAppUrl('/api/settings/bots/' + encodeURIComponent(username)), {
+        method: 'DELETE',
+        headers: botRequestHeaders(),
+    })
+        .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (ok) {
+                showToast('Bot removed', 'success');
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(data.error || 'Failed to remove bot', 'error');
+            }
+        })
+        .catch(() => showToast('Failed to remove bot', 'error'));
+}
+
 
 // ============ DSN Token Functions ============
 
