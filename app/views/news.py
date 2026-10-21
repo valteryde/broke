@@ -76,13 +76,15 @@ def news_view(user: User):
         utj.ticket for utj in UserTicketJoin.select().where(UserTicketJoin.user == user.username)
     ]
     my_tickets = list(
-        Ticket.select().where(Ticket.id.in_(user_ticket_ids)).order_by(Ticket.created_at.desc())
+        Ticket.select()
+        .where((Ticket.id.in_(user_ticket_ids)) & (Ticket.status != "parked"))
+        .order_by(Ticket.created_at.desc())
     )
 
-    # Count open tickets (tickets that are not closed)
+    # Count open tickets (tickets that are not closed or parked)
     open_tickets = (
         Ticket.select()
-        .where((Ticket.id.in_(user_ticket_ids)) & (Ticket.status != "closed"))
+        .where((Ticket.id.in_(user_ticket_ids)) & (~(Ticket.status.in_(["closed", "parked"]))))
         .count()
     )
 
@@ -666,7 +668,7 @@ def build_reports_summary(days: int = 30) -> dict:
         return {str(r.project): r.count for r in query}
 
     active_counts = get_project_counts(
-        (~Ticket.status.in_(closed_statuses)) & (~Ticket.status.in_(intake_statuses))
+        (~Ticket.status.in_(closed_statuses | {"parked"})) & (~Ticket.status.in_(intake_statuses))
     )
     closed_counts = get_project_counts(Ticket.status.in_(closed_statuses))
     triage_counts = get_project_counts(Ticket.status.in_(intake_statuses))

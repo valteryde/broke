@@ -874,7 +874,7 @@ def setup_test_data():  # noqa: C901
             pass
 
     # Create tickets
-    statuses = ["backlog", "todo", "in-progress", "in-review", "done", "closed", "duplicate"]
+    statuses = ["backlog", "todo", "in-progress", "in-review", "parked", "done", "closed", "duplicate"]
     priorities = ["low", "medium", "high", "urgent"]
     ticket_ids = []
 

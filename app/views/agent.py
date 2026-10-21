@@ -110,7 +110,25 @@ def agent_patch_ticket(user: User, agent_token, ticket_id: str):
         return jsonify({"error": f"Unsupported fields: {sorted(extra)}"}), 400
 
     if "status" in data:
-        ticket.status = str(data["status"])
+        from ..utils.bot_actions import TICKET_STATUSES
+        from ..utils.ticket_status import PARKED_CYCLE_ERROR, detach_parked_work_cycle
+
+        new_status = str(data["status"])
+        if new_status not in TICKET_STATUSES:
+            return (
+                jsonify(
+                    {"error": ("Unknown status. Use one of: " + ", ".join(sorted(TICKET_STATUSES)))}
+                ),
+                400,
+            )
+        if (
+            new_status == "parked"
+            and "work_cycle_id" in data
+            and data["work_cycle_id"] not in (None, "")
+        ):
+            return jsonify({"error": PARKED_CYCLE_ERROR}), 400
+        ticket.status = new_status
+        cleared_cycle = detach_parked_work_cycle(ticket)
         ticket.save()
         TicketUpdateMessage.create(
             ticket=ticket_id,
@@ -119,6 +137,14 @@ def agent_patch_ticket(user: User, agent_token, ticket_id: str):
             message=f"{user.username} (agent) set status to {ticket.status}",
             created_at=int(time.time()),
         )
+        if cleared_cycle:
+            TicketUpdateMessage.create(
+                ticket=ticket_id,
+                title="Removed from work cycle",
+                icon="ph ph-calendar-x",
+                message=f"{user.username} (agent) parked this ticket and removed it from the work cycle",
+                created_at=int(time.time()),
+            )
 
     if "description_append" in data:
         append = str(data.get("description_append") or "")
@@ -136,8 +162,12 @@ def agent_patch_ticket(user: User, agent_token, ticket_id: str):
 
     if "work_cycle_id" in data:
         from ..utils.models import WorkCycle
+        from ..utils.ticket_status import parked_cycle_error
 
         raw = data["work_cycle_id"]
+        cycle_error = parked_cycle_error(ticket, raw)
+        if cycle_error:
+            return jsonify({"error": cycle_error}), 400
         if raw is None or raw == "":
             ticket.work_cycle_id = None
         else:

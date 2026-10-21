@@ -68,6 +68,13 @@ var StatusConfig = {
         color: '#f59e0b',
         colorClass: 'status-in-review'
     },
+    'parked': {
+        value: 'parked',
+        label: 'Parked',
+        icon: 'ph-pause-circle',
+        color: '#a16207',
+        colorClass: 'status-parked'
+    },
     'done': {
         value: 'done',
         label: 'Done',
@@ -92,7 +99,7 @@ var StatusConfig = {
 };
 
 // Order of statuses for sorting and grouping
-var StatusOrder = ['intake', 'backlog', 'todo', 'in-progress', 'in-review', 'done', 'closed', 'duplicate'];
+var StatusOrder = ['intake', 'backlog', 'todo', 'in-progress', 'in-review', 'parked', 'done', 'closed', 'duplicate'];
 
 // Helper to get statuses as array (for dropdowns)
 var StatusList = StatusOrder.map(key => StatusConfig[key]);

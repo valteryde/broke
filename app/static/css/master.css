@@ -156,6 +156,10 @@ a {
   color: #f59e0b;
 }
 
+.status-parked {
+  color: #a16207;
+}
+
 .status-done {
   color: #22c55e;
 }

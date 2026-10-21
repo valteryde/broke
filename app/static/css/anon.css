@@ -192,6 +192,11 @@
     color: #c2410c;
 }
 
+.status-parked {
+    background: #fefce8;
+    color: #a16207;
+}
+
 .status-done {
     background: #f0fdf4;
     color: #15803d;

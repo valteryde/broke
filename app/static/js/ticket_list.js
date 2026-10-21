@@ -128,15 +128,21 @@ const TicketListConfig = {
         status: {
             label: 'Status',
             icon: 'ph-circle-half',
+            applyWhenInactive: true,
             filter: (element, values) => {
-                if (!values || values.length === 0) return true;
+                if (!values || values.length === 0) return element.status !== 'parked';
                 return values.includes(element.status);
             },
-            getOptions: () => getStatusEntriesForPage().map(([value, config]) => ({
-                value,
-                label: config.label,
-                icon: config.icon
-            }))
+            getOptions: (listInstance) => {
+                const parkedCount = (listInstance && listInstance.elements || []).filter(
+                    (element) => element.status === 'parked'
+                ).length;
+                return getStatusEntriesForPage().map(([value, config]) => ({
+                    value,
+                    label: value === 'parked' && parkedCount ? `${config.label} (${parkedCount})` : config.label,
+                    icon: config.icon
+                }));
+            }
         },
         labels: {
             label: 'Labels',

@@ -60,6 +60,25 @@ def _(fake=fake, test_project: Project = test_project):
     assert tid in ids
 
 
+@test("list_stale_rows ignores parked tickets")
+def _(fake=fake, test_project: Project = test_project):
+    now = int(time.time())
+    old = now - 120 * 86400
+    tid = f"{test_project.id}-pk-{fake.uuid4()[:8]}"
+    Ticket.create(
+        id=tid,
+        title="Parked and quiet",
+        description="",
+        status="parked",
+        priority="medium",
+        project=test_project.id,
+        created_at=old,
+    )
+    rows = list_stale_rows(test_project.id, 90, now=now)
+    ids = {r["ticket"].id for r in rows}
+    assert tid not in ids
+
+
 @test("close-stale rejects when subtickets still open")
 def _(fake=fake, test_project: Project = test_project):
     now = int(time.time())

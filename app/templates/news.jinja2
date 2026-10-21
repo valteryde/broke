@@ -96,6 +96,8 @@
                                 <i class="ph ph-circle-half"></i>
                                 {% elif ticket.status == 'in-review' %}
                                 <i class="ph ph-circle-notch"></i>
+                                {% elif ticket.status == 'parked' %}
+                                <i class="ph ph-pause-circle"></i>
                                 {% elif ticket.status == 'done' %}
                                 <i class="ph ph-check-circle"></i>
                                 {% elif ticket.status == 'closed' %}

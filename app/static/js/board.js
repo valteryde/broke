@@ -153,7 +153,12 @@ const TicketBoard = {
         const filterController = new List(listMountId, {
             filters: {
                 search: TicketListConfig.filters.search,
-                status: TicketListConfig.filters.status,
+                status: {
+                    ...TicketListConfig.filters.status,
+                    getOptions: (listInstance) => TicketListConfig.filters.status
+                        .getOptions(listInstance)
+                        .filter((option) => option.value !== 'parked'),
+                },
                 labels: TicketListConfig.filters.labels,
                 assignees: TicketListConfig.filters.assignees,
                 urgency: TicketListConfig.filters.urgency,

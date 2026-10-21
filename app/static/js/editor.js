@@ -363,6 +363,12 @@ class TicketEditor {
     }
 
     setWorkCycle(cycleId) {
+        if (cycleId != null && cycleId !== '' && this.ticket.status === 'parked') {
+            if (window.showToast) {
+                window.showToast('Move this ticket back to backlog before adding it to a sprint.', 'error');
+            }
+            return;
+        }
         this.ticket.workCycleId = cycleId;
         this.onSave('work_cycle_id', cycleId);
         this.refreshProperty('workCycle');
@@ -1083,8 +1089,11 @@ class TicketEditor {
     updateProperty(field, value) {
         const oldValue = this.ticket[field];
         this.ticket[field] = value;
+        const parked = field === 'status' && value === 'parked';
+        if (parked) this.ticket.workCycleId = null;
         this.onSave(field, value, oldValue);
         this.refreshProperty(field);
+        if (parked) this.refreshProperty('workCycle');
     }
 
     refreshProperty(field) {

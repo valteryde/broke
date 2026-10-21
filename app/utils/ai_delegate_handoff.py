@@ -183,7 +183,7 @@ def build_ai_delegate_pack_markdown(
         curl_append,
         "```",
         "",
-        f"Other `status` values: `backlog`, `todo`, `in-progress`, `in-review`, `done`, `closed`.",
+        f"Other `status` values: `backlog`, `todo`, `in-progress`, `in-review`, `parked`, `done`, `closed`.",
         "",
         "### Credentials (also embedded in curl above)",
         "",

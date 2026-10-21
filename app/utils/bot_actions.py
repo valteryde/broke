@@ -11,6 +11,7 @@ from .events import EventTypes, bus
 from .models import Comment, Project, Ticket, TicketUpdateMessage, User, UserTicketJoin, WorkCycle
 from .ticket_estimate import coerce_estimate_minutes, format_estimate_minutes
 from .ticket_markdown import build_ticket_export_payload
+from .ticket_status import PARKED_CYCLE_ERROR, detach_parked_work_cycle, parked_cycle_error
 
 TICKET_STATUSES = frozenset(
     {
@@ -21,6 +22,7 @@ TICKET_STATUSES = frozenset(
         "done",
         "closed",
         "duplicate",
+        "parked",
         "intake",
         "triage",
     }
@@ -132,9 +134,7 @@ def create_ticket(
     if status not in TICKET_STATUSES:
         raise BotToolError(f"Unknown status. Use one of: {', '.join(sorted(TICKET_STATUSES))}")
     if priority not in TICKET_PRIORITIES:
-        raise BotToolError(
-            f"Unknown priority. Use one of: {', '.join(sorted(TICKET_PRIORITIES))}"
-        )
+        raise BotToolError(f"Unknown priority. Use one of: {', '.join(sorted(TICKET_PRIORITIES))}")
     if len(description or "") > 50000:
         raise BotToolError("Description is too long")
 
@@ -200,6 +200,14 @@ def update_ticket(
     except DoesNotExist:
         raise BotToolError("Ticket not found") from None
 
+    if (
+        "status" in fields_set
+        and status == "parked"
+        and "work_cycle_id" in fields_set
+        and work_cycle_id not in (None, "")
+    ):
+        raise BotToolError(PARKED_CYCLE_ERROR)
+
     if "status" in fields_set:
         if status not in TICKET_STATUSES:
             raise BotToolError(f"Unknown status. Use one of: {', '.join(sorted(TICKET_STATUSES))}")
@@ -211,7 +219,11 @@ def update_ticket(
         ):
             raise BotToolError("Assign a project before moving this ticket out of intake")
         ticket.status = status
-        ticket.save(only=[Ticket.status])
+        cleared_cycle = detach_parked_work_cycle(ticket)
+        save_fields = [Ticket.status]
+        if cleared_cycle:
+            save_fields.append(Ticket.work_cycle_id)
+        ticket.save(only=save_fields)
         TicketUpdateMessage.create(
             ticket=ticket.id,
             title="Status changed",
@@ -219,6 +231,14 @@ def update_ticket(
             message=f"{user.username} changed status from {old_status} to {status}",
             created_at=int(time.time()),
         )
+        if cleared_cycle:
+            TicketUpdateMessage.create(
+                ticket=ticket.id,
+                title="Removed from work cycle",
+                icon="ph ph-calendar-x",
+                message=f"{user.username} parked this ticket and removed it from the work cycle",
+                created_at=int(time.time()),
+            )
         bus.emit(
             EventTypes.TICKET_STATUS_CHANGED,
             ticket_id=ticket.id,
@@ -247,6 +267,9 @@ def update_ticket(
             )
 
     if "work_cycle_id" in fields_set:
+        cycle_error = parked_cycle_error(ticket, work_cycle_id)
+        if cycle_error:
+            raise BotToolError(cycle_error)
         if work_cycle_id is None or work_cycle_id == "":
             ticket.work_cycle_id = None
         else:

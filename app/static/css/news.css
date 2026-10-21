@@ -237,6 +237,7 @@
 .ticket-status.status-todo { color: #8b5cf6; }
 .ticket-status.status-in-progress { color: #3b82f6; }
 .ticket-status.status-in-review { color: #f59e0b; }
+.ticket-status.status-parked { color: #a16207; }
 .ticket-status.status-done { color: #22c55e; }
 .ticket-status.status-closed { color: #9ca3af; }
 .ticket-status.status-duplicate { color: #ef4444; }

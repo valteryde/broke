@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from ward import test
 
-from app.utils.models import Ticket
+from app.utils.models import Ticket, TicketUpdateMessage, WorkCycle
 from tests.fixtures import auth_client, auth_user, client, fake, test_project, test_ticket
 
 
@@ -260,6 +260,79 @@ def _(c=auth_client, project=test_project):
     payload = response.get_json()
     assert payload["success"] is True
     assert Ticket.get_by_id(ticket.id).status == "in-review"
+
+
+@test("Parking a ticket clears its sprint and keeps the estimate")
+def _(c=auth_client, project=test_project):
+    unique = str(int(time.time() * 1000000))
+    cycle = WorkCycle.create(name=f"Park cycle {unique}", project=None, created_at=int(time.time()))
+    ticket = Ticket.create(
+        id=f"{project.id}-{unique}-PARK",
+        title="Park me",
+        description="still valid",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+        work_cycle_id=cycle.id,
+        estimate_minutes=120,
+    )
+    response = c.patch(
+        f"/api/tickets/{ticket.id}",
+        data=json.dumps({"field": "status", "value": "parked"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    saved = Ticket.get_by_id(ticket.id)
+    assert saved.status == "parked"
+    assert saved.work_cycle_id is None
+    assert saved.estimate_minutes == 120
+    notes = list(TicketUpdateMessage.select().where(TicketUpdateMessage.ticket == ticket.id))
+    assert any(note.title == "Removed from work cycle" for note in notes)
+
+    blocked = c.patch(
+        f"/api/tickets/{ticket.id}",
+        data=json.dumps({"field": "work_cycle_id", "value": cycle.id}),
+        content_type="application/json",
+    )
+    assert blocked.status_code == 400
+    assert Ticket.get_by_id(ticket.id).work_cycle_id is None
+
+    restored = c.patch(
+        f"/api/tickets/{ticket.id}",
+        data=json.dumps({"field": "status", "value": "backlog"}),
+        content_type="application/json",
+    )
+    assert restored.status_code == 200
+    assert Ticket.get_by_id(ticket.id).status == "backlog"
+    cycle.delete_instance()
+
+
+@test("A parked subticket does not make the parent look finished")
+def _(c=auth_client, project=test_project):
+    unique = str(int(time.time() * 1000000))
+    parent = Ticket.create(
+        id=f"{project.id}-{unique}-PP",
+        title="Parent",
+        description="",
+        status="todo",
+        priority="medium",
+        project=project.id,
+        active=1,
+    )
+    Ticket.create(
+        id=f"{project.id}-{unique}-PC",
+        title="Parked child",
+        description="",
+        status="parked",
+        priority="medium",
+        project=project.id,
+        active=1,
+        parent_ticket_id=parent.id,
+    )
+    response = c.get(f"/tickets/{project.id}/{parent.id}")
+    assert response.status_code == 200
+    assert b"All subtickets are complete" not in response.data
 
 
 @test("Ticket detail page JS stays valid when title and description have quotes")

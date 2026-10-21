@@ -363,7 +363,10 @@ class List {
         // OR we provide a helper here.
 
         // Original lists.js had this logic:
-        if (field === 'status') item.status = value;
+        if (field === 'status') {
+            item.status = value;
+            if (value === 'parked') item.workCycleId = null;
+        }
         if (field === 'priority') item.urgency = value; // Coupled to 'urgency' prop
         if (field === 'estimateMinutes') item.estimateMinutes = value;
 
@@ -769,12 +772,16 @@ class List {
 
     applyFilters() {
         this.filteredElements = this.elements.filter(element => {
-            return Object.keys(this.activeFilters).every(filterType => {
+            return Object.keys(this.filtersConfig).every(filterType => {
                 const config = this.filtersConfig[filterType];
-                if (config && config.filter) {
-                    return config.filter(element, this.activeFilters[filterType]);
+                if (!config || !config.filter) {
+                    return true;
                 }
-                return true;
+                const hasActive = Object.prototype.hasOwnProperty.call(this.activeFilters, filterType);
+                if (!hasActive && !config.applyWhenInactive) {
+                    return true;
+                }
+                return config.filter(element, hasActive ? this.activeFilters[filterType] : undefined);
             });
         });
 

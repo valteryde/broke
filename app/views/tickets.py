@@ -12,6 +12,7 @@ from peewee import OperationalError
 from ..utils.ai_changelog import get_ai_config
 from ..utils.ai_delegate_handoff import build_ai_delegate_pack_markdown, mint_ticket_delegate_token
 from ..utils.ai_intake import suggest_intake_from_message
+from ..utils.bot_actions import TICKET_STATUSES
 from ..utils.events import EventTypes, bus
 from ..utils.models import (
     AgentToken,
@@ -42,6 +43,7 @@ from ..utils.stale_tickets import (
 )
 from ..utils.ticket_estimate import coerce_estimate_minutes, format_estimate_minutes
 from ..utils.ticket_markdown import build_ticket_export_payload, ticket_payload_to_markdown
+from ..utils.ticket_status import detach_parked_work_cycle, parked_cycle_error
 from ..utils.user_display import build_all_display_name_map
 
 # Create blueprint
@@ -1232,8 +1234,20 @@ def _apply_ticket_update(user: User, ticket_id: str):  # noqa: C901
         ):
             return jsonify({"error": "Assign a project before moving ticket out of intake"}), 400
 
+        if value not in TICKET_STATUSES:
+            return (
+                jsonify(
+                    {"error": ("Unknown status. Use one of: " + ", ".join(sorted(TICKET_STATUSES)))}
+                ),
+                400,
+            )
+
         ticket.status = value
-        _save_ticket_fields(ticket, "status")
+        cleared_cycle = detach_parked_work_cycle(ticket)
+        save_fields = ["status"]
+        if cleared_cycle:
+            save_fields.append("work_cycle_id")
+        _save_ticket_fields(ticket, *save_fields)
 
         _record_ticket_update(
             ticket=ticket_id,
@@ -1242,6 +1256,14 @@ def _apply_ticket_update(user: User, ticket_id: str):  # noqa: C901
             message=f"{user.username} changed status from {old_status} to {value}",
             created_at=int(time.time()),
         )
+        if cleared_cycle:
+            _record_ticket_update(
+                ticket=ticket_id,
+                title="Removed from work cycle",
+                icon="ph ph-calendar-x",
+                message=f"{user.username} parked this ticket and removed it from the work cycle",
+                created_at=int(time.time()),
+            )
 
         bus.emit(
             EventTypes.TICKET_STATUS_CHANGED,
@@ -1412,6 +1434,9 @@ def _apply_ticket_update(user: User, ticket_id: str):  # noqa: C901
         )
 
     elif field == "work_cycle_id":
+        cycle_error = parked_cycle_error(ticket, value)
+        if cycle_error:
+            return jsonify({"error": cycle_error}), 400
         if value is None or value == "" or value == "null":
             if ticket.work_cycle_id:
                 _record_ticket_update(

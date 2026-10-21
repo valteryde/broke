@@ -28,8 +28,10 @@ _WORK_CYCLE_LANE_META: list[tuple[str, str, str, str]] = [
 ]
 
 
-def _normalize_lane_status(status: str | None) -> str:
+def _normalize_lane_status(status: str | None) -> str | None:
     s = (status or "").strip().lower()
+    if s == "parked":
+        return None
     if s in {"intake", "triage"}:
         return "backlog"
     if s in {"done", "closed", "duplicate"}:
@@ -55,10 +57,10 @@ def _stats_for_cycles(cycle_ids: list[int]) -> dict[int, dict[str, int]]:
     q = Ticket.select().where((Ticket.work_cycle_id.in_(cycle_ids)) & (Ticket.active == 1))
     for t in q:
         cid = t.work_cycle_id
-        if cid not in out:
+        if cid not in out or t.status == "parked":
             continue
-        out[cid]["total"] += 1
         minutes = int(getattr(t, "estimate_minutes", 0) or 0)
+        out[cid]["total"] += 1
         out[cid]["estimate_minutes"] += minutes
         if t.status in {"done", "closed", "duplicate"}:
             out[cid]["done"] += 1
@@ -71,7 +73,10 @@ def _stats_for_cycles(cycle_ids: list[int]) -> dict[int, dict[str, int]]:
 def _board_lanes(tickets: list[Ticket]) -> list[dict[str, Any]]:
     buckets: dict[str, list[Ticket]] = {k: [] for k, _, _, _ in _WORK_CYCLE_LANE_META}
     for t in tickets:
-        buckets[_normalize_lane_status(t.status)].append(t)
+        lane = _normalize_lane_status(t.status)
+        if lane is None:
+            continue
+        buckets[lane].append(t)
     lanes: list[dict[str, Any]] = []
     for key, label, icon, color in _WORK_CYCLE_LANE_META:
         lanes.append(
@@ -299,7 +304,7 @@ def api_work_cycle_modify_tickets(user: User, cycle_id: int):
             if not tid:
                 continue
             t = Ticket.get_or_none((Ticket.id == tid) & (Ticket.active == 1))
-            if not t:
+            if not t or t.status == "parked":
                 continue
             t.work_cycle_id = cycle_id
             t.save()

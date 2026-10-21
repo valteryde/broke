@@ -4,6 +4,7 @@ from fixtures import auth_client, test_project, test_ticket
 from ward import test
 
 from app.utils.models import AgentToken, Project, Ticket, WorkCycle
+from app.views.work_cycles import _stats_for_cycles
 
 
 @test("POST /api/work-cycles creates a cycle", tags=["api"])
@@ -88,6 +89,58 @@ def _(auth_client=auth_client, test_project=test_project, test_ticket=test_ticke
         test_ticket.save()
         wc.delete_instance()
         other.delete_instance()
+
+
+@test("Parked tickets stay out of sprint totals and cannot be added", tags=["api"])
+def _(auth_client=auth_client, test_project=test_project):
+    unique = str(int(time.time() * 1000000))
+    wc = WorkCycle.create(name=f"Park stats {unique}", project=None, created_at=int(time.time()))
+    parked = Ticket.create(
+        id=f"{test_project.id}-{unique}-parked",
+        title="Parked on a cycle",
+        description="",
+        status="parked",
+        priority="medium",
+        project=test_project.id,
+        work_cycle_id=wc.id,
+        estimate_minutes=60,
+    )
+    waiting = Ticket.create(
+        id=f"{test_project.id}-{unique}-waiting",
+        title="Parked off a cycle",
+        description="",
+        status="parked",
+        priority="low",
+        project=test_project.id,
+        work_cycle_id=None,
+    )
+    active = Ticket.create(
+        id=f"{test_project.id}-{unique}-active",
+        title="Still in the sprint",
+        description="",
+        status="todo",
+        priority="medium",
+        project=test_project.id,
+        work_cycle_id=wc.id,
+        estimate_minutes=30,
+    )
+    try:
+        stats = _stats_for_cycles([wc.id])[wc.id]
+        assert stats["total"] == 1
+        assert stats["active"] == 1
+        assert stats["remaining_estimate_minutes"] == 30
+        added = auth_client.post(
+            f"/api/work-cycles/{wc.id}/tickets",
+            json={"add": [waiting.id]},
+        )
+        assert added.status_code == 200
+        assert added.get_json()["added"] == 0
+        assert Ticket.get_by_id(waiting.id).work_cycle_id is None
+    finally:
+        parked.delete_instance()
+        waiting.delete_instance()
+        active.delete_instance()
+        wc.delete_instance()
 
 
 @test("Work cycle export returns JSON with tickets", tags=["api"])
