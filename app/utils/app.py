@@ -289,6 +289,8 @@ def create_app():  # noqa: C901
 
     # Rate limiter: extension object is created at import time so @limiter.limit works in views.
     app.config["RATELIMIT_STORAGE_URI"] = redis_url
+    if str(os.environ.get("FLASK_ENV", "")).strip().lower() == "testing":
+        app.config["RATELIMIT_ENABLED"] = False
     limiter.init_app(app)
 
     # Server-side sessions: the browser cookie is only a signed session id. Payload
@@ -443,7 +445,8 @@ def create_app():  # noqa: C901
     app.register_blueprint(desktop_bp)
 
     # Initialize event subscriptions
-    from . import mail  # noqa: F401
+    from . import anon_enrich, mail  # noqa: F401
+
     from .notifications import initialize_notification_engine
 
     initialize_notification_engine()
