@@ -20,7 +20,7 @@ Admin mail for `ANON_TICKET_SUBMITTED` already exists and keeps going to admins.
 - Reporter mail uses its own templates and an explicit recipient list. It does not reuse `TICKET_STATUS_CHANGED`, `TICKET_COMMENTED`, or the admin notification handler.
 - The public page reads update rows marked public. Existing rows stay internal, so today’s duplicate note and staff names drop off the public page without a rewrite.
 - The first screen asks one question: problem, feature, or improvement. The next screen asks the follow-ups for that kind. A feature is not filed through the problem questions.
-- The client sends plain text. The server escapes it and builds the description, with the kind as the first section. The public page can keep rendering description HTML because that HTML is ours.
+- The client sends plain text. The server escapes it and builds the description: a summary, then each question and its answer. The public page can keep rendering description HTML because that HTML is ours.
 - Priority from the client is ignored. The ticket is created at `medium` with no estimate. After the ticket exists, intake assist may replace those defaults. It never rewrites the title or the description.
 - The staff AI intake chat is unchanged. Two other model calls exist, and they do not share its prompt. The report check runs before submit, writes nothing, and says what the sender must still add. Intake assist runs only after primary confirm creates the ticket and may set priority, estimate, and project.
 - The “where” answer is text inside the description. The ticket is created on `TRIAGE`. Intake assist may move it to a real project only when confidence is at least 0.8. Status stays `intake`.
@@ -37,7 +37,7 @@ Reporter replies on the tracking page are deferred. This delivery lets staff rea
 4. The browser shows “check your email”. The response has no ticket id and no secret.
 5. The primary opens the link and presses confirm. The server creates the intake ticket, marks the draft consumed, and mails the tracking link to every address already confirmed (the primary, plus any copy that confirmed early).
 6. A copy who confirms later is marked confirmed and mailed the tracking link. They are included in mail from then on.
-7. Staff see a normal triage ticket. The description starts with the kind, then the answers for that kind. Internal duplicate hints stay on the staff timeline. Intake assist then fills priority, estimate, and maybe project, and writes the reason on the internal timeline.
+7. Staff see a normal triage ticket. The description starts with a summary, then each question and its answer. Internal duplicate hints stay on the staff timeline. Intake assist then fills priority, estimate, and maybe project, and writes the reason on the internal timeline.
 8. Moving the ticket’s status writes the usual internal row and, when the ticket has an anonymous secret, a public row plus a mail to confirmed addresses.
 9. “Reply to reporter” on the staff ticket writes a public row and mails the same addresses. It does not create a `Comment`.
 
@@ -118,7 +118,7 @@ Emails: one primary, plus up to five copies. Strip, lowercase, reject anything t
 
 At most three unconsumed, unexpired drafts per primary address. A fourth submit returns a message that a confirmation is already waiting for that address. That check is on the address they just typed.
 
-Build the description on the server as escaped sections. The first section is the kind (Problem, Feature, or Improvement), then that kind’s answers, then the image if present. Store that HTML and the `kind` in the draft payload so confirm does not trust the client again.
+Build the description on the server as escaped sections. The first section is a short summary, then each question and its answer, then the image if present. Use headings and paragraphs, not a wrapper element, so the ticket editor does not drop the description and save it blank. Store that HTML and the `kind` in the draft payload so confirm does not trust the client again.
 
 Send the primary mail first. If `send_email` returns `False`, delete the draft and its contacts and return an error. Then send copy mails. A copy failure is logged, that contact stays unconfirmed, and the submit still succeeds.
 

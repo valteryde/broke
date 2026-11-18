@@ -71,7 +71,7 @@ A reporter can file a triage ticket from `/anon` only after one email address is
 - Emails are trimmed and lowercased. Reject values that are not a plain address. The same address once per draft. The primary is not also a copy.
 - A client-supplied priority or project is ignored.
 - At most three unconsumed, unexpired drafts for one primary address. The fourth is rejected and tells them a confirmation is already waiting.
-- The server escapes the answers and stores the description HTML on the draft. The first section is the kind: Problem, Feature, or Improvement.
+- The server escapes the answers and stores the description HTML on the draft. The description starts with a summary, then each question and that question’s answer. The kind is marked on that HTML. The markup is headings and paragraphs, so the staff editor keeps it.
 - The image, when present, is stored under uploads and referenced from that HTML.
 - Primary mail is sent first and includes the title and a confirm link. If that send fails, the draft and its contacts are deleted and the request errors.
 - Each extra address gets its own mail. That mail contains no title, no description, and no ticket id. If one of those sends fails, the draft remains and that contact stays unconfirmed.

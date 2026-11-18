@@ -9,7 +9,7 @@ from unittest.mock import patch
 from ward import Scope, fixture, test
 
 from app.utils.anon_enrich import review_anon_report
-from app.utils.anon_intake import checked_fields
+from app.utils.anon_intake import checked_fields, description_html, preserve_anon_kind
 from app.utils.models import (
     AnonContact,
     AnonDraft,
@@ -109,6 +109,48 @@ def _token_for(sent: list[dict], email: str) -> str:
 def _confirm(c, sent: list[dict], email: str):
     token = _token_for(sent, email)
     return c.post(f"/anon/verify/{token}", follow_redirects=False)
+
+
+@test("the filed description starts with a summary and then each question")
+def _():
+    answers = problem_answers("sum")
+    html_text = description_html("problem", answers, "/anon/media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png")
+    question = html_text.index("<h2>What is broken?</h2>")
+    assert html_text.index("Summary") < question
+    assert question < html_text.index(answers["detail"], question)
+    assert question < html_text.index("What system is this on?")
+    assert answers["title"] in html_text
+    assert answers["system"] in html_text
+    assert 'data-anon-kind="problem"' in html_text
+    assert "<div" not in html_text
+    assert 'src="/anon/media/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png"' in html_text
+
+    feature = {
+        "title": "Export this month's invoices",
+        "missing": "A button on the invoice page that downloads this month's charges for the billing team.",
+        "gap": "We copy every invoice into a spreadsheet by hand because the page shows one invoice.",
+        "avoid": "Do not copy the old export. It drops tax lines and only works for one currency.",
+    }
+    feature_html = description_html("feature", feature, None)
+    assert feature_html.index("Summary") < feature_html.index("What is missing?")
+    assert "downloads this month" in feature_html
+    assert "spreadsheet by hand" in feature_html
+    assert "drops tax lines" in feature_html
+
+    improvement = {
+        "title": "Show the date on each invoice row",
+        "today": "I open every invoice row just to see the date before I can close the month.",
+        "failure": "A list of forty invoices takes ten minutes, and I still miss the ones from last month.",
+        "change": "Show the date on each row so the month can be closed without opening every invoice.",
+    }
+    improvement_html = description_html("improvement", improvement, None)
+    assert improvement_html.index("Summary") < improvement_html.index("What do you do today?")
+    assert "Show the date on each row" in improvement_html
+
+    previous = '<h2 data-anon-kind="problem">Summary</h2><p>Login fails.</p>'
+    rewritten = previous.replace(' data-anon-kind="problem"', "")
+    assert preserve_anon_kind(previous, rewritten) == previous
+    assert preserve_anon_kind("<p>Plain</p>", "<p>Edited</p>") == "<p>Edited</p>"
 
 
 @test("/anon GET when disabled returns 403")
@@ -258,6 +300,9 @@ def _(c=client, project=anon_enabled_project):
     track = c.get(body["track"])
     assert track.status_code == 200
     assert answers["title"].encode() in track.data
+    assert b"Summary" in track.data
+    assert b"What is broken?" in track.data
+    assert answers["detail"].strip().encode() in track.data
 
 
 @test("primary send failure deletes the draft")
@@ -389,8 +434,11 @@ def _(c=client, project=anon_enabled_project, sent=sent_mail):
     assert ticket.priority == "medium"
     assert ticket.estimate_minutes is None
     assert ticket.anonymous_secret
+    assert ticket.description.index("Summary") < ticket.description.index("What is broken?")
+    assert answers["detail"].strip() in ticket.description
     assert "What system is this on?" in ticket.description
     assert answers["system"] in ticket.description
+    assert answers["title"] in ticket.description
     assert first.location.endswith(f"/anon/track/{ticket.anonymous_secret}")
     second = _confirm(c, sent, email)
     assert second.status_code == 302

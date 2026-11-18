@@ -680,13 +680,22 @@ class TicketEditor {
             }
         });
 
-        // Set initial content
+        // Paste through Quill so headings and paragraphs become editor content.
+        // Assigning root.innerHTML leaves a wrapper the editor does not own; its
+        // next update deletes that wrapper and the autosave stores an empty description.
+        const descriptionHadText = Boolean(
+            (this.ticket.description || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
+        );
+        const descriptionLoadedAt = Date.now();
         if (this.ticket.description) {
-            this.descriptionEditor.root.innerHTML = this.ticket.description;
+            this.descriptionEditor.clipboard.dangerouslyPasteHTML(this.ticket.description, 'silent');
         }
 
-        // Autosave on change
         this.descriptionEditor.on('text-change', () => {
+            const visible = this.descriptionEditor.getText().replace(/\u00a0/g, ' ').trim();
+            if (descriptionHadText && !visible && Date.now() - descriptionLoadedAt < 1000) {
+                return;
+            }
             this.showSaveIndicator('saving');
             this.debounceSave('description', this.descriptionEditor.root.innerHTML);
         });

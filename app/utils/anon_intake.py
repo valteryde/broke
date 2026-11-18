@@ -415,13 +415,58 @@ def _paragraph(text: str) -> str:
     return f"<p>{escaped}</p>"
 
 
+def _first_sentence(text: str, limit: int = 220) -> str:
+    cleaned = re.sub(r"\s+", " ", text or "").strip()
+    if not cleaned:
+        return ""
+    end = re.search(r"[.!?]", cleaned)
+    sentence = cleaned[: end.end()] if end else cleaned
+    sentence = sentence.strip()
+    if len(sentence) > limit:
+        sentence = sentence[: limit - 1].rstrip(" ,;:") + "."
+    return sentence
+
+
+def report_summary(kind: str, answers: dict[str, str]) -> str:
+    """One short paragraph from the title and the lead answer."""
+    spec = KINDS[kind]
+    title = re.sub(r"\s+", " ", answers.get("title", "")).strip().rstrip(".")
+    sentences: list[str] = []
+    if title:
+        sentences.append(title)
+    for field in spec.fields:
+        if kind == "problem" and field.key == "system":
+            continue
+        sentence = _first_sentence(answers.get(field.key, "")).rstrip(".")
+        if not sentence:
+            continue
+        if title and (sentence.lower() == title.lower() or title.lower() in sentence.lower()):
+            continue
+        sentences.append(sentence)
+        break
+    if kind == "problem":
+        system = re.sub(r"\s+", " ", answers.get("system", "")).strip().rstrip(".")
+        if system:
+            sentences.append(f"This is on {system}")
+    text = ". ".join(sentences).strip()
+    if text and text[-1] not in ".!?":
+        text += "."
+    return text
+
+
+_KIND_MARKER = re.compile(r'data-anon-kind="(problem|feature|improvement)"')
+
+
 def description_html(kind: str, answers: dict[str, str], image_src: str | None) -> str:
+    """Quill-safe blocks: a summary, then each question and its answer.
+
+    A wrapping div is dropped by the ticket editor, which then autosaves a blank
+    description. Headings and paragraphs stay.
+    """
     spec = KINDS[kind]
     parts = [
-        f'<div data-anon-kind="{html.escape(kind)}">',
-        f"<p><strong>{html.escape(spec.label)}</strong></p>",
-        f"<h2>{html.escape(spec.title_label.rstrip('?'))}</h2>",
-        _paragraph(answers.get("title", "")),
+        f'<h2 data-anon-kind="{html.escape(kind)}">Summary</h2>',
+        _paragraph(report_summary(kind, answers)),
     ]
     for field in spec.fields:
         text = answers.get(field.key, "")
@@ -431,8 +476,26 @@ def description_html(kind: str, answers: dict[str, str], image_src: str | None) 
         parts.append(_paragraph(text))
     if image_src:
         parts.append(f'<img src="{html.escape(image_src, quote=True)}" alt="">')
-    parts.append("</div>")
     return "".join(parts)
+
+
+def preserve_anon_kind(previous: str, updated: str) -> str:
+    """Put the report kind back when the editor rewrites the description."""
+    match = _KIND_MARKER.search(previous or "")
+    if not match or _KIND_MARKER.search(updated or ""):
+        return updated
+    kind = match.group(1)
+    body = updated or ""
+    rewritten, count = re.subn(
+        r"^(\s*<(?:h[1-6]|p|div)\b)",
+        rf'\1 data-anon-kind="{kind}"',
+        body,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    if count:
+        return rewritten
+    return f'<p data-anon-kind="{kind}"></p>{body}'
 
 
 def _image_extension(header: bytes, declared: str) -> str | None:

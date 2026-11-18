@@ -254,6 +254,26 @@
     border: 1px solid #eee;
 }
 
+.anon-description h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 1.4rem 0 0.35rem;
+    color: black;
+}
+
+.anon-description h2:first-child {
+    margin-top: 0;
+}
+
+.anon-description p {
+    margin: 0 0 0.6rem;
+}
+
+.anon-description img {
+    max-width: 100%;
+    margin-top: 0.5rem;
+}
+
 .anon-section-title {
     font-size: 1.1rem;
     margin-bottom: 1.5rem;

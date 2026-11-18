@@ -1214,6 +1214,10 @@ def _apply_ticket_update(user: User, ticket_id: str):  # noqa: C901
     elif field == "description":
         # Extract and save base64 images
         processed_description = extract_and_save_images(value)
+        if ticket.anonymous_secret:
+            from ..utils.anon_intake import preserve_anon_kind
+
+            processed_description = preserve_anon_kind(ticket.description or "", processed_description)
 
         if processed_description == ticket.description:
             return jsonify({"success": True})
