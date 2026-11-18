@@ -40,17 +40,22 @@
 <div id="ticket-editor"></div>
 
 {% if ticket.anonymous_secret %}
-<section class="ticket-reporter-reply" id="reporter-reply">
-    <h3>Reply to reporter</h3>
-    {% if reporter_emails %}
-        <p>This goes to {{ reporter_emails | join(", ") }} and shows on their tracking page.</p>
-    {% else %}
-        <p>No confirmed address yet. The reply still shows on their tracking page.</p>
-    {% endif %}
-    <textarea id="reporter-reply-body" rows="4" maxlength="4000" placeholder="What should they know?"></textarea>
-    <button type="button" class="btn btn-primary" id="reporter-reply-send">Send reply</button>
-    <p id="reporter-reply-status" hidden></p>
-</section>
+<details class="ticket-reporter-reply" id="reporter-reply">
+    <summary class="ticket-reporter-reply-summary">
+        <i class="ph ph-caret-right" aria-hidden="true"></i>
+        Reply to reporter
+    </summary>
+    <div class="ticket-reporter-reply-body">
+        {% if reporter_emails %}
+            <p>This goes to {{ reporter_emails | join(", ") }} and shows on their tracking page.</p>
+        {% else %}
+            <p>No confirmed address yet. The reply still shows on their tracking page.</p>
+        {% endif %}
+        <textarea id="reporter-reply-body" rows="3" maxlength="4000" placeholder="What should they know?"></textarea>
+        <button type="button" class="btn btn-secondary" id="reporter-reply-send">Send reply</button>
+        <p id="reporter-reply-status" hidden></p>
+    </div>
+</details>
 {% endif %}
 
 {% if parent_ticket or (subtickets and subtickets|length > 0) %}
@@ -219,6 +224,13 @@
             } else {
                 sidebar.appendChild(subticketsPanel);
             }
+        }
+
+        function mountReporterReply() {
+            const reply = document.getElementById('reporter-reply');
+            const main = document.querySelector('#ticket-editor .ticket-main');
+            if (!reply || !main) return;
+            main.appendChild(reply);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -410,6 +422,7 @@
 
             mountTopActionsInSidebar();
             mountSubticketsInSidebar();
+            mountReporterReply();
         });
     </script>
 {% endblock %}

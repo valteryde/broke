@@ -21,29 +21,69 @@
 }
 
 .ticket-reporter-reply {
-    margin-top: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    max-width: 720px;
+    margin-top: 0.15rem;
 }
 
-.ticket-reporter-reply h3 {
-    margin: 0;
+.ticket-reporter-reply-summary {
+    list-style: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    width: fit-content;
+    color: #6b7280;
+    font-size: 0.8rem;
+    font-weight: 500;
+    user-select: none;
+}
+
+.ticket-reporter-reply-summary::-webkit-details-marker,
+.ticket-reporter-reply-summary::marker {
+    display: none;
+    content: "";
+}
+
+.ticket-reporter-reply-summary .ph {
+    font-size: 0.72rem;
+    transition: transform 0.15s ease;
+}
+
+.ticket-reporter-reply[open] > .ticket-reporter-reply-summary .ph {
+    transform: rotate(90deg);
+}
+
+.ticket-reporter-reply-summary:hover {
+    color: #1f2937;
+}
+
+.ticket-reporter-reply-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    margin-top: 0.5rem;
 }
 
 .ticket-reporter-reply p {
     margin: 0;
-    color: #444;
+    color: #6b7280;
+    font-size: 0.8rem;
 }
 
 .ticket-reporter-reply textarea {
     width: 100%;
-    border: 1px solid #ccc;
+    border: 1px solid #d6deea;
     border-radius: 6px;
-    padding: 10px;
+    padding: 8px 10px;
     font: inherit;
+    font-size: 0.9rem;
     box-sizing: border-box;
+    background: #fff;
+}
+
+.ticket-reporter-reply .btn {
+    padding: 6px 12px;
+    font-size: 0.82rem;
 }
 
 .ticket-top-actions {
