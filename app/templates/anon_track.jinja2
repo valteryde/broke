@@ -18,6 +18,9 @@
         <div class="anon-track-header">
             <div>
                 <div class="anon-track-id">Ticket #{{ ticket.id.split('-')[-1] }}</div>
+                {% if kind_label %}
+                    <p class="anon-kind-label">{{ kind_label }}</p>
+                {% endif %}
                 <h1 class="anon-title" style="margin-bottom: 0;">{{ ticket.title }}</h1>
             </div>
             <div class="anon-track-status status-{{ ticket.status }}">
@@ -26,27 +29,19 @@
         </div>
 
         <div class="anon-meta">
-            {% if project %}
-            <span>
-                <i class="{{ project.icon }}" style="color: {{ project.color }}"></i>
-                {{ project.name }}
-            </span>
-            {% endif %}
             <span><i class="ph ph-clock"></i> {{ ticket.created_at|timestamp_to_date }}</span>
-             <span class="priority-{{ ticket.priority }}"><i class="ph ph-warning"></i> {{ ticket.priority|title }} Priority</span>
+            <span class="priority-{{ ticket.priority }}"><i class="ph ph-flag"></i> {{ ticket.priority|title }} priority</span>
         </div>
 
         <div class="anon-description">
             {{ ticket.description|safe }}
         </div>
 
-        <h3 class="anon-section-title" style="margin-top: 3rem;">Activity Timeline</h3>
+        <h3 class="anon-section-title" style="margin-top: 3rem;">Activity</h3>
         <div class="anon-timeline">
             {% for update in ticket.updates %}
                 <div class="anon-timeline-item">
-                    <div class="anon-timeline-icon">
-                        <i class="{{ update.icon }}"></i>
-                    </div>
+                    <i class="{{ update.icon }} anon-timeline-icon"></i>
                     <div class="anon-timeline-content">
                         <div class="anon-timeline-message">{{ update.message }}</div>
                         <div class="anon-timeline-time">{{ update.created_at|timestamp_to_date }}</div>
@@ -56,8 +51,22 @@
         </div>
 
         <div class="anon-footer">
-            <p><strong>Keep this page open.</strong> This URL is the only way to track your ticket status.</p>
+            <p><strong>Keep this page open.</strong> This URL is how you come back.</p>
+            <p>Confirmed addresses are mailed when the status changes.</p>
         </div>
     </div>
 </div>
+<script>
+    const ticketData = {
+        secret: {{ track_secret | tojson }},
+        title: {{ ticket.title | tojson }},
+        timestamp: {{ ticket.created_at | tojson }}
+    };
+    const tickets = JSON.parse(localStorage.getItem("broke_anon_tickets") || "[]");
+    const existing = tickets.findIndex((item) => item.secret === ticketData.secret);
+    if (existing >= 0) tickets.splice(existing, 1);
+    tickets.unshift(ticketData);
+    if (tickets.length > 10) tickets.pop();
+    localStorage.setItem("broke_anon_tickets", JSON.stringify(tickets));
+</script>
 {% endblock %}

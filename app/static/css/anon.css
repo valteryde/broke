@@ -273,15 +273,10 @@
 }
 
 .anon-timeline-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #f3f4f6;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #666;
+    font-size: 1.15rem;
+    color: #333;
     flex-shrink: 0;
+    margin-top: 2px;
 }
 
 .anon-timeline-content {
@@ -293,6 +288,7 @@
     color: #333;
     margin-bottom: 2px;
     font-size: 0.95rem;
+    white-space: pre-wrap;
 }
 
 .anon-timeline-time {
@@ -311,4 +307,572 @@
 
 .ql-container {
     border-top: 1px solid #ccc!important;
+}
+
+.anon-kind-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.anon-kind {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    background: white;
+    border: dashed 1px #bbb;
+    border-radius: 6px;
+    padding: 14px 16px;
+    cursor: pointer;
+    font: inherit;
+    color: black;
+}
+
+.anon-kind i {
+    font-size: 1.4rem;
+}
+
+.anon-kind span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.anon-kind small {
+    color: #666;
+}
+
+.anon-kind:hover {
+    border-color: var(--logo-blue);
+}
+
+.anon-optional,
+.anon-hint {
+    color: #666;
+    font-weight: 400;
+    font-size: 0.85rem;
+}
+
+.anon-hint {
+    margin: 0;
+}
+
+.anon-kind-label {
+    margin: 0 0 0.25rem;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.anon-review-reading {
+    margin: 0.85rem 0 0;
+    font-weight: 600;
+}
+
+.anon-report {
+    margin: 1.15rem -1.4rem 0;
+    background: #fffdf8;
+    border-top: 1px solid #e4dcc8;
+    border-bottom: 1px solid #e4dcc8;
+}
+
+.anon-report[hidden] {
+    display: none !important;
+}
+
+.anon-review-headline {
+    margin: 0;
+    padding: 0.9rem 1rem 0.55rem;
+    font-family: "Space Grotesk Variable", sans-serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    color: #1c1c1c;
+}
+
+.anon-review-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 1rem 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.anon-review-row-button {
+    display: flex;
+    gap: 0.55rem;
+    align-items: flex-start;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+}
+
+.anon-review-row-button i {
+    flex: none;
+    margin-top: 0.15rem;
+    font-size: 1.05rem;
+    color: #1d684f;
+}
+
+.anon-review-row[data-ok="no"] .anon-review-row-button i {
+    color: #e10600;
+}
+
+.anon-review-label {
+    display: block;
+    font-size: 0.92rem;
+}
+
+.anon-question-line {
+    position: relative;
+}
+
+.anon-error-arrow {
+    position: absolute;
+    left: -0.7rem;
+    top: 50%;
+    transform: translate(-100%, -50%);
+    width: max-content;
+    max-width: 14rem;
+    margin: 0;
+    padding: 0.45rem 1.45rem 0.45rem 0.75rem;
+    border: none;
+    background: #e10600;
+    color: white;
+    clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+    animation: anon-arrow-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes anon-arrow-in {
+    from {
+        opacity: 0;
+        transform: translate(calc(-100% - 0.85rem), -50%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-100%, -50%);
+    }
+}
+
+.anon-flow.has-report .anon-report {
+    animation: anon-report-in 0.4s ease both;
+}
+
+@keyframes anon-report-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.4rem);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.anon-error-arrow[hidden] {
+    display: none !important;
+}
+
+.anon-field-note,
+.anon-form-error {
+    margin: 0;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.anon-flow .anon-form-error {
+    margin-top: 0.85rem;
+    color: #9b1c1c;
+}
+
+body:has(.anon-flow) .standalone-header {
+    padding: 1.25rem 0 0.35rem;
+}
+
+body:has(.anon-flow) .standalone-main {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+body:has(.anon-flow) .standalone-header-inner,
+.standalone-container:has(.anon-flow) {
+    width: min(50rem, calc(100% - 1.5rem));
+    max-width: 50rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+body:has(.anon-flow) .standalone-header-inner {
+    box-sizing: border-box;
+    padding-left: 8rem;
+    transition: padding-left 0.48s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body:has(.anon-flow.has-report) .standalone-header-inner {
+    padding-left: 16rem;
+}
+
+.standalone-container:has(.anon-flow) {
+    justify-content: flex-start;
+    padding: 0.5rem 0 2.5rem;
+    overflow: visible;
+}
+
+.anon-flow {
+    width: min(34rem, 100%);
+    max-width: none;
+    margin-left: 8rem;
+    margin-right: auto;
+    padding: 0;
+    overflow: visible;
+    transition: margin-left 0.48s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.anon-flow.has-report {
+    margin-left: 16rem;
+}
+
+@media (max-width: 860px) {
+    body:has(.anon-flow) .standalone-header-inner,
+    .standalone-container:has(.anon-flow) {
+        width: min(34rem, calc(100% - 2rem));
+        max-width: 34rem;
+    }
+
+    body:has(.anon-flow) .standalone-header-inner,
+    body:has(.anon-flow.has-report) .standalone-header-inner {
+        padding-left: 0;
+    }
+
+    .anon-flow,
+    .anon-flow.has-report {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .anon-error-arrow {
+        position: static;
+        transform: none;
+        display: flex;
+        width: max-content;
+        max-width: 100%;
+        margin: 0 0 0.45rem;
+        animation-name: anon-arrow-in-static;
+    }
+}
+
+@keyframes anon-arrow-in-static {
+    from {
+        opacity: 0;
+        transform: translateY(-0.35rem);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .anon-flow,
+    body:has(.anon-flow) .standalone-header-inner,
+    .anon-error-arrow,
+    .anon-flow.has-report .anon-report {
+        transition: none;
+        animation: none;
+    }
+}
+
+.anon-flow .anon-card {
+    background: white;
+    border: 1px solid #e4e4e4;
+    border-radius: 12px;
+    padding: 1.35rem 1.4rem 1.5rem;
+    overflow: visible;
+}
+
+.anon-flow .anon-header {
+    margin-bottom: 0.85rem;
+}
+
+.anon-flow .anon-welcome {
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0 0 0.35rem;
+    font-size: 0.98rem;
+    line-height: 1.5;
+    color: #333;
+}
+
+.anon-flow .anon-title {
+    font-size: 1.55rem;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 0 0 0.85rem;
+}
+
+.anon-mail-off {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    color: #555;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    margin: 0 0 1.1rem;
+}
+
+.anon-mail-off i {
+    font-size: 1.15rem;
+    color: var(--logo-blue);
+    margin-top: 0.12rem;
+}
+
+.anon-flow .anon-kind-list {
+    gap: 0.45rem;
+}
+
+.anon-flow .anon-kind {
+    gap: 0.85rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid #e3e3e3;
+    border-radius: 8px;
+    background: #f7f7f7;
+}
+
+.anon-flow .anon-kind i {
+    font-size: 1.35rem;
+    color: var(--logo-blue);
+}
+
+.anon-flow .anon-kind strong {
+    font-size: 1rem;
+}
+
+.anon-flow .anon-kind small {
+    font-size: 0.88rem;
+    line-height: 1.35;
+}
+
+#anon-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.85rem;
+    padding: 0.45rem 0.75rem 0.45rem 0.55rem;
+    border: 1px solid #e3e3e3;
+    border-radius: 8px;
+    background: #f7f7f7;
+    color: black;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+}
+
+#anon-back i {
+    font-size: 1.05rem;
+    color: var(--logo-blue);
+}
+
+#anon-back:hover {
+    border-color: var(--logo-blue);
+    background: white;
+    color: black;
+}
+
+.anon-story {
+    margin-bottom: 1.15rem;
+}
+
+.anon-question {
+    font-family: "Space Grotesk Variable", sans-serif;
+    font-size: 1.55rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin: 0 0 0.45rem;
+    color: black;
+}
+
+.anon-question label {
+    font: inherit;
+    color: inherit;
+    cursor: text;
+}
+
+.anon-story textarea,
+.anon-name input,
+.anon-reply input,
+.anon-panel textarea {
+    width: 100%;
+    border: 1px solid #e3e3e3;
+    border-radius: 8px;
+    background: #f7f7f7;
+    padding: 0.7rem 0.85rem;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    box-sizing: border-box;
+    color: black;
+}
+
+.anon-story textarea {
+    resize: none;
+    overflow: hidden;
+    min-height: 6.25rem;
+}
+
+.anon-follow .anon-question {
+    font-size: 1.15rem;
+}
+
+.anon-follow textarea {
+    min-height: 2.75rem;
+}
+
+.anon-story textarea::placeholder,
+.anon-name input::placeholder,
+.anon-reply input::placeholder,
+.anon-panel textarea::placeholder {
+    color: #9a9a9a;
+}
+
+.anon-story textarea:focus,
+.anon-name input:focus,
+.anon-reply input:focus,
+.anon-panel textarea:focus {
+    outline: none;
+    border-color: var(--logo-blue);
+    background: white;
+}
+
+.anon-name {
+    margin-bottom: 1.15rem;
+}
+
+.anon-name label,
+.anon-reply label,
+.anon-panel label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: black;
+}
+
+.anon-reply {
+    margin-bottom: 0.15rem;
+}
+
+.anon-reply label i,
+.anon-quiet i,
+.anon-check-icon {
+    color: var(--logo-blue);
+}
+
+.anon-reply label i {
+    font-size: 1.35rem;
+}
+
+.anon-tools {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    margin: 0.65rem 0 0;
+}
+
+.anon-quiet {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    padding: 0.4rem 0;
+    color: black;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.98rem;
+}
+
+.anon-quiet i {
+    font-size: 1.4rem;
+}
+
+.anon-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin: 0.15rem 0 0.4rem;
+}
+
+.anon-panel[hidden] {
+    display: none !important;
+}
+
+.anon-panel textarea {
+    min-height: 3.4rem;
+    resize: none;
+}
+
+.anon-file-name {
+    color: #555;
+    font-size: 0.95rem;
+}
+
+.anon-flow .anon-review-reading {
+    font-size: 1.05rem;
+}
+
+.anon-flow .form-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 1.15rem;
+}
+
+.anon-send {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.75rem 1.25rem;
+    font-size: 1rem;
+}
+
+.anon-send i {
+    font-size: 1.2rem;
+}
+
+.anon-check-icon {
+    display: block;
+    font-size: 1.7rem;
+    margin-bottom: 0.55rem;
+}
+
+.anon-check .anon-title {
+    margin-bottom: 0.4rem;
+}
+
+.anon-check .anon-subtitle {
+    font-size: 0.98rem;
+    line-height: 1.5;
+    margin-bottom: 0;
 }

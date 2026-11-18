@@ -1,8 +1,8 @@
 import json
 import os
+import re
 import secrets
 import time
-from typing import Literal
 
 import pyargon2
 from flask import (
@@ -13,17 +13,40 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     send_from_directory,
     url_for,
 )
-from werkzeug import Response
 
+from ..utils.anon_intake import (
+    KINDS,
+    build_review,
+    create_ticket_from_draft,
+    delete_draft,
+    delete_upload,
+    draft_is_expired,
+    file_report_now,
+    find_contact,
+    kind_form_specs,
+    normalize_answers,
+    notify_verified,
+    open_draft_count,
+    parse_emails,
+    review_token_matches,
+    save_report_image,
+    send_confirm_mail,
+    send_received_mail,
+    store_draft,
+    structural_notes,
+)
 from ..utils.app import limiter
 from ..utils.events import EventTypes, bus
+from ..utils.mail import outbound_mail_configured
 from ..utils.models import (
+    AnonContact,
+    AnonDraft,
     GlobalSetting,
     PasswordResetToken,
-    Project,
     Ticket,
     TicketUpdateMessage,
     User,
@@ -66,10 +89,19 @@ def get_anon_settings():
         }
 
 
-@anon_bp.route("/anon")
-def anon_index() -> tuple[str, Literal[403]] | tuple[str, Literal[500]] | Response | str:
-    settings = get_anon_settings()
+def _read_report(data: dict):
+    kind = str(data.get("kind", "")).strip().lower()
+    if kind not in KINDS:
+        return None, None, (
+            jsonify({"error": "Choose problem, feature, or improvement.", "field": "kind"}),
+            400,
+        )
+    return kind, normalize_answers(kind, data), None
 
+
+@anon_bp.route("/anon")
+def anon_index():
+    settings = get_anon_settings()
     if not settings.get("enabled"):
         return (
             render_template(
@@ -82,8 +114,9 @@ def anon_index() -> tuple[str, Literal[403]] | tuple[str, Literal[500]] | Respon
 
     return render_template(
         "anon_wizard.jinja2",
-        step="form",
         welcome_message=settings.get("message", ""),
+        mail_configured=outbound_mail_configured(),
+        kind_specs=kind_form_specs(),
     )
 
 
@@ -93,88 +126,153 @@ def anon_wizard(project_id: str):
     return redirect(url_for("anon.anon_index"))
 
 
+@anon_bp.route("/api/anon/review", methods=["POST"])
+@limiter.limit("30 per hour")
+def api_anon_review():
+    settings = get_anon_settings()
+    if not settings.get("enabled"):
+        return jsonify({"error": "Anonymous tickets disabled"}), 403
+
+    data = request.get_json(silent=True) or {}
+    kind, answers, error = _read_report(data)
+    if error:
+        return error
+    return jsonify(build_review(kind, answers)), 200
+
+
 @anon_bp.route("/api/anon/submit", methods=["POST"])
-@limiter.limit("100 per hour")
+@limiter.limit("10 per hour")
 def api_anon_submit():
     settings = get_anon_settings()
     if not settings.get("enabled"):
         return jsonify({"error": "Anonymous tickets disabled"}), 403
 
     data = request.get_json(silent=True) or {}
-
-    title = str(data.get("title", "Anonymous Ticket")).strip() or "Anonymous Ticket"
-    description = str(data.get("description", "")).strip()
-
-    from .tickets import _find_possible_duplicate_tickets, _has_blocking_duplicate
-
-    possible_duplicates = _find_possible_duplicate_tickets(title, description)
-    has_duplicate_match = _has_blocking_duplicate(possible_duplicates)
-
-    project_id = "TRIAGE"
-
-    # Generate ticket ID (reusing logic from tickets.py or duplicating for cleanliness)
-    # Ideally should be a shared utility, but for now copying logic is safer than refactoring widely
-    existing_tickets = Ticket.select().where(Ticket.project == project_id)
-    max_num = 0
-    for t in existing_tickets:
-        parts = t.id.split("-")
-        if len(parts) >= 2:
-            try:
-                num = int(parts[-1])
-                if num > max_num:
-                    max_num = num
-            except ValueError:
-                pass
-    ticket_id = f"{project_id}-{max_num + 1}"
-    while Ticket.get_or_none(Ticket.id == ticket_id):
-        max_num += 1
-        ticket_id = f"{project_id}-{max_num + 1}"
-
-    # Generate Secret
-    secret = secrets.token_urlsafe(16)
-
-    Ticket.create(
-        id=ticket_id,
-        title=title,
-        description=description,
-        status="intake",  # Anonymous submissions always go through intake.
-        priority=data.get("priority", "medium"),
-        project=project_id,
-        created_at=int(time.time()),
-        anonymous_secret=secret,
-    )
-
-    duplicate_note = ""
-    if has_duplicate_match:
-        duplicate_ids = ", ".join(
-            [
-                str(match.get("id", "")).strip()
-                for match in possible_duplicates[:3]
-                if match.get("id")
-            ]
+    kind, answers, error = _read_report(data)
+    if error:
+        return error
+    notes = structural_notes(kind, answers)
+    if notes:
+        return jsonify({"error": notes[0]["message"], "field": notes[0]["field"]}), 400
+    if not review_token_matches(str(data.get("review_token", "")), kind, answers):
+        return (
+            jsonify({"error": "Check this report again before sending.", "field": "review_token"}),
+            400,
         )
-        if duplicate_ids:
-            duplicate_note = f" Potential duplicate candidates: {duplicate_ids}."
 
-    TicketUpdateMessage.create(
-        ticket=ticket_id,
-        title="Anonymous Ticket Created",
-        icon="ph ph-mask-happy",
-        message=f"A user submitted this ticket anonymously to intake.{duplicate_note}",
-        created_at=int(time.time()),
+    def _take_image():
+        image_value = str(data.get("image") or "").strip()
+        if not image_value:
+            return None, None
+        return save_report_image(image_value)
+
+    if not outbound_mail_configured():
+        image_src, image_error = _take_image()
+        if image_error:
+            return jsonify({"error": image_error, "field": "image"}), 400
+        try:
+            ticket = file_report_now(kind, answers, image_src)
+        except Exception:
+            delete_upload(image_src)
+            current_app.logger.exception("Could not file an anonymous report without mail")
+            return jsonify({"error": "Could not file the report."}), 500
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "pending": False,
+                    "track": f"/anon/track/{ticket.anonymous_secret}",
+                }
+            ),
+            201,
+        )
+
+    primary, copies, email_field, email_error = parse_emails(
+        data.get("primary_email", ""),
+        data.get("copy_emails", []),
     )
+    if email_error:
+        return jsonify({"error": email_error, "field": email_field}), 400
+    if open_draft_count(primary) >= 3:
+        return (
+            jsonify(
+                {
+                    "error": "A confirmation is already waiting for this address.",
+                    "field": "primary_email",
+                }
+            ),
+            400,
+        )
 
-    bus.emit(
-        EventTypes.ANON_TICKET_SUBMITTED,
-        ticket_id=ticket_id,
-        ticket_title=title,
-        project=project_id,
-        status="intake",
-        actor="anonymous",
-        details="Anonymous ticket entered intake inbox",
-    )
+    image_src, image_error = _take_image()
+    if image_error:
+        return jsonify({"error": image_error, "field": "image"}), 400
 
-    return jsonify({"success": True, "secret": secret, "ticket_id": ticket_id}), 201
+    draft, primary_token, copy_tokens = store_draft(kind, answers, primary, copies, image_src)
+    if not send_confirm_mail(primary, "primary", primary_token, answers["title"]):
+        delete_upload(image_src)
+        delete_draft(draft)
+        return jsonify({"error": "Could not send the confirmation email."}), 503
+
+    for email, token in copy_tokens:
+        if not send_confirm_mail(email, "copy", token, answers["title"]):
+            current_app.logger.warning("Copy confirmation was not sent to %s", email)
+
+    return jsonify({"success": True, "pending": True}), 201
+
+
+@anon_bp.route("/anon/verify/<token>", methods=["GET", "POST"])
+@limiter.limit("30 per hour", methods=["POST"])
+def anon_verify(token: str):
+    contact = find_contact(token)
+    if contact is None:
+        return (
+            render_template(
+                "error_message.jinja2",
+                error_code=404,
+                error_message="Tracking link invalid or expired.",
+            ),
+            404,
+        )
+    draft = AnonDraft.get_by_id(contact.draft_id)
+    expired = draft_is_expired(draft)
+    if request.method == "GET":
+        return render_template(
+            "anon_verify.jinja2",
+            expired=expired,
+            confirmed=bool(contact.verified_at) and draft.ticket_id is None,
+            token=token,
+        )
+
+    if expired:
+        return (
+            render_template("anon_verify.jinja2", expired=True, confirmed=False, token=token),
+            400,
+        )
+
+    if contact.role == "copy" and draft.ticket_id is None:
+        if not contact.verified_at:
+            contact.verified_at = int(time.time())
+            contact.save(only=[AnonContact.verified_at])
+        return render_template(
+            "anon_verify.jinja2",
+            expired=False,
+            confirmed=True,
+            token=token,
+        )
+
+    if draft.ticket_id and contact.role == "copy":
+        ticket = Ticket.get(Ticket.id == draft.ticket_id)
+        if not contact.verified_at:
+            contact.verified_at = int(time.time())
+            contact.ticket = ticket.id
+            contact.save(only=[AnonContact.verified_at, AnonContact.ticket])
+        send_received_mail(contact, ticket)
+        return redirect(url_for("anon.anon_track", secret=ticket.anonymous_secret))
+
+    ticket = create_ticket_from_draft(draft, contact)
+    notify_verified(ticket)
+    return redirect(url_for("anon.anon_track", secret=ticket.anonymous_secret))
 
 
 @anon_bp.route("/anon/track/<secret>")
@@ -190,16 +288,32 @@ def anon_track(secret: str):
             404,
         )
 
-    project = Project.get_or_none(Project.id == ticket.project)
-
-    # Populate minimal data
     ticket.updates = list(
         TicketUpdateMessage.select()
-        .where(TicketUpdateMessage.ticket == ticket.id)
+        .where((TicketUpdateMessage.ticket == ticket.id) & (TicketUpdateMessage.public == 1))
         .order_by(TicketUpdateMessage.id)
     )
+    kind_match = re.search(r'data-anon-kind="(problem|feature|improvement)"', ticket.description or "")
+    kind_label = KINDS[kind_match.group(1)].label if kind_match else ""
+    return render_template(
+        "anon_track.jinja2",
+        ticket=ticket,
+        kind_label=kind_label,
+        track_secret=secret,
+    )
 
-    return render_template("anon_track.jinja2", ticket=ticket, project=project)
+
+@anon_bp.route("/anon/media/<filename>")
+def anon_media(filename: str):
+    if not re.fullmatch(r"[a-f0-9]{32}\.(png|jpe?g|webp|gif)", filename):
+        return "", 404
+    referenced = Ticket.get_or_none(
+        Ticket.anonymous_secret.is_null(False) & Ticket.description.contains(filename)
+    )
+    path = data_path("uploads", filename)
+    if referenced is None or not os.path.isfile(path):
+        return "", 404
+    return send_file(path)
 
 
 @anon_bp.route("/forgot-password", methods=["GET", "POST"])
@@ -218,7 +332,6 @@ def forgot_password():
                 token=token,
                 reset_url=f"{_external_app_root_url()}/reset-password/{token}",
             )
-        # Always show success to prevent email enumeration
         flash("If your email is registered, you will receive a password reset link.", "success")
         return redirect(url_for("auth.login"))
     return render_template("forgot_password.jinja2")
@@ -231,7 +344,6 @@ def reset_password(token: str):
         flash("Invalid or expired password reset token.", "error")
         return redirect(url_for("auth.login"))
 
-    # Check expiration (e.g. 24 hours = 86400 seconds)
     if int(time.time()) - reset_token.created_at > 86400:
         reset_token.delete_instance()
         flash("Password reset token has expired.", "error")

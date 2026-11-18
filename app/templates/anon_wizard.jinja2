@@ -4,349 +4,422 @@
     <meta name="description" content="Submit an anonymous ticket to {{ site_name }}.">
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/anon.css') }}">
-    <!-- Quill.js -->
-    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
 {% endblock %}
 
 {% block title %}Submit Anonymous Ticket - {{ site_name }}{% endblock %}
 
 {% block content %}
-<div class="anon-container">
-    {% if step == 'form' %}
-        <div class="anon-card">
-            <div class="anon-header">
-                <a href="{{ request.script_root }}/anon" class="anon-back"><i class="ph ph-house"></i> Home</a>
+<div class="anon-container anon-flow">
+    <div class="anon-card">
+        {% if welcome_message %}
+            <p class="anon-welcome">{{ welcome_message }}</p>
+        {% endif %}
+
+        <section id="anon-kind-step">
+            <h1 class="anon-title">What are you sending?</h1>
+            <div class="anon-kind-list">
+                <button type="button" class="anon-kind" data-kind="problem">
+                    <i class="ph ph-warning" aria-hidden="true"></i>
+                    <span>
+                        <strong>Problem</strong>
+                        <small>Something is broken</small>
+                    </span>
+                </button>
+                <button type="button" class="anon-kind" data-kind="feature">
+                    <i class="ph ph-lightbulb" aria-hidden="true"></i>
+                    <span>
+                        <strong>Feature</strong>
+                        <small>Something new</small>
+                    </span>
+                </button>
+                <button type="button" class="anon-kind" data-kind="improvement">
+                    <i class="ph ph-wrench" aria-hidden="true"></i>
+                    <span>
+                        <strong>Improvement</strong>
+                        <small>Something that should work better</small>
+                    </span>
+                </button>
             </div>
+        </section>
 
-            <h1 class="anon-title">Submit a Ticket</h1>
-            <p class="anon-subtitle" style="margin-bottom: 0.5rem;">All anonymous submissions are routed to triage for review.</p>
-
-            {% if welcome_message %}
-                <div class="anon-welcome">
-                    {{ welcome_message }}
-                </div>
-            {% endif %}
-
+        <section id="anon-detail-step" hidden>
+            <button type="button" class="anon-back" id="anon-back"><i class="ph ph-arrow-left" aria-hidden="true"></i> Back</button>
             <form id="anon-form" class="anon-form">
-                <div class="form-group">
-                    <label>Title</label>
-                    <input type="text" name="title" required placeholder="Brief summary of the issue">
+                <div id="anon-fields"></div>
+
+                <div class="anon-name">
+                    <div class="anon-question-line">
+                        <button type="button" class="anon-error-arrow" data-for="title" hidden></button>
+                        <label id="anon-title-label" for="answer-title">What should we call this?</label>
+                    </div>
+                    <input type="text" id="answer-title" maxlength="140" autocomplete="off">
+                    <p class="anon-field-note" data-for="title" hidden></p>
                 </div>
 
-                <div class="form-group">
-                    <label>Description</label>
-                    <div id="description-editor" class="anon-editor"></div>
-                    <input type="hidden" name="description" id="description-input" required>
+                <div class="anon-reply">
+                    <label for="primary-email"><i class="ph ph-envelope" aria-hidden="true"></i> Where should we reply?</label>
+                    <input type="email" id="primary-email" autocomplete="email" placeholder="you@example.com">
                 </div>
 
-                <div class="form-group">
-                    <label>Priority</label>
-                    <select name="priority">
-                        <option value="low">Low</option>
-                        <option value="medium" selected>Medium</option>
-                        <option value="high">High</option>
-                        <option value="urgent">Urgent</option>
-                    </select>
+                <div class="anon-tools">
+                    <button type="button" class="anon-quiet" id="anon-add-image" aria-expanded="false" aria-controls="anon-image-panel">
+                        <i class="ph ph-image" aria-hidden="true"></i>
+                        Add a picture
+                    </button>
+                    <div id="anon-image-panel" class="anon-panel" hidden>
+                        <input type="file" id="anon-image" accept="image/png,image/jpeg,image/webp,image/gif">
+                        <span id="anon-image-name" class="anon-file-name"></span>
+                        <p class="anon-field-note" data-for="image" hidden></p>
+                    </div>
+
+                    <button type="button" class="anon-quiet" id="anon-add-copies" aria-expanded="false" aria-controls="anon-copies-panel">
+                        <i class="ph ph-users" aria-hidden="true"></i>
+                        Also notify someone
+                    </button>
+                    <div id="anon-copies-panel" class="anon-panel" hidden>
+                        <label for="copy-emails">Other emails, one per line, up to five</label>
+                        <textarea id="copy-emails" rows="2" placeholder="one address per line"></textarea>
+                    </div>
                 </div>
+
+                <p id="anon-review-reading" class="anon-review-reading" hidden>Reading your report</p>
+                <section id="anon-report" class="anon-report" hidden>
+                    <p id="anon-review-headline" class="anon-review-headline"></p>
+                    <ul id="anon-review-list" class="anon-review-list"></ul>
+                </section>
+                <p id="anon-form-error" class="anon-form-error" hidden></p>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="ph ph-paper-plane-tilt"></i>
-                        Submit Ticket
+                    <button type="submit" class="btn btn-primary anon-send" id="anon-submit">
+                        <i class="ph ph-paper-plane-tilt" aria-hidden="true"></i>
+                        Send
                     </button>
                 </div>
             </form>
-        </div>
+        </section>
 
-    {% endif %}
+        <section id="anon-check-step" class="anon-check" hidden>
+            <i class="ph ph-envelope anon-check-icon" aria-hidden="true"></i>
+            <h2 class="anon-title">Check your email</h2>
+            <p class="anon-subtitle">We sent a confirmation link to <strong id="anon-check-email"></strong>. The report is filed when that link is confirmed. Extra addresses get their own link and do not hold this up.</p>
+        </section>
+    </div>
 </div>
 
-<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script id="anon-kind-specs" type="application/json">{{ kind_specs | tojson }}</script>
 <script>
-    let descriptionQuill;
+    const kindSpecs = JSON.parse(document.getElementById("anon-kind-specs").textContent);
+    const saved = {};
+    let currentKind = "";
+    let reviewToken = "";
 
-    // Initialize Quill editor if on the form step
-    if (document.getElementById('description-editor')) {
-        descriptionQuill = new Quill('#description-editor', {
-            theme: 'snow',
-            placeholder: 'Detailed description...',
-            modules: {
-                toolbar: [
-                    ['bold', 'italic', 'underline', 'strike'],
-                    ['blockquote', 'code-block'],
-                    [{ 'header': 1 }, { 'header': 2 }],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    [{ 'script': 'sub'}, { 'script': 'super' }],
-                    [{ 'indent': '-1'}, { 'indent': '+1' }],
-                    ['link', 'image'],
-                    ['clean']
-                ]
-            }
+    const flow = document.querySelector(".anon-flow");
+    const kindStep = document.getElementById("anon-kind-step");
+    const detailStep = document.getElementById("anon-detail-step");
+    const checkStep = document.getElementById("anon-check-step");
+    const fieldsRoot = document.getElementById("anon-fields");
+    const titleInput = document.getElementById("answer-title");
+    const titleLabel = document.getElementById("anon-title-label");
+    const report = document.getElementById("anon-report");
+    const headline = document.getElementById("anon-review-headline");
+    const reviewList = document.getElementById("anon-review-list");
+    const reading = document.getElementById("anon-review-reading");
+    const formError = document.getElementById("anon-form-error");
+
+    function specFor(kind) {
+        return kindSpecs.find((item) => item.key === kind);
+    }
+
+    function answersFromForm() {
+        const spec = specFor(currentKind);
+        const answers = { kind: currentKind, title: titleInput.value };
+        spec.fields.forEach((field) => {
+            const input = document.getElementById("answer-" + field.key);
+            answers[field.key] = input ? input.value : "";
         });
+        return answers;
+    }
 
-        // Image upload handler
-        const toolbar = descriptionQuill.getModule('toolbar');
-        toolbar.addHandler('image', function() {
-            const input = document.createElement('input');
-            input.setAttribute('type', 'file');
-            input.setAttribute('accept', 'image/*');
-            input.click();
+    function remember() {
+        if (!currentKind) return;
+        saved[currentKind] = answersFromForm();
+    }
 
-            input.onchange = async () => {
-                const file = input.files[0];
-                if (file) {
-                    // Convert to base64
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const range = descriptionQuill.getSelection(true);
-                        descriptionQuill.insertEmbed(range.index, 'image', e.target.result);
-                        descriptionQuill.setSelection(range.index + 1);
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
+    function clearArrows() {
+        document.querySelectorAll(".anon-error-arrow").forEach((arrow) => {
+            arrow.hidden = true;
+            arrow.textContent = "";
         });
     }
 
-    document.getElementById('anon-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    function clearReview() {
+        reviewToken = "";
+        report.hidden = true;
+        headline.textContent = "";
+        reviewList.replaceChildren();
+        clearArrows();
+        flow.classList.remove("has-report");
+        document.querySelectorAll(".anon-field-note").forEach((note) => {
+            note.hidden = true;
+            note.textContent = "";
+        });
+    }
 
-        const form = e.target;
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const originalText = submitBtn.innerHTML;
+    function showError(message) {
+        formError.hidden = !message;
+        formError.textContent = message || "";
+        if (message) formError.scrollIntoView({ block: "nearest" });
+    }
 
-        // Get description from Quill editor
-        const descriptionHTML = descriptionQuill.root.innerHTML;
-        const descriptionInput = document.getElementById('description-input');
-        descriptionInput.value = descriptionHTML;
+    function fieldNote(field, message) {
+        const note = document.querySelector('.anon-field-note[data-for="' + field + '"]');
+        if (!note) return;
+        note.hidden = !message;
+        note.textContent = message || "";
+    }
 
-        // Validate description is not empty
-        const descriptionText = descriptionQuill.getText().trim();
-        if (!descriptionText) {
-            alert('Please enter a description');
+    function renderChecklist(payload) {
+        clearArrows();
+        const notes = Array.isArray(payload.notes) ? payload.notes.slice() : [];
+        const questionNotes = notes.filter((note) => document.getElementById("answer-" + (note.field || "")));
+        const loose = notes.filter((note) => !document.getElementById("answer-" + (note.field || "")));
+        if (!questionNotes.length) {
+            flow.classList.remove("has-report");
+            report.hidden = true;
+            headline.textContent = "";
+            reviewList.replaceChildren();
+            const message = loose.map((note) => note.message).filter(Boolean).join(" ");
+            showError(message || payload.headline || "The check did not finish. Try again.");
             return;
         }
-
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="ph ph-circle-notch ph-spin"></i> Submitting...';
-
-        const formData = new FormData(form);
-        const data = Object.fromEntries(formData.entries());
-
-        try {
-            const response = await fetch(brokeAppUrl('/api/anon/submit'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data)
+        flow.classList.add("has-report");
+        report.hidden = false;
+        headline.textContent = payload.headline || "";
+        reviewList.replaceChildren();
+        questionNotes.sort((a, b) => Number(Boolean(a.ok)) - Number(Boolean(b.ok)));
+        questionNotes.forEach((note) => {
+            const row = document.createElement("li");
+            row.className = "anon-review-row";
+            row.dataset.ok = note.ok ? "yes" : "no";
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "anon-review-row-button";
+            const icon = document.createElement("i");
+            icon.className = note.ok ? "ph ph-check" : "ph ph-arrow-right";
+            icon.setAttribute("aria-hidden", "true");
+            const text = document.createElement("span");
+            const label = document.createElement("strong");
+            label.className = "anon-review-label";
+            const input = document.getElementById("answer-" + note.field);
+            const inputLabel = input ? document.querySelector('label[for="answer-' + note.field + '"]') : null;
+            label.textContent = inputLabel ? inputLabel.textContent.replace("optional", "").trim() : note.field;
+            const sentence = document.createElement("span");
+            sentence.textContent = note.message || "";
+            text.append(label, sentence);
+            button.append(icon, text);
+            button.addEventListener("click", () => {
+                if (input) input.focus();
             });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                // Save to localStorage
-                const ticketData = {
-                    id: result.ticket_id,
-                    secret: result.secret,
-                    title: data.title,
-                    timestamp: Math.floor(Date.now() / 1000)
+            row.append(button);
+            reviewList.append(row);
+            const arrow = document.querySelector('.anon-error-arrow[data-for="' + note.field + '"]');
+            if (arrow && !note.ok) {
+                arrow.hidden = false;
+                arrow.textContent = note.message || "";
+                arrow.onclick = () => {
+                    if (input) input.focus();
                 };
-
-                const tickets = JSON.parse(localStorage.getItem('broke_anon_tickets') || '[]');
-                tickets.unshift(ticketData);
-                if (tickets.length > 10) tickets.pop();
-                localStorage.setItem('broke_anon_tickets', JSON.stringify(tickets));
-
-                window.location.href = brokeAppUrl('/anon/track/' + result.secret);
-            } else {
-                alert(result.error || 'Failed to submit ticket');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
             }
-        } catch (error) {
-            console.error(error);
-            alert('An error occurred');
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalText;
-        }
+            fieldNote(note.field, note.message || "");
+        });
+        const firstMiss = questionNotes.find((note) => !note.ok);
+        const firstArrow = firstMiss
+            ? document.querySelector('.anon-error-arrow[data-for="' + firstMiss.field + '"]')
+            : null;
+        if (firstArrow) firstArrow.scrollIntoView({ block: "nearest" });
+        else if (questionNotes.length) reviewList.scrollIntoView({ block: "nearest" });
+    }
+
+    function grow(input) {
+        input.style.height = "auto";
+        input.style.height = input.scrollHeight + "px";
+    }
+
+    function buildFields(kind) {
+        const spec = specFor(kind);
+        const prior = saved[kind] || {};
+        titleLabel.textContent = spec.title_label;
+        titleInput.placeholder = spec.title_example || "";
+        titleInput.value = prior.title || "";
+        fieldsRoot.replaceChildren();
+        spec.fields.forEach((field, index) => {
+            const group = document.createElement("div");
+            group.className = index === 0 ? "anon-story" : "anon-story anon-follow";
+            const line = document.createElement("div");
+            line.className = "anon-question-line";
+            const arrow = document.createElement("button");
+            arrow.type = "button";
+            arrow.className = "anon-error-arrow";
+            arrow.dataset.for = field.key;
+            arrow.hidden = true;
+            const heading = document.createElement(index === 0 ? "h1" : "h2");
+            heading.className = "anon-question";
+            const label = document.createElement("label");
+            label.htmlFor = "answer-" + field.key;
+            label.textContent = field.label;
+            heading.append(label);
+            line.append(arrow, heading);
+            const input = document.createElement("textarea");
+            input.id = "answer-" + field.key;
+            input.rows = 2;
+            input.placeholder = field.example || "";
+            input.value = prior[field.key] || "";
+            const note = document.createElement("p");
+            note.className = "anon-field-note";
+            note.dataset.for = field.key;
+            note.hidden = true;
+            group.append(line, input, note);
+            fieldsRoot.append(group);
+            input.addEventListener("input", () => {
+                grow(input);
+                clearReview();
+            });
+            requestAnimationFrame(() => grow(input));
+        });
+    }
+
+    function bindToggle(button, panel, focus) {
+        button.addEventListener("click", () => {
+            const willOpen = panel.hidden;
+            panel.hidden = !willOpen;
+            button.setAttribute("aria-expanded", String(willOpen));
+            if (willOpen && focus) focus.focus();
+        });
+    }
+
+    document.querySelectorAll(".anon-kind").forEach((button) => {
+        button.addEventListener("click", () => {
+            remember();
+            currentKind = button.dataset.kind;
+            buildFields(currentKind);
+            clearReview();
+            showError("");
+            kindStep.hidden = true;
+            detailStep.hidden = false;
+            checkStep.hidden = true;
+        });
     });
 
+    document.getElementById("anon-back").addEventListener("click", () => {
+        remember();
+        clearReview();
+        detailStep.hidden = true;
+        kindStep.hidden = false;
+    });
+
+    titleInput.addEventListener("input", clearReview);
+
+    bindToggle(
+        document.getElementById("anon-add-image"),
+        document.getElementById("anon-image-panel"),
+        document.getElementById("anon-image")
+    );
+    bindToggle(
+        document.getElementById("anon-add-copies"),
+        document.getElementById("anon-copies-panel"),
+        document.getElementById("copy-emails")
+    );
+    document.getElementById("anon-image").addEventListener("change", () => {
+        const file = document.getElementById("anon-image").files[0];
+        document.getElementById("anon-image-name").textContent = file ? file.name : "";
+    });
+
+    document.getElementById("anon-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        showError("");
+        const submitButton = document.getElementById("anon-submit");
+        const answers = answersFromForm();
+        submitButton.disabled = true;
+        reading.hidden = false;
+        report.hidden = true;
+        reviewList.replaceChildren();
+        headline.textContent = "";
+        clearArrows();
+        flow.classList.remove("has-report");
+
+        try {
+            const review = await fetch(brokeAppUrl("/api/anon/review"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(answers),
+            });
+            let verdict;
+            try {
+                verdict = await review.json();
+            } catch (parseError) {
+                showError(
+                    review.status === 429
+                        ? "Too many reports from this network. Try again later."
+                        : "The check did not finish. Try again."
+                );
+                submitButton.disabled = false;
+                return;
+            }
+            reading.hidden = true;
+            if (!review.ok) {
+                showError(verdict.error || "The check did not finish.");
+                submitButton.disabled = false;
+                return;
+            }
+            renderChecklist(verdict);
+            if (!verdict.ready) {
+                submitButton.disabled = false;
+                return;
+            }
+            reviewToken = verdict.review_token || "";
+            const payload = Object.assign({}, answers, {
+                review_token: reviewToken,
+                primary_email: document.getElementById("primary-email").value,
+                copy_emails: document.getElementById("copy-emails").value,
+            });
+            const file = document.getElementById("anon-image").files[0];
+            if (file) {
+                if (file.size > 2 * 1024 * 1024) {
+                    fieldNote("image", "The image must be 2 MB or smaller.");
+                    submitButton.disabled = false;
+                    return;
+                }
+                payload.image = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error("image"));
+                    reader.readAsDataURL(file);
+                });
+            }
+            const submitted = await fetch(brokeAppUrl("/api/anon/submit"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const result = await submitted.json();
+            if (!submitted.ok) {
+                showError(result.error || "Could not send the report.");
+                if (result.field) fieldNote(result.field, result.error);
+                submitButton.disabled = false;
+                return;
+            }
+            if (result.track) {
+                window.location.assign(brokeAppUrl(result.track));
+                return;
+            }
+            document.getElementById("anon-check-email").textContent = payload.primary_email;
+            detailStep.hidden = true;
+            checkStep.hidden = false;
+        } catch (error) {
+            reading.hidden = true;
+            showError("The check did not finish. Try again.");
+            submitButton.disabled = false;
+        }
+    });
 </script>
-
-<style>
-    /* Quill editor custom styling to match site aesthetic */
-    .anon-editor {
-        background: white;
-        border: solid 1px #ccc;
-        border-radius: 6px;
-        overflow: hidden;
-    }
-
-    .anon-editor .ql-toolbar {
-        border: none;
-        border-bottom: solid 1px #ddd;
-        background: white;
-        padding: 12px 10px;
-        margin: 0;
-    }
-
-    .anon-editor .ql-container {
-        border: none;
-        font-family: 'Rubik Variable', sans-serif;
-        font-size: 1rem;
-        background: white;
-        margin: 0;
-    }
-
-    .anon-editor .ql-editor {
-        min-height: 300px;
-        padding: 16px;
-        line-height: 1.6;
-        margin: 0;
-    }
-
-    /* Remove default Quill margins that cause gaps */
-    .anon-editor .ql-toolbar.ql-snow {
-        margin: 0;
-        padding: 12px 10px;
-    }
-
-    .anon-editor .ql-container.ql-snow {
-        margin: 0;
-    }
-
-    .anon-editor .ql-editor.ql-blank::before {
-        color: #999;
-        font-style: normal;
-        left: 16px;
-    }
-
-    .anon-editor:focus-within {
-        border-color: var(--logo-blue);
-    }
-
-    /* Toolbar button styling - more spacious and native looking */
-    .anon-editor .ql-toolbar button {
-        width: 32px;
-        height: 32px;
-        padding: 5px;
-        border-radius: 4px;
-        transition: background 0.15s;
-    }
-
-    .anon-editor .ql-toolbar button:hover {
-        background: var(--bg-light-gray);
-    }
-
-    .anon-editor .ql-toolbar button.ql-active {
-        background: var(--bg-light-gray);
-    }
-
-    .anon-editor .ql-toolbar .ql-stroke {
-        stroke: #333;
-    }
-
-    .anon-editor .ql-toolbar button:hover .ql-stroke,
-    .anon-editor .ql-toolbar button.ql-active .ql-stroke {
-        stroke: var(--logo-blue);
-    }
-
-    .anon-editor .ql-toolbar .ql-fill {
-        fill: #333;
-    }
-
-    .anon-editor .ql-toolbar button:hover .ql-fill,
-    .anon-editor .ql-toolbar button.ql-active .ql-fill {
-        fill: var(--logo-blue);
-    }
-
-    .anon-editor .ql-toolbar .ql-picker-label {
-        border: none;
-        padding: 5px 8px;
-        border-radius: 4px;
-    }
-
-    .anon-editor .ql-toolbar .ql-picker-label:hover {
-        background: var(--bg-light-gray);
-    }
-
-    /* Content styling */
-    .anon-editor .ql-editor h1 {
-        font-family: 'Space Grotesk Variable', sans-serif;
-        font-size: 1.75rem;
-        margin: 1em 0 0.5em;
-    }
-
-    .anon-editor .ql-editor h2 {
-        font-family: 'Space Grotesk Variable', sans-serif;
-        font-size: 1.4rem;
-        margin: 1em 0 0.5em;
-    }
-
-    .anon-editor .ql-editor p {
-        margin-bottom: 0.75em;
-    }
-
-    .anon-editor .ql-editor ul,
-    .anon-editor .ql-editor ol {
-        padding-left: 1.5em;
-        margin-bottom: 0.75em;
-    }
-
-    .anon-editor .ql-editor li {
-        margin-bottom: 0.25em;
-    }
-
-    .anon-editor .ql-editor pre {
-        background: #f8f8f8;
-        border: solid 1px #e0e0e0;
-        border-radius: 5px;
-        padding: 12px 14px;
-        margin: 1em 0;
-        font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-        font-size: 0.9rem;
-        line-height: 1.5;
-    }
-
-    .anon-editor .ql-editor code {
-        background: #f5f5f5;
-        border: solid 1px #e5e5e5;
-        padding: 2px 6px;
-        border-radius: 3px;
-        font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-        font-size: 0.9em;
-    }
-
-    .anon-editor .ql-editor blockquote {
-        border-left: 4px solid var(--logo-blue);
-        padding-left: 16px;
-        margin: 1em 0;
-        color: #555;
-        font-style: normal;
-    }
-
-    .anon-editor .ql-editor a {
-        color: var(--logo-blue);
-        text-decoration: underline;
-    }
-
-    .anon-editor .ql-editor img {
-        max-width: 100%;
-        height: auto;
-        border-radius: 5px;
-        margin: 1em 0;
-        display: block;
-    }
-
-    /* Spinning icon for loading state */
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-
-    .ph-spin {
-        animation: spin 1s linear infinite;
-    }
-</style>
 {% endblock %}
