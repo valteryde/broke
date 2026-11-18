@@ -1026,6 +1026,15 @@
                             <p class="form-hint">Anonymous submissions are always created in <strong>TRIAGE</strong> for review before entering backlog.</p>
                         </div>
 
+                        <div class="form-group">
+                            <label>Outbound mail</label>
+                            {% if anon_mail_configured %}
+                                <p class="form-hint">Outbound mail is configured. The public form can send confirmation links.</p>
+                            {% else %}
+                                <p class="form-hint">Outbound mail is not configured. Reports are filed immediately, without a confirmation email.</p>
+                            {% endif %}
+                        </div>
+
                         <div class="form-actions">
                             <button type="submit" class="btn btn-primary">Save Changes</button>
                         </div>

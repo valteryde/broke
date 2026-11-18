@@ -429,6 +429,11 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
 
     work_cycles = list(WorkCycle.select().order_by(WorkCycle.created_at.desc()))
     user_display_names = build_all_display_name_map()
+    reporter_emails: list[str] = []
+    if ticket.anonymous_secret:
+        from ..utils.anon_intake import confirmed_reporter_emails
+
+        reporter_emails = confirmed_reporter_emails(ticket.id)
 
     return render_template(
         "ticket.jinja2",
@@ -448,6 +453,7 @@ def ticket_detail_view(user: User, project_id: str, ticket_id: str):
         subticket_done_count=subticket_done_count,
         all_subtickets_done=all_subtickets_done,
         subticket_estimate_minutes=sum((child.estimate_minutes or 0) for child in subtickets),
+        reporter_emails=reporter_emails,
     )
 
 
@@ -1275,6 +1281,9 @@ def _apply_ticket_update(user: User, ticket_id: str):  # noqa: C901
             actor=user.username,
             details=f"Status changed from {old_status} to {value}",
         )
+        from ..utils.anon_intake import record_anon_public_status
+
+        record_anon_public_status(ticket, value)
 
     elif field == "project":
         target_project = str(value or "").strip()
@@ -1558,6 +1567,22 @@ def add_comment(user: User, ticket_id: str):
         ),
         201,
     )
+
+
+@tickets_bp.route("/api/tickets/<ticket_id>/public-reply", methods=["POST"])
+@protected
+def add_public_reply(user: User, ticket_id: str):
+    """Reply to the person who filed an anonymous report."""
+    data = request.get_json(silent=True) or {}
+    ticket = Ticket.get_or_none((Ticket.id == ticket_id) & (Ticket.active == 1))
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    from ..utils.anon_intake import post_public_reply
+
+    error = post_public_reply(ticket, user, str(data.get("body", "")))
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"success": True}), 201
 
 
 @tickets_bp.route("/api/comments/<int:comment_id>", methods=["DELETE"])

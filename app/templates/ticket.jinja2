@@ -39,6 +39,20 @@
 
 <div id="ticket-editor"></div>
 
+{% if ticket.anonymous_secret %}
+<section class="ticket-reporter-reply" id="reporter-reply">
+    <h3>Reply to reporter</h3>
+    {% if reporter_emails %}
+        <p>This goes to {{ reporter_emails | join(", ") }} and shows on their tracking page.</p>
+    {% else %}
+        <p>No confirmed address yet. The reply still shows on their tracking page.</p>
+    {% endif %}
+    <textarea id="reporter-reply-body" rows="4" maxlength="4000" placeholder="What should they know?"></textarea>
+    <button type="button" class="btn btn-primary" id="reporter-reply-send">Send reply</button>
+    <p id="reporter-reply-status" hidden></p>
+</section>
+{% endif %}
+
 {% if parent_ticket or (subtickets and subtickets|length > 0) %}
 <section class="ticket-subtickets-panel">
     <div class="ticket-subtickets-header">
@@ -104,6 +118,32 @@
         window.__BROKE_USER_DISPLAY_NAMES__ = {{ user_display_names | tojson }};
 
         var editor;
+
+        const replySend = document.getElementById("reporter-reply-send");
+        if (replySend) {
+            replySend.addEventListener("click", async () => {
+                const status = document.getElementById("reporter-reply-status");
+                const body = document.getElementById("reporter-reply-body").value;
+                replySend.disabled = true;
+                try {
+                    const response = await fetch(brokeAppUrl("/api/tickets/{{ ticket.id }}/public-reply"), {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ body })
+                    });
+                    const result = await response.json();
+                    status.hidden = false;
+                    status.textContent = response.ok ? "Sent." : (result.error || "Could not send.");
+                    if (response.ok) {
+                        document.getElementById("reporter-reply-body").value = "";
+                    }
+                } catch (error) {
+                    status.hidden = false;
+                    status.textContent = "Could not send.";
+                }
+                replySend.disabled = false;
+            });
+        }
 
         async function createSubticket() {
             try {

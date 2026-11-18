@@ -145,6 +145,9 @@ def agent_patch_ticket(user: User, agent_token, ticket_id: str):
                 message=f"{user.username} (agent) parked this ticket and removed it from the work cycle",
                 created_at=int(time.time()),
             )
+        from ..utils.anon_intake import record_anon_public_status
+
+        record_anon_public_status(ticket, ticket.status)
 
     if "description_append" in data:
         append = str(data.get("description_append") or "")

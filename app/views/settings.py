@@ -345,6 +345,7 @@ def settings_section_view(user: User, section: str):  # noqa: C901
                 "projects": [],
             }
         context["projects"] = list(active_projects_ordered())
+        context["anon_mail_configured"] = mail.outbound_mail_configured()
 
     elif section == "status_page":
         try:

@@ -249,6 +249,9 @@ def update_ticket(
             actor=user.username,
             details=f"Status changed from {old_status} to {status}",
         )
+        from .anon_intake import record_anon_public_status
+
+        record_anon_public_status(ticket, status)
 
     if "description_append" in fields_set:
         append = str(description_append or "")
