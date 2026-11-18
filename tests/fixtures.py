@@ -30,6 +30,7 @@ def app():
 
     test_app = create_app()
     test_app.config["TESTING"] = True
+    test_app.config["RATELIMIT_ENABLED"] = False
     test_app.config["WTF_CSRF_ENABLED"] = False  # Disable CSRF for testing
     return test_app
 
