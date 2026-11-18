@@ -1,0 +1,28 @@
+{% extends "standalone.jinja2" %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/anon.css') }}">
+{% endblock %}
+
+{% block title %}Confirm report - {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="anon-container">
+    <div class="anon-card">
+        {% if expired %}
+            <h1 class="anon-title">This link has expired</h1>
+            <p class="anon-subtitle">Submit the report again. Nothing was filed from this link.</p>
+            <a class="btn btn-primary" href="{{ request.script_root }}/anon">Start again</a>
+        {% elif confirmed %}
+            <h1 class="anon-title">You will get updates</h1>
+            <p class="anon-subtitle">The report is filed once the first address confirms. You will get the tracking link then.</p>
+        {% else %}
+            <h1 class="anon-title">Confirm this report</h1>
+            <p class="anon-subtitle">Nothing is filed until you press the button.</p>
+            <form method="post" action="{{ request.script_root }}/anon/verify/{{ token }}">
+                <button type="submit" class="btn btn-primary">Confirm</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

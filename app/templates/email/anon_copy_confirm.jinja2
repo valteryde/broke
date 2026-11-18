@@ -1,0 +1,18 @@
+{% extends "email/base.jinja2" %}
+{% block email_title %}Confirm you want updates{% endblock %}
+{% block preheader %}You were listed on a report. Confirm to receive updates.{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 18px;font-family: {{ brand.heading_font }};font-size: 22px;font-weight: 600;color: #111827;line-height: 1.25;">
+  Confirm you want updates
+</h1>
+<p style="margin:0 0 16px;">You were listed on a report. Confirm to receive updates. This message does not include the report.</p>
+<p style="margin:0 0 24px;">
+  <a href="{{ confirm_link }}"
+     style="display:inline-block;background-color: {{ brand.logo_blue }};color: #ffffff;font-family: {{ brand.body_font }};font-size: 16px;font-weight: 600;text-decoration: none;padding: 12px 22px;border-radius: 6px;line-height: 1.2;">
+    Confirm updates
+  </a>
+</p>
+<p style="margin:0;font-size: 14px;color: #6b7280;">
+  <a href="{{ confirm_link }}" style="color: {{ brand.logo_blue }};word-break: break-all;">{{ confirm_link }}</a>
+</p>
+{% endblock %}

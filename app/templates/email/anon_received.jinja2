@@ -1,0 +1,18 @@
+{% extends "email/base.jinja2" %}
+{% block email_title %}We received your report{% endblock %}
+{% block preheader %}“{{ title }}” is filed. Follow it from the link.{% endblock %}
+{% block content %}
+<h1 style="margin:0 0 18px;font-family: {{ brand.heading_font }};font-size: 22px;font-weight: 600;color: #111827;line-height: 1.25;">
+  We received your report
+</h1>
+<p style="margin:0 0 16px;">“{{ title }}” is filed. This link is how you follow it.</p>
+<p style="margin:0 0 24px;">
+  <a href="{{ track_link }}"
+     style="display:inline-block;background-color: {{ brand.logo_blue }};color: #ffffff;font-family: {{ brand.body_font }};font-size: 16px;font-weight: 600;text-decoration: none;padding: 12px 22px;border-radius: 6px;line-height: 1.2;">
+    Open the report
+  </a>
+</p>
+<p style="margin:0;font-size: 14px;color: #6b7280;">
+  <a href="{{ track_link }}" style="color: {{ brand.logo_blue }};word-break: break-all;">{{ track_link }}</a>
+</p>
+{% endblock %}
