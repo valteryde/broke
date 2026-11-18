@@ -42,9 +42,10 @@ A reporter can file a triage ticket from `/anon` only after one email address is
 - AI configured, and the structure passes: the model returns `ready`, a `headline` of at most 12 words, and one note per checked field, including fields that pass. A note is `{ field, ok, message }`.
 - `message` is one sentence, at most 160 characters, with no line breaks and no markdown. When `ok` is false it says the one thing to add. When `ok` is true it says what is already clear.
 - The response has no combined paragraph, no rewritten title, and no rewritten description.
-- A problem report stays not ready while the answer is vague about what happened, what was expected, where, or who is affected, or while the system is missing or vague.
-- A feature report stays not ready while it is vague about what is missing, why the current system is not enough, or which broken thing the new one must not copy.
-- An improvement report stays not ready while it is vague about the steps people take today, what is actually wrong with those steps, or what should change in the work.
+- A problem report stays not ready while nobody could tell what broke and where it shows up, or while the system is only “my computer” with no product. An expected result, a version, and who else is affected are useful, and their absence does not fail a report that already has the break and a named app, site, browser, or device.
+- A feature report stays not ready while the missing thing or the current job is still only a wish. It passes the “must not copy” answer when that answer names one real flaw, or says there is nothing existing to copy.
+- An improvement report stays not ready while the current steps, one real cost of those steps, or the change in the work is missing. A new label or color that keeps the same steps stays not ready.
+- The check does not ask again for a fact the current text already contains, and it does not ask for a fact the sender cannot know.
 - A failed or unusable model call returns `ready: false` and one note with an empty `field`. The form shows that sentence as a form error and does not point it at a question. The keyword fallback is not used.
 - A ready response includes `review_token`, valid for 30 minutes, bound to `kind` and that kind’s text answers. Emails and the image are outside the token.
 - The submit button calls this check first. Submit is not called while `ready` is false.

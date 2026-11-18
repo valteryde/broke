@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 from ward import Scope, fixture, test
 
+from app.utils.anon_enrich import review_anon_report
+from app.utils.anon_intake import checked_fields
 from app.utils.models import (
     AnonContact,
     AnonDraft,
@@ -623,6 +625,41 @@ def _(c=client, project=anon_enabled_project, sent=sent_mail):
         assert _review(c, answers)["ready"] is True
         assert _submit(c, answers, email).status_code == 201
         assert _confirm(c, sent, email).status_code == 302
+
+
+@test("the report check passes a usable answer instead of demanding more")
+def _():
+    seen = {}
+
+    def complete(_config, system, user, max_tokens):
+        seen["system"] = system
+        seen["user"] = user
+        return json.dumps(
+            {
+                "headline": "Login fails after a password reset",
+                "notes": [
+                    {"field": "title", "ok": True, "message": "The name says the login failure."},
+                    {"field": "detail", "ok": True, "message": "The reset then wrong password is specific."},
+                    {"field": "system", "ok": True, "message": "Chrome on Windows is enough to look."},
+                ],
+            }
+        )
+
+    answers = problem_answers("fair")
+    with (
+        patch("app.utils.anon_enrich.get_ai_config", return_value={"api_key": "test", "model": "test"}),
+        patch("app.utils.anon_enrich._complete", complete),
+    ):
+        verdict = review_anon_report("problem", answers, checked_fields("problem", answers))
+    assert verdict["headline"]
+    prompt = seen["user"]
+    assert answers["detail"] in prompt
+    assert "Set ok to false while any of these are vague" not in prompt
+    assert "Do not ask again for something the current text already says." in prompt
+    assert "Do not ask for something they cannot know" in prompt
+    assert "Enough: what broke, and where it shows up." in prompt
+    assert "A missing version is fine" in prompt
+    assert "When you are unsure whether one more detail is required, pass." in prompt
 
 
 @test("a configured review that fails stays closed")
