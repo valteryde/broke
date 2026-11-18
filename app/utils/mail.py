@@ -120,6 +120,14 @@ def effective_relay_token(stored_settings: dict | None = None) -> str:
     return str(stored_settings.get("relay_token") or "").strip()
 
 
+def outbound_mail_configured() -> bool:
+    """True when the selected transport has enough settings to attempt a send."""
+    state = load_email_transport_settings()
+    if state.get("transport") == "relay":
+        return bool(effective_relay_base_url(state) and effective_relay_token(state))
+    return bool((_load_smtp_settings().get("host") or "").strip())
+
+
 def send_email(to_email, subject, html_content, text_content=None):
     """Send one HTML email (optional multipart plain + HTML). Returns True on success, False when skipped or on failure."""
     transport_state = load_email_transport_settings()

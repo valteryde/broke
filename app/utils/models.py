@@ -303,9 +303,36 @@ class TicketUpdateMessage(BaseModel):
     message = CharField()
     created_at = IntegerField(default=lambda: int(time.time()))
     author = ForeignKeyField(User, null=True)
+    # 1 when the anonymous reporter is allowed to see this row.
+    public = IntegerField(default=0)
 
     class Meta:  # type: ignore
         indexes = ((("ticket", "title"), False),)
+
+
+class AnonDraft(BaseModel):
+    """A public report that is not a ticket until one address is confirmed."""
+
+    id = AutoField(primary_key=True)
+    payload = TextField()
+    created_at = IntegerField(default=lambda: int(time.time()))
+    expires_at = IntegerField()
+    consumed_at = IntegerField(null=True)
+    ticket_id = CharField(null=True, index=True)
+
+
+class AnonContact(BaseModel):
+    """An email attached to a draft. The raw confirm token is only mailed, never stored."""
+
+    id = AutoField(primary_key=True)
+    draft = ForeignKeyField(AnonDraft, backref="contacts", on_delete="CASCADE")
+    ticket = CharField(null=True, index=True)
+    email = CharField(index=True)
+    role = CharField()  # primary, copy
+    token_hash = CharField(unique=True)
+    verified_at = IntegerField(null=True)
+    tracking_sent_at = IntegerField(null=True)
+    created_at = IntegerField(default=lambda: int(time.time()))
 
 
 class Label(BaseModel):
@@ -594,6 +621,8 @@ MODELS = [
     Project,
     Comment,
     TicketUpdateMessage,
+    AnonDraft,
+    AnonContact,
     Label,
     TicketLabelJoin,
     ProjectPart,
@@ -647,7 +676,18 @@ def initialize_db():
     _ensure_errorgroup_event_meta_column()
     _ensure_monitor_last_response_ms_column()
     _ensure_monitor_public_column()
+    _ensure_ticket_update_public_column()
     database.close()
+
+
+def _ensure_ticket_update_public_column() -> None:
+    columns = [
+        row[1] for row in database.execute_sql("PRAGMA table_info(ticketupdatemessage);").fetchall()
+    ]
+    if columns and "public" not in columns:
+        database.execute_sql(
+            "ALTER TABLE ticketupdatemessage ADD COLUMN public INTEGER NOT NULL DEFAULT 0;"
+        )
 
 
 def _ensure_monitor_public_column() -> None:
