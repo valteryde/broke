@@ -20,48 +20,49 @@
     background: #fbfdff;
 }
 
-.ticket-reporter-reply {
-    margin-top: 0.15rem;
-}
-
-.ticket-reporter-reply-summary {
-    list-style: none;
-    cursor: pointer;
+.ticket-reporter-reply-toggle {
+    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 0.28rem;
-    width: fit-content;
+    padding: 0;
+    border: none;
+    background: transparent;
     color: #6b7280;
+    font: inherit;
     font-size: 0.8rem;
     font-weight: 500;
+    cursor: pointer;
     user-select: none;
 }
 
-.ticket-reporter-reply-summary::-webkit-details-marker,
-.ticket-reporter-reply-summary::marker {
-    display: none;
-    content: "";
-}
-
-.ticket-reporter-reply-summary .ph {
+.ticket-reporter-reply-toggle .ph {
     font-size: 0.72rem;
     transition: transform 0.15s ease;
 }
 
-.ticket-reporter-reply[open] > .ticket-reporter-reply-summary .ph {
+.ticket-reporter-reply-toggle.is-open .ph {
     transform: rotate(90deg);
 }
 
-.ticket-reporter-reply-summary:hover {
+.ticket-reporter-reply-toggle:hover {
     color: #1f2937;
 }
 
-.ticket-reporter-reply-body {
+.ticket-activity-header .ticket-reporter-reply-toggle + .ticket-activity-tabs {
+    margin-left: 0.85rem;
+}
+
+.ticket-reporter-reply {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 0.45rem;
-    margin-top: 0.5rem;
+    margin: -6px 0 16px;
+}
+
+.ticket-reporter-reply[hidden] {
+    display: none;
 }
 
 .ticket-reporter-reply p {
@@ -621,7 +622,7 @@
 .ticket-activity-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     margin-bottom: 20px;
 }
 
@@ -641,6 +642,7 @@
 .ticket-activity-tabs {
     display: flex;
     gap: 4px;
+    margin-left: auto;
 }
 
 .ticket-activity-tab {
@@ -1205,6 +1207,23 @@
 /* ================================
    RESPONSIVE
    ================================ */
+
+@media (max-width: 640px) {
+    .ticket-activity-header:has(.ticket-reporter-reply-toggle) {
+        flex-wrap: wrap;
+        row-gap: 0.35rem;
+    }
+
+    .ticket-activity-header:has(.ticket-reporter-reply-toggle) .ticket-reporter-reply-toggle {
+        flex: 1 0 100%;
+        order: 3;
+        margin-left: 0;
+    }
+
+    .ticket-activity-header:has(.ticket-reporter-reply-toggle) .ticket-activity-tabs {
+        margin-left: auto;
+    }
+}
 
 @media (max-width: 900px) {
     .ticket-page {

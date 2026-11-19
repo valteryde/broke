@@ -40,22 +40,20 @@
 <div id="ticket-editor"></div>
 
 {% if ticket.anonymous_secret %}
-<details class="ticket-reporter-reply" id="reporter-reply">
-    <summary class="ticket-reporter-reply-summary">
-        <i class="ph ph-caret-right" aria-hidden="true"></i>
-        Reply to reporter
-    </summary>
-    <div class="ticket-reporter-reply-body">
-        {% if reporter_emails %}
-            <p>This goes to {{ reporter_emails | join(", ") }} and shows on their tracking page.</p>
-        {% else %}
-            <p>No confirmed address yet. The reply still shows on their tracking page.</p>
-        {% endif %}
-        <textarea id="reporter-reply-body" rows="3" maxlength="4000" placeholder="What should they know?"></textarea>
-        <button type="button" class="btn btn-secondary" id="reporter-reply-send">Send reply</button>
-        <p id="reporter-reply-status" hidden></p>
-    </div>
-</details>
+<button type="button" class="ticket-reporter-reply-toggle" id="reporter-reply-toggle" aria-expanded="false" aria-controls="reporter-reply">
+    <i class="ph ph-caret-right" aria-hidden="true"></i>
+    Reply to reporter
+</button>
+<div class="ticket-reporter-reply" id="reporter-reply" hidden>
+    {% if reporter_emails %}
+        <p>This goes to {{ reporter_emails | join(", ") }} and shows on their tracking page.</p>
+    {% else %}
+        <p>No confirmed address yet. The reply still shows on their tracking page.</p>
+    {% endif %}
+    <textarea id="reporter-reply-body" rows="3" maxlength="4000" placeholder="What should they know?"></textarea>
+    <button type="button" class="btn btn-secondary" id="reporter-reply-send">Send reply</button>
+    <p id="reporter-reply-status" hidden></p>
+</div>
 {% endif %}
 
 {% if parent_ticket or (subtickets and subtickets|length > 0) %}
@@ -123,6 +121,20 @@
         window.__BROKE_USER_DISPLAY_NAMES__ = {{ user_display_names | tojson }};
 
         var editor;
+
+        const replyToggle = document.getElementById("reporter-reply-toggle");
+        const replyPanel = document.getElementById("reporter-reply");
+        if (replyToggle && replyPanel) {
+            replyToggle.addEventListener("click", () => {
+                const willOpen = replyPanel.hidden;
+                replyPanel.hidden = !willOpen;
+                replyToggle.classList.toggle("is-open", willOpen);
+                replyToggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+                if (willOpen) {
+                    document.getElementById("reporter-reply-body").focus();
+                }
+            });
+        }
 
         const replySend = document.getElementById("reporter-reply-send");
         if (replySend) {
@@ -227,10 +239,13 @@
         }
 
         function mountReporterReply() {
-            const reply = document.getElementById('reporter-reply');
-            const main = document.querySelector('#ticket-editor .ticket-main');
-            if (!reply || !main) return;
-            main.appendChild(reply);
+            const toggle = document.getElementById('reporter-reply-toggle');
+            const panel = document.getElementById('reporter-reply');
+            const header = document.querySelector('#ticket-editor .ticket-activity-header');
+            const tabs = header && header.querySelector('.ticket-activity-tabs');
+            if (!toggle || !panel || !header || !tabs) return;
+            tabs.before(toggle);
+            header.after(panel);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
